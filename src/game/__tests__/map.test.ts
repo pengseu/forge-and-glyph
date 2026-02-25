@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { generateMap, getNodeById } from '../map'
 
 describe('map', () => {
-  it('should generate 8 nodes', () => {
+  it('should generate 9 nodes', () => {
     const map = generateMap()
-    expect(map).toHaveLength(8)
+    expect(map).toHaveLength(9)
   })
 
   it('should have 1 boss node', () => {
@@ -19,6 +19,26 @@ describe('map', () => {
     const elite = map.filter(n => n.type === 'elite_battle').length
     expect(normal).toBe(5)
     expect(elite).toBe(2)
+  })
+
+  it('should have 1 campfire node without enemyId', () => {
+    const map = generateMap()
+    const campfire = map.filter(n => n.type === 'campfire')
+    expect(campfire).toHaveLength(1)
+    expect(campfire[0].enemyId).toBeUndefined()
+  })
+
+  it('campfire node should connect to subsequent nodes', () => {
+    const map = generateMap()
+    const campfire = map.find(n => n.type === 'campfire')!
+    expect(campfire.connections.length).toBeGreaterThan(0)
+  })
+
+  it('should have nodes connecting to campfire', () => {
+    const map = generateMap()
+    const campfire = map.find(n => n.type === 'campfire')!
+    const nodesConnectingToCampfire = map.filter(n => n.connections.includes(campfire.id))
+    expect(nodesConnectingToCampfire.length).toBeGreaterThan(0)
   })
 
   it('should find node by id', () => {

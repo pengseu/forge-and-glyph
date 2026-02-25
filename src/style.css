@@ -185,3 +185,103 @@ body {
 .result-victory { color: #4caf50; font-size: 18px; }
 .result-defeat { color: #e94560; font-size: 18px; }
 .result-stats { font-size: 10px; color: #aaa; }
+
+/* --- Map Scene --- */
+.scene-map {
+  display: flex;
+  flex-direction: column;
+  height: 600px;
+  padding: 20px;
+}
+
+.map-container {
+  flex: 1;
+  position: relative;
+  background: #0a0a1a;
+  border: 1px solid #0f3460;
+  margin-bottom: 20px;
+}
+
+.map-node {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  background: #1a1a2e;
+  border: 2px solid #0f3460;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: not-allowed;
+  transition: all 0.2s;
+}
+
+.map-node.accessible, .map-node.current {
+  cursor: pointer;
+  border-color: #e94560;
+}
+
+.map-node.accessible:hover {
+  transform: scale(1.1);
+  background: #2a2a3e;
+}
+
+.map-node.current {
+  background: #e94560;
+  color: #fff;
+}
+
+.map-node.completed {
+  opacity: 0.5;
+  border-color: #4caf50;
+}
+
+.node-icon { font-size: 24px; }
+.node-label { font-size: 8px; margin-top: 4px; }
+
+.deck-info {
+  font-size: 10px;
+  color: #aaa;
+}
+
+/* --- Reward Scene --- */
+.scene-reward {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 600px;
+  gap: 24px;
+}
+
+.scene-reward h2 {
+  font-size: 16px;
+  color: #e94560;
+}
+
+.reward-cards {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.reward-card {
+  width: 120px;
+  padding: 12px;
+  background: #1a1a2e;
+  border: 2px solid #0f3460;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.reward-card:hover {
+  transform: translateY(-4px);
+  border-color: #e94560;
+  background: #2a2a3e;
+}
+
+.reward-card .card-name { font-size: 9px; margin-bottom: 4px; }
+.reward-card .card-cost { font-size: 8px; color: #aaa; margin-bottom: 4px; }
+.reward-card .card-desc { font-size: 7px; color: #888; }

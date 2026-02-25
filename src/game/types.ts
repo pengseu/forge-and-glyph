@@ -60,6 +60,7 @@ export interface PlayerState {
   maxMana: number
   armor: number
   weaponDiscount: number
+  equippedWeaponId: string | null
   hand: CardInstance[]
   drawPile: CardInstance[]
   discardPile: CardInstance[]

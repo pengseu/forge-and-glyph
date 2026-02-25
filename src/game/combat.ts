@@ -23,7 +23,7 @@ function createDeck(): CardInstance[] {
   return shuffleArray(cards)
 }
 
-export function createBattleState(initialDeck?: CardInstance[]): BattleState {
+export function createBattleState(initialDeck?: CardInstance[], weaponDefId?: string): BattleState {
   const deck = initialDeck || createDeck()
   const drawPile = shuffleArray(deck)
   return {
@@ -36,6 +36,7 @@ export function createBattleState(initialDeck?: CardInstance[]): BattleState {
       maxMana: 2,
       armor: 0,
       weaponDiscount: 0,
+      equippedWeaponId: weaponDefId ?? null,
       hand: [],
       drawPile,
       discardPile: [],
@@ -110,7 +111,8 @@ export function canPlayCard(state: BattleState, cardUid: string): boolean {
 
   const def = getCardDef(card.defId)
   if (def.costType === 'stamina') {
-    return state.player.stamina >= def.cost
+    const actualCost = Math.max(0, def.cost - state.player.weaponDiscount)
+    return state.player.stamina >= actualCost
   } else if (def.costType === 'mana') {
     return state.player.mana >= def.cost
   }
@@ -126,10 +128,12 @@ export function playCard(state: BattleState, cardUid: string): BattleState {
   const card = state.player.hand[cardIndex]
   const def = getCardDef(card.defId)
 
-  // Deduct resource
+  // Deduct resource (apply weaponDiscount for stamina cards)
   let s = state
   if (def.costType === 'stamina') {
-    s = { ...s, player: { ...s.player, stamina: s.player.stamina - def.cost } }
+    const actualCost = Math.max(0, def.cost - s.player.weaponDiscount)
+    const newDiscount = s.player.weaponDiscount > 0 ? 0 : s.player.weaponDiscount
+    s = { ...s, player: { ...s.player, stamina: s.player.stamina - actualCost, weaponDiscount: newDiscount } }
   } else if (def.costType === 'mana') {
     s = { ...s, player: { ...s.player, mana: s.player.mana - def.cost } }
   }
@@ -141,6 +145,12 @@ export function playCard(state: BattleState, cardUid: string): BattleState {
   const newHand = s.player.hand.filter((_, i) => i !== cardIndex)
   const newDiscard = [...s.player.discardPile, card]
   s = { ...s, player: { ...s.player, hand: newHand, discardPile: newDiscard } }
+
+  // Weapon effect: combat cards trigger weaponDiscount
+  if (def.category === 'combat' && s.player.equippedWeaponId) {
+    const discountValue = s.player.equippedWeaponId === 'longsword_upgraded' ? 2 : 1
+    s = { ...s, player: { ...s.player, weaponDiscount: discountValue } }
+  }
 
   // Check victory
   if (s.enemy.hp <= 0) {

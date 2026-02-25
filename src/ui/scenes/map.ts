@@ -13,13 +13,14 @@ export function renderMap(
     const currentNode = state.mapNodes.find(n => n.id === state.currentNodeId)
     const isAccessible = node.id === state.currentNodeId || node.completed || (currentNode?.connections.includes(node.id) ?? false)
 
-    const typeEmoji = node.type === 'boss_battle' ? '👑' : node.type === 'elite_battle' ? '⭐' : '💀'
+    const typeEmoji = node.type === 'boss_battle' ? '👑' : node.type === 'elite_battle' ? '⭐' : node.type === 'campfire' ? '🔥' : '💀'
+    const typeLabel = node.type === 'boss_battle' ? 'Boss' : node.type === 'elite_battle' ? '精英' : node.type === 'campfire' ? '篝火' : '普通'
     const statusClass = isCurrent ? 'current' : isCompleted ? 'completed' : isAccessible ? 'accessible' : 'locked'
 
     return `
       <div class="map-node ${statusClass}" data-node-id="${node.id}" style="left: ${node.x * 100}px; top: ${node.y * 100}px;">
         <div class="node-icon">${typeEmoji}</div>
-        <div class="node-label">${node.type === 'boss_battle' ? 'Boss' : node.type === 'elite_battle' ? '精英' : '普通'}</div>
+        <div class="node-label">${typeLabel}</div>
       </div>
     `
   }).join('')

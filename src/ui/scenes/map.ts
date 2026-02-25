@@ -10,7 +10,8 @@ export function renderMap(
   const nodesHtml = state.mapNodes.map(node => {
     const isCurrent = node.id === state.currentNodeId
     const isCompleted = node.completed
-    const isAccessible = node.connections.some(id => state.visitedNodes.has(id) || id === state.currentNodeId)
+    const currentNode = state.mapNodes.find(n => n.id === state.currentNodeId)
+    const isAccessible = node.id === state.currentNodeId || node.completed || (currentNode?.connections.includes(node.id) ?? false)
 
     const typeEmoji = node.type === 'boss_battle' ? '👑' : node.type === 'elite_battle' ? '⭐' : '💀'
     const statusClass = isCurrent ? 'current' : isCompleted ? 'completed' : isAccessible ? 'accessible' : 'locked'

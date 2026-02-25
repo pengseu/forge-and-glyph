@@ -38,16 +38,6 @@ body {
   gap: 40px;
 }
 
-.title-overlay {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 40px;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 40px 60px;
-  border-radius: 8px;
-}
-
 .scene-title h1 {
   font-size: 20px;
   color: #e94560;
@@ -90,31 +80,17 @@ body {
 .stat-mana { color: #4fc3f7; }
 .stat-armor { color: #aaa; }
 
-/* --- Battle Scene --- */
-.scene-battle {
-  height: 600px;
-  position: relative;
-}
-
 /* --- Enemy Area --- */
 .enemy-area {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px 0;
+  padding: 40px 0;
   gap: 8px;
   min-height: 250px;
 }
 
-.enemy-sprite {
-  width: 128px;
-  height: 128px;
-  image-rendering: pixelated;
-  object-fit: contain;
-  filter: drop-shadow(0 0 8px rgba(233, 69, 96, 0.5));
-}
-
-.enemy-name { font-size: 14px; text-shadow: 1px 1px 2px #000; }
+.enemy-name { font-size: 14px; }
 
 .hp-bar-container {
   width: 200px;
@@ -221,7 +197,7 @@ body {
 .map-container {
   flex: 1;
   position: relative;
-  background: rgba(10, 10, 26, 0.7);
+  background: #0a0a1a;
   border: 1px solid #0f3460;
   margin-bottom: 20px;
 }
@@ -262,13 +238,7 @@ body {
 }
 
 .node-icon { font-size: 24px; }
-.node-icon-img {
-  width: 40px;
-  height: 40px;
-  image-rendering: pixelated;
-  object-fit: contain;
-}
-.node-label { font-size: 8px; margin-top: 4px; text-shadow: 1px 1px 2px #000; }
+.node-label { font-size: 8px; margin-top: 4px; }
 
 .deck-info {
   font-size: 10px;

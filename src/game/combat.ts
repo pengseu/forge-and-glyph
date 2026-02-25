@@ -85,6 +85,12 @@ export function startTurn(state: BattleState): BattleState {
   if (s.enemy.burn > 0) {
     s = applyCardEffects(s, [{ type: 'damage', value: s.enemy.burn }])
     s = { ...s, enemy: { ...s.enemy, burn: Math.max(0, s.enemy.burn - 1) } }
+
+    // Check victory after burn damage
+    if (s.enemy.hp <= 0) {
+      s = { ...s, phase: 'victory' }
+      return s
+    }
   }
 
   // Draw 5 cards

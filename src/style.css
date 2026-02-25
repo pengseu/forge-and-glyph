@@ -285,3 +285,59 @@ body {
 .reward-card .card-name { font-size: 9px; margin-bottom: 4px; }
 .reward-card .card-cost { font-size: 8px; color: #aaa; margin-bottom: 4px; }
 .reward-card .card-desc { font-size: 7px; color: #888; }
+
+/* --- Campfire Scene --- */
+.scene-campfire {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 600px;
+  gap: 30px;
+}
+
+.scene-campfire h2 {
+  font-size: 18px;
+  color: #f0a500;
+  text-shadow: 2px 2px #0f3460;
+}
+
+.campfire-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.campfire-cards {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 600px;
+}
+
+.campfire-card {
+  width: 110px;
+  padding: 8px;
+  background: #1a1a2e;
+  border: 2px solid #0f3460;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+  text-align: center;
+}
+
+.campfire-card:hover {
+  transform: translateY(-4px);
+  border-color: #f0a500;
+}
+
+.campfire-card.upgraded {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.upgrade-options {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}

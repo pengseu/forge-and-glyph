@@ -11,6 +11,8 @@ function makeRunState(overrides: Partial<RunState> = {}): RunState {
     turn: 0,
     equippedWeapon: null,
     weaponInventory: [],
+    playerHp: 50,
+    playerMaxHp: 50,
     ...overrides,
   }
 }

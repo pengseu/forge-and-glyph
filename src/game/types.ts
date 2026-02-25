@@ -129,6 +129,8 @@ export interface RunState {
   turn: number
   equippedWeapon: WeaponInstance | null
   weaponInventory: WeaponInstance[]
+  playerHp: number
+  playerMaxHp: number
 }
 
 export interface RewardState {

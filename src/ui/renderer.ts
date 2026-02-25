@@ -4,6 +4,7 @@ import { renderMap } from './scenes/map'
 import { renderBattle } from './scenes/battle'
 import { renderReward } from './scenes/reward'
 import { renderResult } from './scenes/result'
+import { renderCampfire } from './scenes/campfire'
 
 export interface GameCallbacks {
   onStartGame: () => void
@@ -13,6 +14,10 @@ export interface GameCallbacks {
   onSelectCard: (cardId: string) => void
   onSkipReward: () => void
   onRestart: () => void
+  onCampfireHeal: () => void
+  onCampfireUpgradeCard: (cardUid: string, upgradeType: 'damage' | 'cost') => void
+  onCampfireUpgradeWeapon: () => void
+  onCampfireContinue: () => void
 }
 
 export function render(
@@ -44,6 +49,17 @@ export function render(
         state.stats,
         callbacks.onRestart,
       )
+      break
+    case 'campfire':
+      if (state.run) {
+        renderCampfire(
+          container,
+          state.run,
+          state.run.playerHp,
+          state.run.playerMaxHp,
+          callbacks,
+        )
+      }
       break
   }
 }

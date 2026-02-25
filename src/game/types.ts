@@ -83,3 +83,32 @@ export interface GameState {
   lastResult: 'victory' | 'defeat' | null
   stats: { turns: number; remainingHp: number }
 }
+
+// --- Map System ---
+export type NodeType = 'normal_battle' | 'elite_battle' | 'boss_battle'
+
+export interface MapNode {
+  id: string
+  type: NodeType
+  enemyId: string
+  completed: boolean
+  x: number
+  y: number
+  connections: string[] // connected node IDs
+}
+
+export interface RunState {
+  currentNodeId: string
+  visitedNodes: Set<string>
+  deck: CardInstance[]
+  mapNodes: MapNode[]
+  turn: number
+}
+
+export interface RewardState {
+  candidateCards: CardDef[]
+  selectedCard: CardDef | null
+}
+
+// --- Enemy Types ---
+export type EnemyType = 'goblin_scout' | 'forest_wolf' | 'mushroom_creature' | 'goblin_king'

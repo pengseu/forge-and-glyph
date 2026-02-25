@@ -1,9 +1,9 @@
 import type { BattleState } from '../../game/types'
 import type { GameCallbacks } from '../renderer'
-import { getCardDef } from '../../game/cards'
 import { getEnemyDef } from '../../game/enemies'
 import { canPlayCard } from '../../game/combat'
 import { getWeaponDef } from '../../game/weapons'
+import { getEffectiveCardDef } from '../../game/campfire'
 
 export function renderBattle(
   container: HTMLElement,
@@ -48,7 +48,7 @@ export function renderBattle(
 
   // Build hand cards HTML
   const cardsHtml = state.player.hand.map(card => {
-    const def = getCardDef(card.defId)
+    const def = getEffectiveCardDef(card)
     const playable = canPlayCard(state, card.uid)
     let costLabel = ''
     if (def.costType === 'free') {

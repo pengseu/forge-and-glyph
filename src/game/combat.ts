@@ -2,6 +2,7 @@ import type { BattleState, CardInstance } from './types'
 import { getCardDef, STARTER_DECK_RECIPE } from './cards'
 import { getEnemyDef } from './enemies'
 import { applyCardEffects } from './effects'
+import { getEffectiveCardDef } from './campfire'
 
 function shuffleArray<T>(arr: T[]): T[] {
   const result = [...arr]
@@ -123,7 +124,7 @@ export function canPlayCard(state: BattleState, cardUid: string): boolean {
   const card = state.player.hand.find(c => c.uid === cardUid)
   if (!card) return false
 
-  const def = getCardDef(card.defId)
+  const def = getEffectiveCardDef(card)
   if (def.costType === 'stamina') {
     const actualCost = Math.max(0, def.cost - state.player.weaponDiscount)
     return state.player.stamina >= actualCost
@@ -140,7 +141,7 @@ export function playCard(state: BattleState, cardUid: string): BattleState {
   if (cardIndex === -1) return state
 
   const card = state.player.hand[cardIndex]
-  const def = getCardDef(card.defId)
+  const def = getEffectiveCardDef(card)
 
   // Deduct resource (apply weaponDiscount for stamina cards)
   let s = state

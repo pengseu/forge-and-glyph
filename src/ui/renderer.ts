@@ -9,6 +9,8 @@ export interface GameCallbacks {
   onEndTurn: () => void
   onRestart: () => void
   onSelectNode: (nodeId: string) => void
+  onSelectCard: (cardId: string) => void
+  onSkipReward: () => void
 }
 
 export function render(

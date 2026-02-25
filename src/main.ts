@@ -62,6 +62,14 @@ function update() {
       // TODO: Implement node selection logic
       console.log('Node selected:', nodeId)
     },
+    onSelectCard: (cardId: string) => {
+      // TODO: Implement card selection logic
+      console.log('Card selected:', cardId)
+    },
+    onSkipReward: () => {
+      // TODO: Implement skip reward logic
+      console.log('Reward skipped')
+    },
   })
 }
 

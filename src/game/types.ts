@@ -81,11 +81,13 @@ export interface BattleState {
 }
 
 // --- Scene ---
-export type Scene = 'title' | 'battle' | 'result'
+export type Scene = 'title' | 'map' | 'battle' | 'reward' | 'result'
 
 export interface GameState {
   scene: Scene
+  run: RunState | null
   battle: BattleState | null
+  rewardCards: CardDef[]
   lastResult: 'victory' | 'defeat' | null
   stats: { turns: number; remainingHp: number }
 }

@@ -1,16 +1,18 @@
 import type { GameState } from '../game/types'
 import { renderTitle } from './scenes/title'
-import { renderResult } from './scenes/result'
+import { renderMap } from './scenes/map'
 import { renderBattle } from './scenes/battle'
+import { renderReward } from './scenes/reward'
+import { renderResult } from './scenes/result'
 
 export interface GameCallbacks {
   onStartGame: () => void
+  onSelectNode: (nodeId: string) => void
   onPlayCard: (cardUid: string) => void
   onEndTurn: () => void
-  onRestart: () => void
-  onSelectNode: (nodeId: string) => void
   onSelectCard: (cardId: string) => void
   onSkipReward: () => void
+  onRestart: () => void
 }
 
 export function render(
@@ -22,10 +24,18 @@ export function render(
     case 'title':
       renderTitle(container, callbacks.onStartGame)
       break
+    case 'map':
+      if (state.run) {
+        renderMap(container, state.run, callbacks)
+      }
+      break
     case 'battle':
       if (state.battle) {
         renderBattle(container, state.battle, callbacks)
       }
+      break
+    case 'reward':
+      renderReward(container, state.rewardCards, callbacks)
       break
     case 'result':
       renderResult(

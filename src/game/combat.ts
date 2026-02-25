@@ -23,8 +23,9 @@ function createDeck(): CardInstance[] {
   return shuffleArray(cards)
 }
 
-export function createBattleState(): BattleState {
-  const drawPile = createDeck()
+export function createBattleState(initialDeck?: CardInstance[]): BattleState {
+  const deck = initialDeck || createDeck()
+  const drawPile = shuffleArray(deck)
   return {
     player: {
       hp: 50,

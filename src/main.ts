@@ -32,8 +32,8 @@ function update() {
       // Move to node
       let newRun = moveToNode(gameState.run, nodeId)
 
-      // Enter battle
-      let battle = createBattleState()
+      // Enter battle, use run deck instead of creating new deck
+      let battle = createBattleState(newRun.deck)
       const enemyDef = getEnemyDef(node.enemyId)
       battle = {
         ...battle,

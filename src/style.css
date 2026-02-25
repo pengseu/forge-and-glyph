@@ -1,0 +1,187 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Press Start 2P', monospace;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 12px;
+  image-rendering: pixelated;
+}
+
+#app {
+  width: 800px;
+  min-height: 600px;
+  background: #16213e;
+  border: 3px solid #0f3460;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* --- Title Scene --- */
+.scene-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 600px;
+  gap: 40px;
+}
+
+.scene-title h1 {
+  font-size: 20px;
+  color: #e94560;
+  text-shadow: 2px 2px #0f3460;
+}
+
+.scene-title .subtitle {
+  font-size: 10px;
+  color: #a0a0a0;
+}
+
+/* --- Buttons --- */
+.btn {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  padding: 12px 24px;
+  background: #e94560;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn:hover { background: #ff6b6b; }
+.btn:disabled { background: #555; cursor: not-allowed; }
+
+/* --- Player Status Bar --- */
+.player-bar {
+  display: flex;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #0f3460;
+  font-size: 11px;
+  align-items: center;
+}
+
+.stat { display: flex; align-items: center; gap: 4px; }
+.stat-hp { color: #e94560; }
+.stat-stamina { color: #f0a500; }
+.stat-mana { color: #4fc3f7; }
+.stat-armor { color: #aaa; }
+
+/* --- Enemy Area --- */
+.enemy-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 0;
+  gap: 8px;
+  min-height: 250px;
+}
+
+.enemy-name { font-size: 14px; }
+
+.hp-bar-container {
+  width: 200px;
+  height: 12px;
+  background: #333;
+  border: 1px solid #555;
+}
+
+.hp-bar-fill {
+  height: 100%;
+  background: #e94560;
+  transition: width 0.3s ease;
+}
+
+.enemy-intent {
+  font-size: 10px;
+  color: #f0a500;
+  margin-top: 8px;
+}
+
+/* --- Damage Float --- */
+.damage-float {
+  position: absolute;
+  font-size: 16px;
+  color: #ff4444;
+  font-weight: bold;
+  animation: float-up 0.8s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes float-up {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-40px); }
+}
+
+/* --- Hand Area --- */
+.hand-area {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #0a0a1a;
+  padding: 16px;
+  border-top: 2px solid #0f3460;
+}
+
+.hand-cards {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.card {
+  width: 110px;
+  padding: 8px;
+  background: #1a1a2e;
+  border: 2px solid #0f3460;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+  text-align: center;
+}
+
+.card:hover { transform: translateY(-4px); border-color: #e94560; }
+.card.disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.card-name { font-size: 9px; margin-bottom: 4px; }
+.card-cost { font-size: 8px; color: #aaa; margin-bottom: 4px; }
+.card-desc { font-size: 7px; color: #888; }
+.card-cost.stamina { color: #f0a500; }
+.card-cost.mana { color: #4fc3f7; }
+.card-cost.free { color: #4caf50; }
+
+.hand-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9px;
+  color: #666;
+}
+
+/* --- Result Scene --- */
+.scene-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 600px;
+  gap: 24px;
+}
+
+.result-victory { color: #4caf50; font-size: 18px; }
+.result-defeat { color: #e94560; font-size: 18px; }
+.result-stats { font-size: 10px; color: #aaa; }

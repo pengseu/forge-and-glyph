@@ -1,4 +1,4 @@
-import type { RunState, CardInstance } from './types'
+import type { RunState, CardInstance, WeaponInstance } from './types'
 import { generateMap } from './map'
 import { STARTER_DECK_RECIPE } from './cards'
 import { getCardDef } from './cards'
@@ -60,4 +60,39 @@ export function addCardToDeck(state: RunState, cardId: string): RunState {
     ...state,
     deck: [...state.deck, newCard],
   }
+}
+
+export function addWeaponToInventory(state: RunState, weaponDefId: string): RunState {
+  const newWeapon: WeaponInstance = {
+    uid: `weapon_${Date.now()}_${Math.random()}`,
+    defId: weaponDefId,
+  }
+  return {
+    ...state,
+    weaponInventory: [...state.weaponInventory, newWeapon],
+  }
+}
+
+export function equipWeapon(state: RunState, weaponUid: string): RunState {
+  const weapon = state.weaponInventory.find(w => w.uid === weaponUid)
+  if (!weapon) return state
+  return {
+    ...state,
+    equippedWeapon: weapon,
+  }
+}
+
+export function upgradeEquippedWeapon(state: RunState): RunState {
+  if (!state.equippedWeapon) return state
+  if (state.equippedWeapon.defId === 'longsword') {
+    const upgraded: WeaponInstance = {
+      ...state.equippedWeapon,
+      defId: 'longsword_upgraded',
+    }
+    return {
+      ...state,
+      equippedWeapon: upgraded,
+    }
+  }
+  return state
 }

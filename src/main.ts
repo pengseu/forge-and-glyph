@@ -1,7 +1,7 @@
 import './style.css'
 import type { GameState } from './game/types'
 import { createBattleState, startTurn, playCard, endPlayerTurn } from './game/combat'
-import { createRunState, moveToNode, completeNode, addCardToDeck, upgradeEquippedWeapon } from './game/run'
+import { createRunState, moveToNode, completeNode, addCardToDeck, addWeaponToInventory, equipWeapon, upgradeEquippedWeapon } from './game/run'
 import { getRewardCards } from './game/reward'
 import { getEnemyDef } from './game/enemies'
 import { restoreHp } from './game/campfire'
@@ -14,6 +14,7 @@ let gameState: GameState = {
   run: null,
   battle: null,
   rewardCards: [],
+  droppedWeaponId: null,
   lastResult: null,
   stats: { turns: 0, remainingHp: 0 },
 }
@@ -69,12 +70,21 @@ function update() {
         if (!currentNode) return
 
         const rewardCards = getRewardCards(currentNode.type)
+
+        // 武器掉落判定
+        let droppedWeaponId: string | null = null
+        const hasLongsword = newRun.weaponInventory.some(w => w.defId === 'longsword' || w.defId === 'longsword_upgraded')
+        if (!hasLongsword && Math.random() < 0.3) {
+          droppedWeaponId = 'longsword'
+        }
+
         gameState = {
           ...gameState,
           run: newRun,
           battle: null,
           scene: 'reward',
           rewardCards,
+          droppedWeaponId,
         }
       } else {
         gameState = { ...gameState, battle: newBattle }
@@ -102,13 +112,21 @@ function update() {
       if (!gameState.run) return
       let newRun = addCardToDeck(gameState.run, cardId)
       newRun = completeNode(newRun, newRun.currentNodeId)
-      gameState = { ...gameState, run: newRun, scene: 'map', rewardCards: [] }
+      gameState = { ...gameState, run: newRun, scene: 'map', rewardCards: [], droppedWeaponId: null }
       update()
     },
     onSkipReward: () => {
       if (!gameState.run) return
       let newRun = completeNode(gameState.run, gameState.run.currentNodeId)
-      gameState = { ...gameState, run: newRun, scene: 'map', rewardCards: [] }
+      gameState = { ...gameState, run: newRun, scene: 'map', rewardCards: [], droppedWeaponId: null }
+      update()
+    },
+    onEquipWeapon: (weaponDefId: string) => {
+      if (!gameState.run) return
+      let newRun = addWeaponToInventory(gameState.run, weaponDefId)
+      const newWeapon = newRun.weaponInventory[newRun.weaponInventory.length - 1]
+      newRun = equipWeapon(newRun, newWeapon.uid)
+      gameState = { ...gameState, run: newRun, droppedWeaponId: null }
       update()
     },
     onRestart: () => {
@@ -117,6 +135,7 @@ function update() {
         run: null,
         battle: null,
         rewardCards: [],
+        droppedWeaponId: null,
         lastResult: null,
         stats: { turns: 0, remainingHp: 0 },
       }

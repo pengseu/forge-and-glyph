@@ -13,6 +13,7 @@ export interface GameCallbacks {
   onEndTurn: () => void
   onSelectCard: (cardId: string) => void
   onSkipReward: () => void
+  onEquipWeapon: (weaponDefId: string) => void
   onRestart: () => void
   onCampfireHeal: () => void
   onCampfireUpgradeCard: (cardUid: string, upgradeType: 'damage' | 'cost') => void
@@ -40,7 +41,7 @@ export function render(
       }
       break
     case 'reward':
-      renderReward(container, state.rewardCards, callbacks)
+      renderReward(container, state.rewardCards, state.droppedWeaponId, callbacks)
       break
     case 'result':
       renderResult(

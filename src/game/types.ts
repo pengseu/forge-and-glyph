@@ -104,6 +104,7 @@ export interface GameState {
   run: RunState | null
   battle: BattleState | null
   rewardCards: CardDef[]
+  droppedWeaponId: string | null
   lastResult: 'victory' | 'defeat' | null
   stats: { turns: number; remainingHp: number }
 }

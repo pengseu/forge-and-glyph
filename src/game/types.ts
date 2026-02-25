@@ -59,8 +59,10 @@ export interface PlayerState {
   mana: number
   maxMana: number
   armor: number
+  strength: number
   weaponDiscount: number
   equippedWeaponId: string | null
+  buffNextCombat: number
   hand: CardInstance[]
   drawPile: CardInstance[]
   discardPile: CardInstance[]
@@ -73,6 +75,9 @@ export interface EnemyState {
   armor: number
   strength: number
   burn: number
+  freeze: number
+  poison: number
+  weakened: number
   intentIndex: number
 }
 

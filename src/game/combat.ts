@@ -35,8 +35,10 @@ export function createBattleState(initialDeck?: CardInstance[], weaponDefId?: st
       mana: 2,
       maxMana: 2,
       armor: 0,
+      strength: 0,
       weaponDiscount: 0,
       equippedWeaponId: weaponDefId ?? null,
+      buffNextCombat: 0,
       hand: [],
       drawPile,
       discardPile: [],
@@ -48,6 +50,9 @@ export function createBattleState(initialDeck?: CardInstance[], weaponDefId?: st
       armor: 0,
       strength: 0,
       burn: 0,
+      freeze: 0,
+      poison: 0,
+      weakened: 0,
       intentIndex: 0,
     },
     turn: 0,
@@ -89,7 +94,16 @@ export function startTurn(state: BattleState): BattleState {
     s = applyCardEffects(s, [{ type: 'damage', value: s.enemy.burn }])
     s = { ...s, enemy: { ...s.enemy, burn: Math.max(0, s.enemy.burn - 1) } }
 
-    // Check victory after burn damage
+    if (s.enemy.hp <= 0) {
+      s = { ...s, phase: 'victory' }
+      return s
+    }
+  }
+
+  // Resolve poison on enemy
+  if (s.enemy.poison > 0) {
+    s = applyCardEffects(s, [{ type: 'damage', value: s.enemy.poison }])
+
     if (s.enemy.hp <= 0) {
       s = { ...s, phase: 'victory' }
       return s
@@ -163,28 +177,42 @@ export function playCard(state: BattleState, cardUid: string): BattleState {
 export function endPlayerTurn(state: BattleState): BattleState {
   let s = state
 
-  // Execute enemy intent
-  const enemyDef = getEnemyDef(s.enemy.defId)
-  const intent = enemyDef.intents[s.enemy.intentIndex]
+  // Check if enemy is frozen (skip action)
+  if (s.enemy.freeze > 0) {
+    s = { ...s, enemy: { ...s.enemy, freeze: s.enemy.freeze - 1 } }
+  } else {
+    // Execute enemy intent
+    const enemyDef = getEnemyDef(s.enemy.defId)
+    const intent = enemyDef.intents[s.enemy.intentIndex]
 
-  if (intent.type === 'attack') {
-    const damage = intent.value + s.enemy.strength
-    let remaining = damage
-    let armor = s.player.armor
-    let hp = s.player.hp
+    if (intent.type === 'attack') {
+      let damage = intent.value + s.enemy.strength
+      // Apply weakened: reduce damage by 25%
+      if (s.enemy.weakened > 0) {
+        damage = Math.floor(damage * 0.75)
+        s = { ...s, enemy: { ...s.enemy, weakened: s.enemy.weakened - 1 } }
+      }
+      let remaining = damage
+      let armor = s.player.armor
+      let hp = s.player.hp
 
-    if (armor > 0) {
-      const absorbed = Math.min(armor, remaining)
-      armor -= absorbed
-      remaining -= absorbed
+      if (armor > 0) {
+        const absorbed = Math.min(armor, remaining)
+        armor -= absorbed
+        remaining -= absorbed
+      }
+      hp = Math.max(0, hp - remaining)
+
+      s = { ...s, player: { ...s.player, armor, hp } }
+    } else if (intent.type === 'buff') {
+      if (intent.buffType === 'strength') {
+        s = { ...s, enemy: { ...s.enemy, strength: s.enemy.strength + intent.value } }
+      }
     }
-    hp = Math.max(0, hp - remaining)
 
-    s = { ...s, player: { ...s.player, armor, hp } }
-  } else if (intent.type === 'buff') {
-    if (intent.buffType === 'strength') {
-      s = { ...s, enemy: { ...s.enemy, strength: s.enemy.strength + intent.value } }
-    }
+    // Advance intent index
+    const enemyDef2 = getEnemyDef(s.enemy.defId)
+    s = { ...s, enemy: { ...s.enemy, intentIndex: (s.enemy.intentIndex + 1) % enemyDef2.intents.length } }
   }
 
   // Check defeat
@@ -192,9 +220,6 @@ export function endPlayerTurn(state: BattleState): BattleState {
     s = { ...s, phase: 'defeat' }
     return s
   }
-
-  // Advance intent index
-  s = { ...s, enemy: { ...s.enemy, intentIndex: (s.enemy.intentIndex + 1) % enemyDef.intents.length } }
 
   // Discard all hand cards
   const newDiscard = [...s.player.discardPile, ...s.player.hand]

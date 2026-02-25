@@ -3,6 +3,7 @@ import type { GameCallbacks } from '../renderer'
 import { getCardDef } from '../../game/cards'
 import { getEnemyDef } from '../../game/enemies'
 import { canPlayCard } from '../../game/combat'
+import { getWeaponDef } from '../../game/weapons'
 
 export function renderBattle(
   container: HTMLElement,
@@ -15,8 +16,11 @@ export function renderBattle(
 
   // Intent display text
   let intentText = ''
-  if (intent.type === 'attack') {
-    const dmg = intent.value + state.enemy.strength
+  if (state.enemy.freeze > 0) {
+    intentText = '🧊 冻结中'
+  } else if (intent.type === 'attack') {
+    let dmg = intent.value + state.enemy.strength
+    if (state.enemy.weakened > 0) dmg = Math.floor(dmg * 0.75)
     intentText = `⚔️ 攻击 ${dmg}`
   } else if (intent.type === 'buff') {
     intentText = `💪 战吼 (+${intent.value}力量)`
@@ -25,15 +29,36 @@ export function renderBattle(
   // Status effects on enemy
   let enemyStatus = ''
   if (state.enemy.burn > 0) enemyStatus += ` 🔥${state.enemy.burn}`
+  if (state.enemy.poison > 0) enemyStatus += ` 🐍${state.enemy.poison}`
+  if (state.enemy.freeze > 0) enemyStatus += ` 🧊${state.enemy.freeze}`
+  if (state.enemy.weakened > 0) enemyStatus += ` 😵${state.enemy.weakened}`
   if (state.enemy.strength > 0) enemyStatus += ` 💪${state.enemy.strength}`
+
+  // Weapon display
+  let weaponText = ''
+  if (state.player.equippedWeaponId) {
+    const wDef = getWeaponDef(state.player.equippedWeaponId)
+    weaponText = `⚔️ ${wDef.name}`
+  }
+
+  // Player status effects
+  let playerStatus = ''
+  if (state.player.strength > 0) playerStatus += ` 💪${state.player.strength}`
+  if (state.player.buffNextCombat > 0) playerStatus += ` ✨+${state.player.buffNextCombat}%`
 
   // Build hand cards HTML
   const cardsHtml = state.player.hand.map(card => {
     const def = getCardDef(card.defId)
     const playable = canPlayCard(state, card.uid)
-    const costLabel = def.costType === 'free' ? '免费'
-      : def.costType === 'stamina' ? `⚡${def.cost}`
-      : `✦${def.cost}`
+    let costLabel = ''
+    if (def.costType === 'free') {
+      costLabel = '免费'
+    } else if (def.costType === 'stamina') {
+      const actualCost = Math.max(0, def.cost - state.player.weaponDiscount)
+      costLabel = actualCost < def.cost ? `⚡<s>${def.cost}</s>${actualCost}` : `⚡${def.cost}`
+    } else {
+      costLabel = `✦${def.cost}`
+    }
     return `
       <div class="card ${playable ? '' : 'disabled'}" data-uid="${card.uid}">
         <div class="card-name">${def.name}</div>
@@ -49,6 +74,8 @@ export function renderBattle(
       <span class="stat stat-stamina">⚡ ${state.player.stamina}/${state.player.maxStamina}</span>
       <span class="stat stat-mana">✦ ${state.player.mana}/${state.player.maxMana}</span>
       <span class="stat stat-armor">🛡️ ${state.player.armor}</span>
+      ${weaponText ? `<span class="stat" style="color:#f0a500;">${weaponText}</span>` : ''}
+      ${playerStatus ? `<span class="stat" style="color:#4caf50;">${playerStatus}</span>` : ''}
       <span class="stat">回合 ${state.turn}</span>
     </div>
     <div class="enemy-area">

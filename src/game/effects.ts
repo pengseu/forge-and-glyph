@@ -22,12 +22,19 @@ export function applyCardEffects(state: BattleState, effects: CardEffect[]): Bat
   let s = state
   for (const effect of effects) {
     switch (effect.type) {
-      case 'damage':
-        s = dealDamageToEnemy(s, effect.value)
+      case 'damage': {
+        let dmg = effect.value + s.player.strength
+        // Apply buffNextCombat bonus
+        if (s.player.buffNextCombat > 0) {
+          dmg = Math.floor(dmg * (1 + s.player.buffNextCombat / 100))
+          s = { ...s, player: { ...s.player, buffNextCombat: 0 } }
+        }
+        s = dealDamageToEnemy(s, dmg)
         break
+      }
       case 'multi_damage':
         for (let i = 0; i < effect.hits; i++) {
-          s = dealDamageToEnemy(s, effect.value)
+          s = dealDamageToEnemy(s, effect.value + s.player.strength)
         }
         break
       case 'armor':
@@ -44,6 +51,26 @@ export function applyCardEffects(state: BattleState, effects: CardEffect[]): Bat
         break
       case 'burn':
         s = { ...s, enemy: { ...s.enemy, burn: s.enemy.burn + effect.value } }
+        break
+      case 'freeze':
+        s = { ...s, enemy: { ...s.enemy, freeze: s.enemy.freeze + effect.value } }
+        break
+      case 'poison':
+        s = { ...s, enemy: { ...s.enemy, poison: s.enemy.poison + effect.value } }
+        break
+      case 'gain_strength':
+        s = { ...s, player: { ...s.player, strength: s.player.strength + effect.value } }
+        break
+      case 'weaken_enemy':
+        s = { ...s, enemy: { ...s.enemy, weakened: s.enemy.weakened + effect.value } }
+        break
+      case 'convert_mana_to_stamina': {
+        const mana = s.player.mana
+        s = { ...s, player: { ...s.player, mana: 0, stamina: s.player.stamina + mana } }
+        break
+      }
+      case 'buff_next_combat':
+        s = { ...s, player: { ...s.player, buffNextCombat: effect.value } }
         break
     }
   }

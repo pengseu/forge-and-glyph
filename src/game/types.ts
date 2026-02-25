@@ -32,6 +32,7 @@ export interface CardDef {
 export interface CardInstance {
   uid: string        // unique per instance in deck
   defId: string      // references CardDef.id
+  upgraded?: 'damage' | 'cost'  // campfire upgrade type
 }
 
 // --- Enemy ---

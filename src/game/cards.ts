@@ -61,6 +61,66 @@ export const ALL_CARDS: CardDef[] = [
     description: '获得8护甲',
     effects: [{ type: 'armor', value: 8 }],
   },
+  {
+    id: 'frozen_arrow', name: '冻结箭', cost: 1, costType: 'mana',
+    category: 'spell', rarity: 'common',
+    description: '5伤害，冻结敌人',
+    effects: [{ type: 'damage', value: 5 }, { type: 'freeze', value: 1 }],
+  },
+  {
+    id: 'poison_spray', name: '毒液喷射', cost: 1, costType: 'stamina',
+    category: 'combat', rarity: 'common',
+    description: '3伤害，施加3中毒',
+    effects: [{ type: 'damage', value: 3 }, { type: 'poison', value: 3 }],
+  },
+  {
+    id: 'strength_spell', name: '力量咒文', cost: 2, costType: 'mana',
+    category: 'spell', rarity: 'common',
+    description: '获得3力量',
+    effects: [{ type: 'gain_strength', value: 3 }],
+  },
+  {
+    id: 'weakness_curse', name: '虚弱诅咒', cost: 1, costType: 'mana',
+    category: 'spell', rarity: 'common',
+    description: '敌人伤害-25%',
+    effects: [{ type: 'weaken_enemy', value: 1 }],
+  },
+  {
+    id: 'mighty_strike', name: '猛击', cost: 2, costType: 'stamina',
+    category: 'combat', rarity: 'common',
+    description: '15伤害',
+    effects: [{ type: 'damage', value: 15 }],
+  },
+  {
+    id: 'iron_wall', name: '铁壁', cost: 2, costType: 'stamina',
+    category: 'combat', rarity: 'common',
+    description: '12护甲',
+    effects: [{ type: 'armor', value: 12 }],
+  },
+  {
+    id: 'meteor_spell', name: '陨石术', cost: 3, costType: 'mana',
+    category: 'spell', rarity: 'rare',
+    description: '20伤害，施加3灼烧',
+    effects: [{ type: 'damage', value: 20 }, { type: 'burn', value: 3 }],
+  },
+  {
+    id: 'blood_magic', name: '血魔法', cost: 0, costType: 'free',
+    category: 'technique', rarity: 'common',
+    description: '消耗3HP获得2魔力',
+    effects: [{ type: 'damage', value: 3 }, { type: 'gain_mana', value: 2 }],
+  },
+  {
+    id: 'berserk', name: '狂暴', cost: 0, costType: 'free',
+    category: 'technique', rarity: 'common',
+    description: '消耗所有魔力转为体力',
+    effects: [{ type: 'convert_mana_to_stamina', value: 1 }],
+  },
+  {
+    id: 'arcane_infusion', name: '奥术灌注', cost: 1, costType: 'mana',
+    category: 'technique', rarity: 'common',
+    description: '下一张战技卡伤害+50%',
+    effects: [{ type: 'buff_next_combat', value: 50 }],
+  },
 ]
 
 export function getCardDef(id: string): CardDef {

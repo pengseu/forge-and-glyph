@@ -7,6 +7,12 @@ export type CardEffect =
   | { type: 'gain_mana'; value: number }
   | { type: 'gain_stamina'; value: number }
   | { type: 'burn'; value: number }
+  | { type: 'freeze'; value: number }
+  | { type: 'poison'; value: number }
+  | { type: 'gain_strength'; value: number }
+  | { type: 'weaken_enemy'; value: number }
+  | { type: 'convert_mana_to_stamina'; value: number }
+  | { type: 'buff_next_combat'; value: number }
 
 export type CostType = 'stamina' | 'mana' | 'free'
 export type CardCategory = 'combat' | 'spell' | 'technique'

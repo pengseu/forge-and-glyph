@@ -22,6 +22,8 @@ export function createRunState(): RunState {
     deck: createDeck(),
     mapNodes,
     turn: 0,
+    equippedWeapon: null,
+    weaponInventory: [],
   }
 }
 

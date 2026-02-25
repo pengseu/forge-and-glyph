@@ -58,6 +58,7 @@ export interface PlayerState {
   mana: number
   maxMana: number
   armor: number
+  weaponDiscount: number
   hand: CardInstance[]
   drawPile: CardInstance[]
   discardPile: CardInstance[]
@@ -80,8 +81,21 @@ export interface BattleState {
   phase: BattlePhase
 }
 
+// --- Weapon ---
+export interface WeaponDef {
+  id: string
+  name: string
+  rarity: 'basic' | 'upgraded'
+  effect: string
+}
+
+export interface WeaponInstance {
+  uid: string
+  defId: string
+}
+
 // --- Scene ---
-export type Scene = 'title' | 'map' | 'battle' | 'reward' | 'result'
+export type Scene = 'title' | 'map' | 'battle' | 'reward' | 'result' | 'campfire'
 
 export interface GameState {
   scene: Scene
@@ -93,12 +107,12 @@ export interface GameState {
 }
 
 // --- Map System ---
-export type NodeType = 'normal_battle' | 'elite_battle' | 'boss_battle'
+export type NodeType = 'normal_battle' | 'elite_battle' | 'boss_battle' | 'campfire'
 
 export interface MapNode {
   id: string
   type: NodeType
-  enemyId: string
+  enemyId?: string
   completed: boolean
   x: number
   y: number
@@ -111,6 +125,8 @@ export interface RunState {
   deck: CardInstance[]
   mapNodes: MapNode[]
   turn: number
+  equippedWeapon: WeaponInstance | null
+  weaponInventory: WeaponInstance[]
 }
 
 export interface RewardState {

@@ -35,6 +35,7 @@ export function createBattleState(initialDeck?: CardInstance[]): BattleState {
       mana: 2,
       maxMana: 2,
       armor: 0,
+      weaponDiscount: 0,
       hand: [],
       drawPile,
       discardPile: [],

@@ -27,7 +27,7 @@ function update() {
     onSelectNode: (nodeId: string) => {
       if (!gameState.run) return
       const node = gameState.run.mapNodes.find(n => n.id === nodeId)
-      if (!node) return
+      if (!node || !node.enemyId) return
 
       // Move to node
       let newRun = moveToNode(gameState.run, nodeId)

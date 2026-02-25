@@ -68,7 +68,16 @@ export function renderBattle(
     `
   }).join('')
 
+  // Battle background: use boss background for goblin_king
+  const bgImage = state.enemy.defId === 'goblin_king'
+    ? '/assets/backgrounds/boss_battle.png'
+    : '/assets/backgrounds/battle.png'
+
+  // Enemy sprite
+  const enemySprite = `/assets/enemies/${state.enemy.defId}.png`
+
   container.innerHTML = `
+    <div class="scene-battle" style="background: url('${bgImage}') center/cover no-repeat;">
     <div class="player-bar">
       <span class="stat stat-hp">♥ ${state.player.hp}/${state.player.maxHp}</span>
       <span class="stat stat-stamina">⚡ ${state.player.stamina}/${state.player.maxStamina}</span>
@@ -79,7 +88,8 @@ export function renderBattle(
       <span class="stat">回合 ${state.turn}</span>
     </div>
     <div class="enemy-area">
-      <div class="enemy-name">👾 ${enemyDef.name}${enemyStatus}</div>
+      <img class="enemy-sprite" src="${enemySprite}" alt="${enemyDef.name}" />
+      <div class="enemy-name">${enemyDef.name}${enemyStatus}</div>
       <div class="hp-bar-container">
         <div class="hp-bar-fill" style="width: ${hpPercent}%"></div>
       </div>
@@ -96,6 +106,7 @@ export function renderBattle(
         <button class="btn" id="btn-end-turn">结束回合</button>
         <span>弃牌堆: ${state.player.discardPile.length}</span>
       </div>
+    </div>
     </div>
   `
 

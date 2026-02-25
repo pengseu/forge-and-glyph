@@ -13,20 +13,20 @@ export function renderMap(
     const currentNode = state.mapNodes.find(n => n.id === state.currentNodeId)
     const isAccessible = node.id === state.currentNodeId || node.completed || (currentNode?.connections.includes(node.id) ?? false)
 
-    const typeEmoji = node.type === 'boss_battle' ? '👑' : node.type === 'elite_battle' ? '⭐' : node.type === 'campfire' ? '🔥' : '💀'
+    const nodeIcon = `/assets/nodes/${node.type}.png`
     const typeLabel = node.type === 'boss_battle' ? 'Boss' : node.type === 'elite_battle' ? '精英' : node.type === 'campfire' ? '篝火' : '普通'
     const statusClass = isCurrent ? 'current' : isCompleted ? 'completed' : isAccessible ? 'accessible' : 'locked'
 
     return `
       <div class="map-node ${statusClass}" data-node-id="${node.id}" style="left: ${node.x * 100}px; top: ${node.y * 100}px;">
-        <div class="node-icon">${typeEmoji}</div>
+        <img class="node-icon-img" src="${nodeIcon}" alt="${typeLabel}" />
         <div class="node-label">${typeLabel}</div>
       </div>
     `
   }).join('')
 
   container.innerHTML = `
-    <div class="scene-map">
+    <div class="scene-map" style="background: url('/assets/backgrounds/map.png') center/cover no-repeat;">
       <div class="map-container">
         ${nodesHtml}
       </div>

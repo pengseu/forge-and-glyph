@@ -1,4 +1,4 @@
-import type { BattleState, PlayerState, CardInstance } from './types'
+import type { BattleState, CardInstance } from './types'
 import { getCardDef, STARTER_DECK_RECIPE } from './cards'
 import { getEnemyDef } from './enemies'
 import { applyCardEffects } from './effects'

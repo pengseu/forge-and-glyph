@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { ALL_CARDS, getCardDef, STARTER_DECK_RECIPE } from '../cards'
 
 describe('cards', () => {
-  it('should have 10 card definitions', () => {
-    expect(ALL_CARDS).toHaveLength(10)
+  it('should have 20 card definitions', () => {
+    expect(ALL_CARDS).toHaveLength(20)
   })
 
   it('should find card by id', () => {

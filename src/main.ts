@@ -1,9 +1,10 @@
 import './style.css'
 import type { GameState } from './game/types'
 import { createBattleState, startTurn, playCard, endPlayerTurn } from './game/combat'
-import { createRunState, moveToNode, completeNode, addCardToDeck } from './game/run'
+import { createRunState, moveToNode, completeNode, addCardToDeck, upgradeEquippedWeapon } from './game/run'
 import { getRewardCards } from './game/reward'
 import { getEnemyDef } from './game/enemies'
+import { restoreHp } from './game/campfire'
 import { render } from './ui/renderer'
 
 const app = document.getElementById('app')!
@@ -27,13 +28,21 @@ function update() {
     onSelectNode: (nodeId: string) => {
       if (!gameState.run) return
       const node = gameState.run.mapNodes.find(n => n.id === nodeId)
-      if (!node || !node.enemyId) return
+      if (!node) return
 
-      // Move to node
       let newRun = moveToNode(gameState.run, nodeId)
 
-      // Enter battle, use run deck instead of creating new deck
-      let battle = createBattleState(newRun.deck)
+      if (node.type === 'campfire') {
+        gameState = { ...gameState, run: newRun, scene: 'campfire' }
+        update()
+        return
+      }
+
+      if (!node.enemyId) return
+
+      // Pass weapon info to battle
+      const weaponDefId = newRun.equippedWeapon?.defId ?? undefined
+      let battle = createBattleState(newRun.deck, weaponDefId)
       const enemyDef = getEnemyDef(node.enemyId)
       battle = {
         ...battle,
@@ -53,14 +62,16 @@ function update() {
       if (!gameState.battle) return
       const newBattle = playCard(gameState.battle, cardUid)
       if (newBattle.phase === 'victory') {
-        // Battle victory, show reward selection
         if (!gameState.run) return
-        const currentNode = gameState.run.mapNodes.find(n => n.id === gameState.run!.currentNodeId)
+        // Sync HP to RunState
+        let newRun = { ...gameState.run, playerHp: newBattle.player.hp }
+        const currentNode = newRun.mapNodes.find(n => n.id === newRun.currentNodeId)
         if (!currentNode) return
 
         const rewardCards = getRewardCards(currentNode.type)
         gameState = {
           ...gameState,
+          run: newRun,
           battle: null,
           scene: 'reward',
           rewardCards,
@@ -83,7 +94,7 @@ function update() {
           stats: { turns: newBattle.turn, remainingHp: 0 },
         }
       } else {
-        gameState = { ...gameState, battle: newBattle }
+        gameState = { ...gameState, battle: newBattle, run: { ...gameState.run!, playerHp: newBattle.player.hp } }
       }
       update()
     },
@@ -109,6 +120,34 @@ function update() {
         lastResult: null,
         stats: { turns: 0, remainingHp: 0 },
       }
+      update()
+    },
+    onCampfireHeal: () => {
+      if (!gameState.run) return
+      const { hp } = restoreHp(gameState.run, gameState.run.playerHp, gameState.run.playerMaxHp)
+      const newRun = { ...gameState.run, playerHp: hp }
+      gameState = { ...gameState, run: newRun }
+      update()
+    },
+    onCampfireUpgradeCard: (cardUid: string, upgradeType: 'damage' | 'cost') => {
+      if (!gameState.run) return
+      const newDeck = gameState.run.deck.map(c =>
+        c.uid === cardUid ? { ...c, upgraded: upgradeType } : c
+      )
+      const newRun = { ...gameState.run, deck: newDeck }
+      gameState = { ...gameState, run: newRun }
+      update()
+    },
+    onCampfireUpgradeWeapon: () => {
+      if (!gameState.run) return
+      const newRun = upgradeEquippedWeapon(gameState.run)
+      gameState = { ...gameState, run: newRun }
+      update()
+    },
+    onCampfireContinue: () => {
+      if (!gameState.run) return
+      let newRun = completeNode(gameState.run, gameState.run.currentNodeId)
+      gameState = { ...gameState, run: newRun, scene: 'map' }
       update()
     },
   })

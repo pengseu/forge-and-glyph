@@ -58,6 +58,10 @@ function update() {
       }
       update()
     },
+    onSelectNode: (nodeId: string) => {
+      // TODO: Implement node selection logic
+      console.log('Node selected:', nodeId)
+    },
   })
 }
 

@@ -8,6 +8,7 @@ export interface GameCallbacks {
   onPlayCard: (cardUid: string) => void
   onEndTurn: () => void
   onRestart: () => void
+  onSelectNode: (nodeId: string) => void
 }
 
 export function render(

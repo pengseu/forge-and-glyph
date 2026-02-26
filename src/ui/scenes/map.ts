@@ -25,13 +25,17 @@ export function renderMap(
     `
   }).join('')
 
+  const weaponName = state.equippedWeapon ? '⚔️ 已装备' : ''
+
   container.innerHTML = `
     <div class="scene-map">
+      <div class="map-player-bar">
+        <span class="stat stat-hp">♥ ${state.playerHp}/${state.playerMaxHp}</span>
+        <span class="stat">卡组: ${state.deck.length}张</span>
+        ${weaponName ? `<span class="stat" style="color:#f0a500;">${weaponName}</span>` : ''}
+      </div>
       <div class="map-container">
         ${nodesHtml}
-      </div>
-      <div class="deck-info">
-        <p>卡组: ${state.deck.length}张</p>
       </div>
     </div>
   `

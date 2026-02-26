@@ -1,12 +1,11 @@
-import type { RunState, CardInstance } from '../../game/types'
+import type { RunState } from '../../game/types'
 import type { GameCallbacks } from '../renderer'
 import { getCardDef } from '../../game/cards'
-import { getUpgradeOptions, getEffectiveCardDef } from '../../game/campfire'
+import { canUpgrade, getEffectiveCardDef, upgradeCard } from '../../game/campfire'
 
 type CampfireView = 'menu' | 'upgrade'
 
 let currentView: CampfireView = 'menu'
-let selectedCardUid: string | null = null
 
 export function renderCampfire(
   container: HTMLElement,
@@ -32,7 +31,6 @@ export function renderCampfire(
 
 export function resetCampfireView(): void {
   currentView = 'menu'
-  selectedCardUid = null
 }
 
 function renderMenu(
@@ -48,7 +46,6 @@ function renderMenu(
 
   const options = document.createElement('div')
   options.className = 'campfire-options'
-
   const healBtn = document.createElement('button')
   healBtn.className = 'btn'
   healBtn.textContent = `回血 (${playerHp} / ${playerMaxHp})`
@@ -65,7 +62,6 @@ function renderMenu(
   upgradeBtn.textContent = '升级卡牌'
   upgradeBtn.addEventListener('click', () => {
     currentView = 'upgrade'
-    selectedCardUid = null
     rerender()
   })
   options.appendChild(upgradeBtn)
@@ -88,11 +84,6 @@ function renderUpgradeView(
   callbacks: GameCallbacks,
   rerender: () => void,
 ): void {
-  if (selectedCardUid) {
-    renderUpgradeOptions(wrapper, run, callbacks, rerender)
-    return
-  }
-
   const title = document.createElement('h2')
   title.textContent = '选择要升级的卡牌'
   wrapper.appendChild(title)
@@ -103,8 +94,10 @@ function renderUpgradeView(
   for (const card of run.deck) {
     const effectiveDef = getEffectiveCardDef(card)
     const isUpgraded = !!card.upgraded
+    const baseDef = getCardDef(card.defId)
+    const hasUpgrade = canUpgrade(baseDef)
     const el = document.createElement('div')
-    el.className = 'campfire-card' + (isUpgraded ? ' upgraded' : '')
+    el.className = 'campfire-card' + (isUpgraded || !hasUpgrade ? ' upgraded' : '')
 
     const name = document.createElement('div')
     name.className = 'card-name'
@@ -123,17 +116,19 @@ function renderUpgradeView(
     desc.textContent = effectiveDef.description
     el.appendChild(desc)
 
-    if (!isUpgraded) {
-      const baseDef = getCardDef(card.defId)
-      const options = getUpgradeOptions(baseDef)
-      if (options.length > 0) {
-        el.addEventListener('click', () => {
-          selectedCardUid = card.uid
-          rerender()
-        })
-      } else {
-        el.classList.add('upgraded')
-      }
+    // Show upgrade preview on non-upgraded cards
+    if (!isUpgraded && hasUpgrade) {
+      const upgradedDef = upgradeCard(baseDef)
+      const preview = document.createElement('div')
+      preview.className = 'card-desc'
+      preview.style.color = '#4caf50'
+      preview.textContent = `→ ${upgradedDef.description}`
+      el.appendChild(preview)
+
+      el.addEventListener('click', () => {
+        resetCampfireView()
+        callbacks.onCampfireUpgradeCard(card.uid)
+      })
     }
 
     cardsContainer.appendChild(el)
@@ -146,58 +141,6 @@ function renderUpgradeView(
   backBtn.textContent = '返回'
   backBtn.addEventListener('click', () => {
     currentView = 'menu'
-    selectedCardUid = null
-    rerender()
-  })
-  wrapper.appendChild(backBtn)
-}
-
-function renderUpgradeOptions(
-  wrapper: HTMLElement,
-  run: RunState,
-  callbacks: GameCallbacks,
-  rerender: () => void,
-): void {
-  const card = run.deck.find(c => c.uid === selectedCardUid)
-  if (!card) {
-    currentView = 'menu'
-    selectedCardUid = null
-    rerender()
-    return
-  }
-
-  const baseDef = getCardDef(card.defId)
-  const options = getUpgradeOptions(baseDef)
-
-  const title = document.createElement('h2')
-  title.textContent = `升级: ${baseDef.name}`
-  wrapper.appendChild(title)
-
-  const optionsContainer = document.createElement('div')
-  optionsContainer.className = 'upgrade-options'
-
-  for (const opt of options) {
-    const btn = document.createElement('button')
-    btn.className = 'btn'
-    if (opt === 'damage') {
-      btn.textContent = '伤害 +2'
-    } else {
-      btn.textContent = '费用 -1'
-    }
-    btn.addEventListener('click', () => {
-      resetCampfireView()
-      callbacks.onCampfireUpgradeCard(card.uid, opt)
-    })
-    optionsContainer.appendChild(btn)
-  }
-
-  wrapper.appendChild(optionsContainer)
-
-  const backBtn = document.createElement('button')
-  backBtn.className = 'btn'
-  backBtn.textContent = '返回'
-  backBtn.addEventListener('click', () => {
-    selectedCardUid = null
     rerender()
   })
   wrapper.appendChild(backBtn)

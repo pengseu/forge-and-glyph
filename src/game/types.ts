@@ -13,6 +13,25 @@ export type CardEffect =
   | { type: 'weaken_enemy'; value: number }
   | { type: 'convert_mana_to_stamina'; value: number }
   | { type: 'buff_next_combat'; value: number }
+  | { type: 'conditional_damage'; base: number; value: number; condition: 'enemy_damaged' | 'combat_played' }
+  | { type: 'execute'; threshold: number; damage: number; baseDamage: number }
+  | { type: 'buff_next_combat_double' }
+  | { type: 'buff_next_spell'; bonusDamage: number; bonusMana: number }
+  | { type: 'self_damage_gain_mana'; damage: number; mana: number }
+  | { type: 'scaling_damage'; base: number; perCombatPlayed: number }
+  | { type: 'chain_damage'; value: number; bounces: number }
+  | { type: 'permanent_poison_on_attack'; value: number }
+  | { type: 'damage_gain_armor'; damage: number; armor: number }
+  | { type: 'conditional_armor'; value: number; condition: 'damage_taken' }
+  | { type: 'draw_cards'; value: number }
+  | { type: 'aoe_damage'; value: number }
+  | { type: 'aoe_burn'; value: number }
+  | { type: 'lifesteal'; value: number }
+  | { type: 'combat_damage_bonus'; value: number }
+  | { type: 'vulnerable'; value: number }
+  | { type: 'gain_wisdom'; value: number }
+  | { type: 'gain_barrier'; value: number }
+  | { type: 'gain_charge'; value: number }
 
 export type CostType = 'stamina' | 'mana' | 'free'
 export type CardCategory = 'combat' | 'spell' | 'technique'
@@ -30,9 +49,9 @@ export interface CardDef {
 }
 
 export interface CardInstance {
-  uid: string        // unique per instance in deck
-  defId: string      // references CardDef.id
-  upgraded?: 'damage' | 'cost'  // campfire upgrade type
+  uid: string
+  defId: string
+  upgraded?: boolean
 }
 
 // --- Enemy ---
@@ -40,12 +59,16 @@ export type EnemyIntent =
   | { type: 'attack'; value: number }
   | { type: 'defend'; value: number }
   | { type: 'buff'; buffType: 'strength'; value: number }
+  | { type: 'poison'; value: number }
+  | { type: 'summon'; enemyId: string }
+  | { type: 'summon_multi'; enemyId: string; count: number }
+  | { type: 'defend_attack'; defendValue: number; attackValue: number }
 
 export interface EnemyDef {
   id: string
   name: string
   maxHp: number
-  intents: EnemyIntent[]  // cycles through these
+  intents: EnemyIntent[]
 }
 
 // --- Battle State ---
@@ -63,6 +86,15 @@ export interface PlayerState {
   weaponDiscount: number
   equippedWeaponId: string | null
   buffNextCombat: number
+  poisonOnAttack: number
+  buffNextCombatDouble: boolean
+  buffNextSpellDamage: number
+  buffNextSpellMana: number
+  poison: number
+  wisdom: number
+  barrier: number
+  charge: number
+  weakened: number
   hand: CardInstance[]
   drawPile: CardInstance[]
   discardPile: CardInstance[]
@@ -78,14 +110,25 @@ export interface EnemyState {
   freeze: number
   poison: number
   weakened: number
+  vulnerable: number
+  freezeImmune: boolean
   intentIndex: number
+  damagedThisTurn: boolean
+}
+
+export interface TurnTracking {
+  combatCardsPlayedThisTurn: number
+  damageTakenThisTurn: number
+  bonusManaNextTurn: number
+  combatDamageBonus: number
 }
 
 export interface BattleState {
   player: PlayerState
-  enemy: EnemyState
+  enemies: EnemyState[]
   turn: number
   phase: BattlePhase
+  turnTracking: TurnTracking
 }
 
 // --- Weapon ---
@@ -120,11 +163,11 @@ export type NodeType = 'normal_battle' | 'elite_battle' | 'boss_battle' | 'campf
 export interface MapNode {
   id: string
   type: NodeType
-  enemyId?: string
+  enemyIds?: string[]
   completed: boolean
   x: number
   y: number
-  connections: string[] // connected node IDs
+  connections: string[]
 }
 
 export interface RunState {
@@ -144,5 +187,4 @@ export interface RewardState {
   selectedCard: CardDef | null
 }
 
-// --- Enemy Types ---
-export type EnemyType = 'goblin_scout' | 'forest_wolf' | 'mushroom_creature' | 'goblin_king'
+export type EnemyType = 'goblin_scout' | 'forest_wolf' | 'mushroom_creature' | 'goblin_king' | 'goblin_minion'

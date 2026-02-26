@@ -25,7 +25,7 @@ describe('map', () => {
     const map = generateMap()
     const campfire = map.filter(n => n.type === 'campfire')
     expect(campfire).toHaveLength(1)
-    expect(campfire[0].enemyId).toBeUndefined()
+    expect(campfire[0].enemyIds).toBeUndefined()
   })
 
   it('campfire node should connect to subsequent nodes', () => {

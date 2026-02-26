@@ -9,14 +9,14 @@ import { renderCampfire } from './scenes/campfire'
 export interface GameCallbacks {
   onStartGame: () => void
   onSelectNode: (nodeId: string) => void
-  onPlayCard: (cardUid: string) => void
+  onPlayCard: (cardUid: string, targetIndex?: number) => void
   onEndTurn: () => void
   onSelectCard: (cardId: string) => void
   onSkipReward: () => void
   onEquipWeapon: (weaponDefId: string) => void
   onRestart: () => void
   onCampfireHeal: () => void
-  onCampfireUpgradeCard: (cardUid: string, upgradeType: 'damage' | 'cost') => void
+  onCampfireUpgradeCard: (cardUid: string) => void
   onCampfireUpgradeWeapon: () => void
   onCampfireContinue: () => void
 }
@@ -25,6 +25,7 @@ export function render(
   container: HTMLElement,
   state: GameState,
   callbacks: GameCallbacks,
+  prevBattle?: import('../game/types').BattleState | null,
 ): void {
   switch (state.scene) {
     case 'title':
@@ -37,7 +38,7 @@ export function render(
       break
     case 'battle':
       if (state.battle) {
-        renderBattle(container, state.battle, callbacks)
+        renderBattle(container, state.battle, callbacks, prevBattle ?? undefined)
       }
       break
     case 'reward':

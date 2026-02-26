@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { restoreHp, getUpgradeOptions, upgradeCard, getEffectiveCardDef } from '../campfire'
+import { restoreHp, canUpgrade, upgradeCard, getEffectiveCardDef, UPGRADE_TABLE } from '../campfire'
 import { getCardDef } from '../cards'
 import type { RunState, CardInstance } from '../types'
 
@@ -16,51 +16,49 @@ describe('campfire', () => {
     })
   })
 
-  describe('getUpgradeOptions', () => {
-    it('returns [damage, cost] for a card with damage and cost >= 1', () => {
-      const slash = getCardDef('slash') // cost 1, has damage
-      expect(getUpgradeOptions(slash)).toEqual(['damage', 'cost'])
+  describe('canUpgrade', () => {
+    it('returns true for cards in UPGRADE_TABLE', () => {
+      const slash = getCardDef('slash')
+      expect(canUpgrade(slash)).toBe(true)
     })
 
-    it('returns [damage] for a free card with damage', () => {
-      const bloodMagic = getCardDef('blood_magic') // cost 0, has damage
-      expect(getUpgradeOptions(bloodMagic)).toEqual(['damage'])
-    })
-
-    it('returns [cost] for a card without damage but cost >= 1', () => {
-      const block = getCardDef('block') // cost 1, no damage effect
-      expect(getUpgradeOptions(block)).toEqual(['cost'])
-    })
-
-    it('returns [] for a free card without damage', () => {
-      const berserk = getCardDef('berserk') // cost 0, no damage
-      expect(getUpgradeOptions(berserk)).toEqual([])
+    it('returns true for all defined cards with upgrades', () => {
+      for (const id of Object.keys(UPGRADE_TABLE)) {
+        const def = getCardDef(id)
+        expect(canUpgrade(def)).toBe(true)
+      }
     })
   })
 
   describe('upgradeCard', () => {
-    it('damage upgrade increases all damage effects by 2', () => {
-      const spark = getCardDef('spark') // damage 4 + burn 1
-      const upgraded = upgradeCard(spark, 'damage')
+    it('slash upgrade increases damage to 9', () => {
+      const slash = getCardDef('slash')
+      const upgraded = upgradeCard(slash)
       const dmg = upgraded.effects.find(e => e.type === 'damage')
       expect(dmg).toBeDefined()
-      expect(dmg!.value).toBe(6) // 4 + 2
-      // burn unchanged
-      const burn = upgraded.effects.find(e => e.type === 'burn')
-      expect(burn!.value).toBe(1)
+      expect(dmg!.value).toBe(9)
     })
 
-    it('cost upgrade decreases cost by 1', () => {
-      const slash = getCardDef('slash') // cost 1
-      const upgraded = upgradeCard(slash, 'cost')
-      expect(upgraded.cost).toBe(0)
+    it('spark upgrade increases damage and burn', () => {
+      const spark = getCardDef('spark')
+      const upgraded = upgradeCard(spark)
+      const dmg = upgraded.effects.find(e => e.type === 'damage')
+      const burn = upgraded.effects.find(e => e.type === 'burn')
+      expect(dmg!.value).toBe(6)
+      expect(burn!.value).toBe(2)
     })
 
     it('does not mutate the original CardDef', () => {
       const slash = getCardDef('slash')
       const origCost = slash.cost
-      upgradeCard(slash, 'cost')
+      upgradeCard(slash)
       expect(slash.cost).toBe(origCost)
+    })
+
+    it('charge_up upgrade reduces cost to 0', () => {
+      const card = getCardDef('charge_up')
+      const upgraded = upgradeCard(card)
+      expect(upgraded.cost).toBe(0)
     })
   })
 
@@ -71,17 +69,22 @@ describe('campfire', () => {
       expect(def).toEqual(getCardDef('slash'))
     })
 
-    it('returns upgraded def for damage-upgraded card', () => {
-      const card: CardInstance = { uid: '2', defId: 'slash', upgraded: 'damage' }
+    it('returns upgraded def for upgraded card', () => {
+      const card: CardInstance = { uid: '2', defId: 'slash', upgraded: true }
       const def = getEffectiveCardDef(card)
       const dmg = def.effects.find(e => e.type === 'damage')
-      expect(dmg!.value).toBe(8) // 6 + 2
+      expect(dmg!.value).toBe(9)
+      expect(def.name).toBe('挥砍+')
     })
 
-    it('returns upgraded def for cost-upgraded card', () => {
-      const card: CardInstance = { uid: '3', defId: 'heavy_slash', upgraded: 'cost' }
+    it('returns upgraded def for execute', () => {
+      const card: CardInstance = { uid: '3', defId: 'execute', upgraded: true }
       const def = getEffectiveCardDef(card)
-      expect(def.cost).toBe(1) // 2 - 1
+      const exec = def.effects.find(e => e.type === 'execute')
+      expect(exec).toBeDefined()
+      if (exec && exec.type === 'execute') {
+        expect(exec.damage).toBe(24)
+      }
     })
   })
 })

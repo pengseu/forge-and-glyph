@@ -72,6 +72,7 @@ body {
   background: #0f3460;
   font-size: 11px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .stat { display: flex; align-items: center; gap: 4px; }
@@ -80,20 +81,61 @@ body {
 .stat-mana { color: #4fc3f7; }
 .stat-armor { color: #aaa; }
 
-/* --- Enemy Area --- */
+/* --- Enemy Area (multi-enemy) --- */
 .enemy-area {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px 10px;
+  gap: 12px;
+  min-height: 200px;
+  flex-wrap: wrap;
+}
+
+.enemy-unit {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 40px 0;
-  gap: 8px;
-  min-height: 250px;
+  padding: 14px 12px;
+  gap: 6px;
+  background: #1a1a2e;
+  border: 2px solid #0f3460;
+  border-radius: 4px;
+  min-width: 160px;
+  min-height: 180px;
+  justify-content: center;
+  transition: border-color 0.2s, transform 0.2s;
 }
 
-.enemy-name { font-size: 14px; }
+.target-mode .enemy-unit {
+  cursor: pointer;
+  border-color: #f0a500;
+  animation: target-glow 1s ease-in-out infinite;
+}
+
+.target-mode .enemy-unit:hover {
+  transform: scale(1.05);
+  border-color: #e94560;
+}
+
+@keyframes target-glow {
+  0%, 100% { box-shadow: 0 0 4px #f0a500; }
+  50% { box-shadow: 0 0 12px #f0a500; }
+}
+
+.target-hint {
+  text-align: center;
+  font-size: 10px;
+  color: #f0a500;
+  padding: 2px;
+  animation: intent-pulse 1.2s ease-in-out infinite;
+}
+
+.enemy-name { font-size: 12px; }
 
 .hp-bar-container {
-  width: 200px;
+  width: 140px;
   height: 12px;
   background: #333;
   border: 1px solid #555;
@@ -102,28 +144,94 @@ body {
 .hp-bar-fill {
   height: 100%;
   background: #e94560;
-  transition: width 0.3s ease;
+  transition: width 0.3s steps(5);
 }
 
 .enemy-intent {
   font-size: 10px;
   color: #f0a500;
-  margin-top: 8px;
+  margin-bottom: 2px;
 }
 
-/* --- Damage Float --- */
+.enemy-intent.intent-attack {
+  color: #e94560;
+  font-weight: bold;
+}
+
+.enemy-intent.intent-defend { color: #4fc3f7; }
+.enemy-intent.intent-buff { color: #f0a500; }
+.enemy-intent.intent-freeze { color: #81d4fa; }
+.enemy-intent.intent-poison { color: #9c27b0; }
+
+/* --- Damage Float (pixel style) --- */
 .damage-float {
   position: absolute;
-  font-size: 16px;
-  color: #ff4444;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14px;
   font-weight: bold;
-  animation: float-up 0.8s ease-out forwards;
+  animation: float-up 0.8s steps(8) forwards;
   pointer-events: none;
+  z-index: 10;
 }
+
+.damage-float.big-damage {
+  font-size: 20px;
+}
+
+.damage-float-damage { color: #ff4444; }
+.damage-float-heal { color: #4caf50; }
+.damage-float-armor { color: #4fc3f7; }
+.damage-float-poison { color: #9c27b0; }
 
 @keyframes float-up {
   0% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-20px); }
   100% { opacity: 0; transform: translateY(-40px); }
+}
+
+/* --- Enemy Shake --- */
+.enemy-shake {
+  animation: shake 0.3s steps(4);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+/* --- Screen Shake (big damage) --- */
+.screen-shake {
+  animation: screen-shake 0.3s steps(4);
+}
+
+@keyframes screen-shake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-3px, 2px); }
+  50% { transform: translate(3px, -2px); }
+  75% { transform: translate(-2px, 1px); }
+}
+
+/* --- Enemy Death Fade --- */
+.enemy-death {
+  animation: death-fade 0.6s steps(6) forwards;
+}
+
+@keyframes death-fade {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(0.8) translateY(20px); }
+}
+
+/* --- Intent Attack Pulse --- */
+.intent-attack {
+  animation: intent-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes intent-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 /* --- Hand Area --- */
@@ -133,33 +241,38 @@ body {
   left: 0;
   right: 0;
   background: #0a0a1a;
-  padding: 16px;
+  padding: 12px;
   border-top: 2px solid #0f3460;
 }
 
 .hand-cards {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   justify-content: center;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .card {
-  width: 110px;
-  padding: 8px;
+  width: 120px;
+  min-height: 130px;
+  padding: 10px 8px;
   background: #1a1a2e;
   border: 2px solid #0f3460;
   cursor: pointer;
   transition: transform 0.15s, border-color 0.15s;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .card:hover { transform: translateY(-4px); border-color: #e94560; }
 .card.disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-.card-name { font-size: 9px; margin-bottom: 4px; }
-.card-cost { font-size: 8px; color: #aaa; margin-bottom: 4px; }
-.card-desc { font-size: 7px; color: #888; }
+.card.selected { border-color: #f0a500; background: #2a2a3e; transform: translateY(-4px); }
+.card-name { font-size: 10px; margin-bottom: 4px; }
+.card-cost { font-size: 9px; color: #aaa; margin-bottom: 4px; }
+.card-desc { font-size: 8px; color: #888; }
 .card-cost.stamina { color: #f0a500; }
 .card-cost.mana { color: #4fc3f7; }
 .card-cost.free { color: #4caf50; }
@@ -352,3 +465,101 @@ body {
 }
 .weapon-drop-name { font-size: 11px; color: #f0a500; margin-bottom: 4px; }
 .weapon-drop-effect { font-size: 8px; color: #aaa; margin-bottom: 8px; }
+
+/* --- Player Hit Shake --- */
+.player-hit-light {
+  animation: player-shake-light 0.2s steps(3);
+}
+.player-hit-medium {
+  animation: player-shake-medium 0.3s steps(4);
+}
+.player-hit-heavy {
+  animation: player-shake-heavy 0.4s steps(5);
+}
+
+@keyframes player-shake-light {
+  0%, 100% { transform: translateX(0); background: #0f3460; }
+  50% { transform: translateX(-2px); background: #3a1525; }
+}
+
+@keyframes player-shake-medium {
+  0%, 100% { transform: translateX(0); background: #0f3460; }
+  25% { transform: translateX(-4px); background: #5a1525; }
+  50% { transform: translateX(4px); background: #4a1525; }
+  75% { transform: translateX(-2px); background: #3a1525; }
+}
+
+@keyframes player-shake-heavy {
+  0%, 100% { transform: translate(0, 0); background: #0f3460; }
+  20% { transform: translate(-6px, 2px); background: #7a1525; }
+  40% { transform: translate(6px, -2px); background: #6a1525; }
+  60% { transform: translate(-4px, 1px); background: #5a1525; }
+  80% { transform: translate(4px, -1px); background: #3a1525; }
+}
+
+/* --- Status Help Button & Guide --- */
+.stat-help {
+  cursor: pointer;
+  background: #0f3460;
+  border: 1px solid #4fc3f7;
+  color: #4fc3f7;
+  padding: 0 6px;
+  font-size: 10px;
+  margin-left: auto;
+}
+.stat-help:hover {
+  background: #1a3a6e;
+}
+
+.status-guide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-guide-inner {
+  background: #16213e;
+  border: 2px solid #0f3460;
+  padding: 16px 20px;
+  max-width: 500px;
+}
+
+.status-guide-title {
+  font-size: 12px;
+  color: #e94560;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.status-guide-row {
+  font-size: 8px;
+  color: #ccc;
+  padding: 3px 0;
+  line-height: 1.8;
+}
+
+.status-guide-close {
+  font-size: 8px;
+  color: #666;
+  text-align: center;
+  margin-top: 12px;
+}
+
+/* --- Map Player Bar --- */
+.map-player-bar {
+  display: flex;
+  gap: 20px;
+  padding: 10px 16px;
+  background: #0f3460;
+  font-size: 11px;
+  align-items: center;
+  margin-bottom: 12px;
+  border-radius: 4px;
+}

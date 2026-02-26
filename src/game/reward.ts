@@ -1,18 +1,68 @@
 import type { CardDef, NodeType } from './types'
 import { ALL_CARDS } from './cards'
 
-export function selectRandomCards(count: number): CardDef[] {
-  const shuffled = [...ALL_CARDS].sort(() => Math.random() - 0.5)
-  return shuffled.slice(0, count)
+const RARITY_WEIGHTS: Record<string, number> = {
+  basic: 0,
+  common: 50,
+  rare: 30,
+  epic: 10,
+}
+
+function weightedRandomCards(
+  pool: CardDef[],
+  count: number,
+  minRarity?: string,
+): CardDef[] {
+  // Filter pool to exclude basic cards (not offered as rewards)
+  let filtered = pool.filter(c => c.rarity !== 'basic')
+
+  const result: CardDef[] = []
+
+  // Guarantee minimum rarity if specified
+  if (minRarity) {
+    const rarityOrder = ['common', 'rare', 'epic']
+    const minIdx = rarityOrder.indexOf(minRarity)
+    const guaranteePool = filtered.filter(c => rarityOrder.indexOf(c.rarity) >= minIdx)
+    if (guaranteePool.length > 0) {
+      const pick = guaranteePool[Math.floor(Math.random() * guaranteePool.length)]
+      result.push(pick)
+      filtered = filtered.filter(c => c.id !== pick.id)
+    }
+  }
+
+  // Fill remaining slots with weighted random
+  while (result.length < count && filtered.length > 0) {
+    const totalWeight = filtered.reduce((sum, c) => sum + (RARITY_WEIGHTS[c.rarity] || 0), 0)
+    if (totalWeight <= 0) break
+
+    let roll = Math.random() * totalWeight
+    let picked: CardDef | null = null
+    for (const card of filtered) {
+      roll -= RARITY_WEIGHTS[card.rarity] || 0
+      if (roll <= 0) {
+        picked = card
+        break
+      }
+    }
+    if (!picked) picked = filtered[0]
+
+    result.push(picked)
+    // Dedup: remove picked card from pool
+    filtered = filtered.filter(c => c.id !== picked!.id)
+  }
+
+  return result
 }
 
 export function getRewardCards(nodeType: NodeType): CardDef[] {
+  if (nodeType === 'campfire') return []
+
   if (nodeType === 'boss_battle') {
-    // Boss战斗返回特定卡牌
-    return [ALL_CARDS[ALL_CARDS.length - 1]] // 返回最后一张卡作为特殊奖励
+    return weightedRandomCards(ALL_CARDS, 3, 'epic')
   }
-  if (nodeType === 'campfire') {
-    return [] // 篝火节点无卡牌奖励
+  if (nodeType === 'elite_battle') {
+    return weightedRandomCards(ALL_CARDS, 3, 'rare')
   }
-  return selectRandomCards(3)
+  // normal battle: guarantee at least common
+  return weightedRandomCards(ALL_CARDS, 3, 'common')
 }

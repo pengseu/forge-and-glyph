@@ -1,24 +1,39 @@
-import type { GameState } from '../game/types'
+import type { GameState, MaterialId } from '../game/types'
 import { renderTitle } from './scenes/title'
 import { renderMap } from './scenes/map'
 import { renderBattle } from './scenes/battle'
 import { renderReward } from './scenes/reward'
 import { renderResult } from './scenes/result'
 import { renderCampfire } from './scenes/campfire'
+import { renderShop } from './scenes/shop'
+import { renderInventory } from './scenes/inventory'
+import { renderForge } from './scenes/forge'
 
 export interface GameCallbacks {
   onStartGame: () => void
   onSelectNode: (nodeId: string) => void
   onPlayCard: (cardUid: string, targetIndex?: number) => void
+  onNormalAttack: (targetIndex?: number) => void
+  onUseBattleMaterial: (materialId: MaterialId) => void
   onEndTurn: () => void
   onSelectCard: (cardId: string) => void
   onSkipReward: () => void
+  onSelectMaterialReward: () => void
   onEquipWeapon: (weaponDefId: string) => void
   onRestart: () => void
   onCampfireHeal: () => void
   onCampfireUpgradeCard: (cardUid: string) => void
   onCampfireUpgradeWeapon: () => void
   onCampfireContinue: () => void
+  onShopBuyCard: (index: number) => void
+  onShopHeal: () => void
+  onShopRemoveCard: (cardUid: string) => void
+  onShopLeave: () => void
+  onOpenInventory: () => void
+  onCloseInventory: () => void
+  onInventoryEquip: (weaponUid: string) => void
+  onForgeCraft: (recipeId: string) => void
+  onForgeLeave: () => void
 }
 
 export function render(
@@ -42,7 +57,7 @@ export function render(
       }
       break
     case 'reward':
-      renderReward(container, state.rewardCards, state.droppedWeaponId, callbacks)
+      renderReward(container, state.rewardCards, state.rewardMaterials, state.droppedWeaponId, callbacks)
       break
     case 'result':
       renderResult(
@@ -61,6 +76,21 @@ export function render(
           state.run.playerMaxHp,
           callbacks,
         )
+      }
+      break
+    case 'shop':
+      if (state.run) {
+        renderShop(container, state.run, state.shopOffers, callbacks)
+      }
+      break
+    case 'inventory':
+      if (state.run) {
+        renderInventory(container, state.run, callbacks)
+      }
+      break
+    case 'forge':
+      if (state.run) {
+        renderForge(container, state.run, callbacks)
       }
       break
   }

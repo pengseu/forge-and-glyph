@@ -33,6 +33,28 @@ export const ENEMIES: Record<string, EnemyDef> = {
       { type: 'poison', value: 2 },
     ],
   },
+  shadow_assassin: {
+    id: 'shadow_assassin',
+    name: '暗影刺客',
+    maxHp: 55,
+    intents: [
+      { type: 'defend', value: 8 },
+      { type: 'attack', value: 22 },
+      { type: 'poison', value: 4 },
+      { type: 'attack', value: 12 },
+    ],
+  },
+  stone_gargoyle: {
+    id: 'stone_gargoyle',
+    name: '石像鬼',
+    maxHp: 75,
+    intents: [
+      { type: 'attack', value: 15 },
+      { type: 'weaken', value: 2 },
+      { type: 'attack', value: 15 },
+      { type: 'defend', value: 15 },
+    ],
+  },
   goblin_king: {
     id: 'goblin_king',
     name: '地精王',

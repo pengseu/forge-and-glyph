@@ -211,4 +211,28 @@ describe('effects', () => {
     state = applyCardEffects(state, [{ type: 'vulnerable', value: 2 }], 0)
     expect(state.enemies[0].vulnerable).toBe(2)
   })
+
+  describe('elite passives', () => {
+    it('shadow assassin should evade single-hit damage <= 5', () => {
+      state = createBattleState(['shadow_assassin'])
+      const hpBefore = state.enemies[0].hp
+      state = applyCardEffects(state, [{ type: 'damage', value: 5 }], 0, 'combat')
+      expect(state.enemies[0].hp).toBe(hpBefore)
+    })
+
+    it('shadow assassin should take damage when single-hit damage > 5', () => {
+      state = createBattleState(['shadow_assassin'])
+      const hpBefore = state.enemies[0].hp
+      state = applyCardEffects(state, [{ type: 'damage', value: 6 }], 0, 'combat')
+      expect(state.enemies[0].hp).toBe(hpBefore - 6)
+    })
+
+    it('shadow assassin evade threshold should use final damage after modifiers', () => {
+      state = createBattleState(['shadow_assassin'])
+      state = { ...state, player: { ...state.player, strength: 3 } }
+      const hpBefore = state.enemies[0].hp
+      state = applyCardEffects(state, [{ type: 'damage', value: 3 }], 0, 'combat')
+      expect(state.enemies[0].hp).toBe(hpBefore - 6)
+    })
+  })
 })

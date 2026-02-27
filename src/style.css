@@ -63,6 +63,7 @@ body {
 
 .btn:hover { background: #ff6b6b; }
 .btn:disabled { background: #555; cursor: not-allowed; }
+.btn-small { font-size: 10px; padding: 8px 10px; }
 
 /* --- Player Status Bar --- */
 .player-bar {
@@ -80,6 +81,29 @@ body {
 .stat-stamina { color: #f0a500; }
 .stat-mana { color: #4fc3f7; }
 .stat-armor { color: #aaa; }
+
+.status-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.status-badge {
+  font-size: 9px;
+  line-height: 1;
+  background: #1a2f4a;
+  border: 1px solid #35577d;
+  border-radius: 10px;
+  padding: 3px 6px;
+  color: #8fd4ff;
+}
+
+.status-badge.status-debuff {
+  border-color: #6f2f3a;
+  background: #3a1d24;
+  color: #ff9aa8;
+}
 
 /* --- Enemy Area (multi-enemy) --- */
 .enemy-area {
@@ -132,7 +156,45 @@ body {
   animation: intent-pulse 1.2s ease-in-out infinite;
 }
 
+.battle-material-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px 2px;
+}
+
+.battle-material-empty {
+  font-size: 8px;
+  color: #70859c;
+}
+
+.battle-material-btn {
+  padding: 6px 8px;
+  min-width: 190px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.battle-material-name {
+  font-size: 9px;
+}
+
+.battle-material-effect {
+  font-size: 7px;
+  color: #9eb1c2;
+  line-height: 1.45;
+}
+
 .enemy-name { font-size: 12px; }
+.enemy-passive {
+  font-size: 8px;
+  color: #9fc0dd;
+  text-align: center;
+  min-height: 14px;
+}
 
 .hp-bar-container {
   width: 140px;
@@ -151,6 +213,15 @@ body {
   font-size: 10px;
   color: #f0a500;
   margin-bottom: 2px;
+  cursor: help;
+}
+
+.enemy-intent-hint {
+  font-size: 8px;
+  color: #7f8ea7;
+  text-align: center;
+  min-height: 16px;
+  line-height: 1.4;
 }
 
 .enemy-intent.intent-attack {
@@ -162,6 +233,11 @@ body {
 .enemy-intent.intent-buff { color: #f0a500; }
 .enemy-intent.intent-freeze { color: #81d4fa; }
 .enemy-intent.intent-poison { color: #9c27b0; }
+
+.enemy-status-row {
+  justify-content: center;
+  margin-top: 2px;
+}
 
 /* --- Damage Float (pixel style) --- */
 .damage-float {
@@ -255,8 +331,8 @@ body {
 
 .card {
   width: 120px;
-  min-height: 130px;
-  padding: 10px 8px;
+  min-height: 160px;
+  padding: 12px 10px;
   background: #1a1a2e;
   border: 2px solid #0f3460;
   cursor: pointer;
@@ -270,9 +346,13 @@ body {
 .card:hover { transform: translateY(-4px); border-color: #e94560; }
 .card.disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .card.selected { border-color: #f0a500; background: #2a2a3e; transform: translateY(-4px); }
-.card-name { font-size: 10px; margin-bottom: 4px; }
-.card-cost { font-size: 9px; color: #aaa; margin-bottom: 4px; }
-.card-desc { font-size: 8px; color: #888; }
+.card:focus-visible {
+  outline: 2px solid #f0a500;
+  outline-offset: 2px;
+}
+.card-name { font-size: 11px; margin-bottom: 6px; line-height: 1.4; }
+.card-cost { font-size: 10px; color: #aaa; margin-bottom: 6px; }
+.card-desc { font-size: 9px; color: #888; line-height: 1.45; }
 .card-cost.stamina { color: #f0a500; }
 .card-cost.mana { color: #4fc3f7; }
 .card-cost.free { color: #4caf50; }
@@ -315,6 +395,24 @@ body {
   margin-bottom: 20px;
 }
 
+.map-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.map-line {
+  stroke: #2c4c73;
+  stroke-width: 2;
+}
+
+.map-line.active {
+  stroke: #e94560;
+  stroke-width: 3;
+}
+
 .map-node {
   position: absolute;
   width: 60px;
@@ -338,6 +436,11 @@ body {
 .map-node.accessible:hover {
   transform: scale(1.1);
   background: #2a2a3e;
+}
+
+.map-node:focus-visible {
+  outline: 2px solid #f0a500;
+  outline-offset: 2px;
 }
 
 .map-node.current {
@@ -369,7 +472,7 @@ body {
 }
 
 .scene-reward h2 {
-  font-size: 16px;
+  font-size: 18px;
   color: #e94560;
 }
 
@@ -377,16 +480,21 @@ body {
   display: flex;
   gap: 16px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .reward-card {
-  width: 120px;
-  padding: 12px;
+  width: 150px;
+  min-height: 170px;
+  padding: 14px;
   background: #1a1a2e;
   border: 2px solid #0f3460;
   cursor: pointer;
   transition: all 0.2s;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .reward-card:hover {
@@ -395,9 +503,22 @@ body {
   background: #2a2a3e;
 }
 
-.reward-card .card-name { font-size: 9px; margin-bottom: 4px; }
-.reward-card .card-cost { font-size: 8px; color: #aaa; margin-bottom: 4px; }
-.reward-card .card-desc { font-size: 7px; color: #888; }
+.reward-card:focus-visible {
+  outline: 2px solid #f0a500;
+  outline-offset: 2px;
+}
+
+.reward-card .card-name { font-size: 11px; margin-bottom: 6px; line-height: 1.4; }
+.reward-card .card-cost { font-size: 10px; color: #aaa; margin-bottom: 6px; }
+.reward-card .card-desc { font-size: 9px; color: #888; line-height: 1.45; }
+.reward-material {
+  border: 1px solid #3c5f82;
+  background: #15283d;
+  padding: 10px;
+  text-align: center;
+}
+.reward-material-title { font-size: 10px; color: #9fc0dd; margin-bottom: 6px; }
+.reward-material-desc { font-size: 8px; color: #c8d7e3; margin-bottom: 8px; }
 
 /* --- Campfire Scene --- */
 .scene-campfire {
@@ -563,3 +684,177 @@ body {
   margin-bottom: 12px;
   border-radius: 4px;
 }
+
+/* --- Shop Scene --- */
+.scene-shop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  min-height: 600px;
+}
+
+.scene-shop h2 {
+  color: #f0a500;
+}
+
+.shop-gold {
+  font-size: 11px;
+  color: #ffd166;
+}
+
+.shop-cards {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.shop-card {
+  width: 170px;
+  min-height: 190px;
+  background: #1a1a2e;
+  border: 2px solid #0f3460;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.shop-card.sold {
+  opacity: 0.6;
+}
+
+.btn-shop-buy {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 10px;
+}
+
+.shop-services {
+  width: 100%;
+  max-width: 700px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.shop-remove {
+  width: 100%;
+  border: 1px solid #335173;
+  padding: 10px;
+}
+
+.shop-remove-title {
+  font-size: 10px;
+  margin-bottom: 8px;
+  color: #9fc0dd;
+}
+
+.shop-remove-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.shop-remove-list.disabled {
+  opacity: 0.5;
+}
+
+.shop-remove-card {
+  background: #243b55;
+  color: #d9e7f2;
+  border: 1px solid #496b8f;
+  padding: 6px 8px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  cursor: pointer;
+}
+
+/* --- Inventory Scene --- */
+.scene-inventory {
+  min-height: 600px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.inventory-section h3 {
+  font-size: 11px;
+  color: #9fc0dd;
+  margin-bottom: 6px;
+}
+
+.inventory-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inventory-item {
+  border: 1px solid #335173;
+  background: #15283d;
+  padding: 6px 8px;
+  font-size: 8px;
+}
+
+.inventory-weapon {
+  border: 1px solid #335173;
+  background: #15283d;
+  padding: 8px;
+  width: 220px;
+}
+
+.inventory-weapon.equipped {
+  border-color: #f0a500;
+}
+
+.inventory-weapon-effect {
+  font-size: 8px;
+  color: #9eb1c2;
+  margin: 6px 0;
+  line-height: 1.5;
+}
+
+/* --- Forge Scene --- */
+.scene-forge {
+  min-height: 600px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.forge-materials {
+  font-size: 9px;
+  color: #c8d7e3;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.forge-recipes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.forge-recipe {
+  width: 220px;
+  border: 1px solid #335173;
+  background: #15283d;
+  padding: 10px;
+}
+
+.forge-name { font-size: 10px; margin-bottom: 6px; }
+.forge-effect {
+  font-size: 8px;
+  color: #d8e7f5;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.forge-cost { font-size: 8px; color: #9eb1c2; margin-bottom: 8px; }

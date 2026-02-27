@@ -13,12 +13,35 @@ describe('map', () => {
     expect(bossNode).toBeDefined()
   })
 
-  it('should have 5 normal and 2 elite nodes', () => {
+  it('should have 3 normal, 2 elite, 1 shop, 1 forge nodes', () => {
     const map = generateMap()
     const normal = map.filter(n => n.type === 'normal_battle').length
     const elite = map.filter(n => n.type === 'elite_battle').length
-    expect(normal).toBe(5)
+    const shop = map.filter(n => n.type === 'shop').length
+    const forge = map.filter(n => n.type === 'forge').length
+    expect(normal).toBe(3)
     expect(elite).toBe(2)
+    expect(shop).toBe(1)
+    expect(forge).toBe(1)
+  })
+
+  it('elite nodes should use phase-3 elite enemies', () => {
+    const map = generateMap()
+    const elites = map.filter(n => n.type === 'elite_battle')
+    expect(elites).toHaveLength(2)
+    for (const node of elites) {
+      expect(node.enemyIds).toBeDefined()
+      expect(node.enemyIds).toHaveLength(1)
+      expect(['shadow_assassin', 'stone_gargoyle']).toContain(node.enemyIds![0])
+    }
+  })
+
+  it('boss predecessor nodes should not be elite', () => {
+    const map = generateMap()
+    const boss = map.find(n => n.type === 'boss_battle')!
+    const predecessors = map.filter(n => n.connections.includes(boss.id))
+    expect(predecessors.length).toBeGreaterThan(0)
+    expect(predecessors.some(n => n.type === 'elite_battle')).toBe(false)
   })
 
   it('should have 1 campfire node without enemyId', () => {

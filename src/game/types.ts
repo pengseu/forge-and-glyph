@@ -59,6 +59,7 @@ export type EnemyIntent =
   | { type: 'attack'; value: number }
   | { type: 'defend'; value: number }
   | { type: 'buff'; buffType: 'strength'; value: number }
+  | { type: 'weaken'; value: number }
   | { type: 'poison'; value: number }
   | { type: 'summon'; enemyId: string }
   | { type: 'summon_multi'; enemyId: string; count: number }
@@ -95,6 +96,9 @@ export interface PlayerState {
   barrier: number
   charge: number
   weakened: number
+  guardArmorPerTurn: number
+  weaponPerTurnUsed: boolean
+  normalAttackUsedThisTurn: boolean
   hand: CardInstance[]
   drawPile: CardInstance[]
   discardPile: CardInstance[]
@@ -126,6 +130,8 @@ export interface TurnTracking {
 export interface BattleState {
   player: PlayerState
   enemies: EnemyState[]
+  availableMaterials: MaterialBag
+  usedMaterials: Partial<Record<MaterialId, boolean>>
   turn: number
   phase: BattlePhase
   turnTracking: TurnTracking
@@ -137,6 +143,7 @@ export interface WeaponDef {
   name: string
   rarity: 'basic' | 'upgraded'
   effect: string
+  normalAttack: { damage: number; hits?: number }
 }
 
 export interface WeaponInstance {
@@ -144,21 +151,39 @@ export interface WeaponInstance {
   defId: string
 }
 
+export interface ShopOffer {
+  cardId: string
+  price: number
+  sold: boolean
+}
+
+export type MaterialId =
+  | 'iron_ingot'
+  | 'steel_ingot'
+  | 'elemental_essence'
+  | 'war_essence'
+  | 'guard_essence'
+  | 'goblin_crown_fragment'
+
+export type MaterialBag = Record<MaterialId, number>
+
 // --- Scene ---
-export type Scene = 'title' | 'map' | 'battle' | 'reward' | 'result' | 'campfire'
+export type Scene = 'title' | 'map' | 'battle' | 'reward' | 'result' | 'campfire' | 'shop' | 'inventory' | 'forge'
 
 export interface GameState {
   scene: Scene
   run: RunState | null
   battle: BattleState | null
   rewardCards: CardDef[]
+  rewardMaterials: Partial<MaterialBag>
+  shopOffers: ShopOffer[]
   droppedWeaponId: string | null
   lastResult: 'victory' | 'defeat' | null
   stats: { turns: number; remainingHp: number }
 }
 
 // --- Map System ---
-export type NodeType = 'normal_battle' | 'elite_battle' | 'boss_battle' | 'campfire'
+export type NodeType = 'normal_battle' | 'elite_battle' | 'boss_battle' | 'campfire' | 'shop' | 'forge'
 
 export interface MapNode {
   id: string
@@ -180,6 +205,8 @@ export interface RunState {
   weaponInventory: WeaponInstance[]
   playerHp: number
   playerMaxHp: number
+  gold: number
+  materials: MaterialBag
 }
 
 export interface RewardState {
@@ -187,4 +214,11 @@ export interface RewardState {
   selectedCard: CardDef | null
 }
 
-export type EnemyType = 'goblin_scout' | 'forest_wolf' | 'mushroom_creature' | 'goblin_king' | 'goblin_minion'
+export type EnemyType =
+  | 'goblin_scout'
+  | 'forest_wolf'
+  | 'mushroom_creature'
+  | 'goblin_king'
+  | 'goblin_minion'
+  | 'shadow_assassin'
+  | 'stone_gargoyle'

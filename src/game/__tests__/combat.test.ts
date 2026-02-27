@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { createBattleState, startTurn, playCard, endPlayerTurn, canPlayCard } from '../combat'
+import { createBattleState, startTurn, playCard, endPlayerTurn, canPlayCard, useBattleMaterial, canUseNormalAttack, useNormalAttack } from '../combat'
+import { EMPTY_MATERIAL_BAG } from '../materials'
 import { getCardDef } from '../cards'
 
 describe('combat', () => {
@@ -21,6 +22,7 @@ describe('combat', () => {
     expect(state.player.barrier).toBe(0)
     expect(state.player.charge).toBe(0)
     expect(state.player.weakened).toBe(0)
+    expect(state.player.guardArmorPerTurn).toBe(0)
     expect(state.enemies[0].vulnerable).toBe(0)
     expect(state.enemies[0].freezeImmune).toBe(false)
   })
@@ -176,6 +178,100 @@ describe('combat', () => {
       state = { ...state, player: { ...state.player, stamina: 0, weaponDiscount: 1 } }
       expect(canPlayCard(state, 'c3')).toBe(false)
     })
+
+    it('normal attack should be available only when weapon is equipped and once per turn', () => {
+      let noWeaponState = makeWeaponState('longsword')
+      noWeaponState = { ...noWeaponState, player: { ...noWeaponState.player, equippedWeaponId: null } }
+      expect(canUseNormalAttack(noWeaponState)).toBe(false)
+
+      let state = makeWeaponState('iron_longsword')
+      expect(canUseNormalAttack(state)).toBe(true)
+      state = useNormalAttack(state, 0)
+      expect(canUseNormalAttack(state)).toBe(false)
+      state = endPlayerTurn(state)
+      expect(canUseNormalAttack(state)).toBe(true)
+    })
+
+    it('iron_longsword normal attack should deal 6 damage', () => {
+      let state = makeWeaponState('iron_longsword')
+      const hpBefore = state.enemies[0].hp
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[0].hp).toBe(hpBefore - 6)
+    })
+
+    it('iron_dagger normal attack should hit twice', () => {
+      const deck = [{ uid: 'c1', defId: 'slash' }]
+      let state = createBattleState(['goblin_scout'], deck, 'iron_dagger')
+      state = {
+        ...state,
+        player: {
+          ...state.player,
+          hand: [...deck],
+          drawPile: [],
+        },
+      }
+      const hpBefore = state.enemies[0].hp
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[0].hp).toBe(hpBefore - 6)
+    })
+
+    it('iron_dagger: first low-cost combat card each turn should draw 1 card', () => {
+      let state = makeWeaponState('iron_dagger')
+      state = {
+        ...state,
+        player: {
+          ...state.player,
+          drawPile: [{ uid: 'd1', defId: 'block' }],
+        },
+      }
+      state = playCard(state, 'c1', 0)
+      expect(state.player.hand).toHaveLength(5)
+      state = playCard(state, 'c2', 0)
+      expect(state.player.hand).toHaveLength(4)
+    })
+
+    it('iron_hammer: heavy hit should shatter extra armor', () => {
+      const deck = [
+        { uid: 'c1', defId: 'heavy_slash' },
+      ]
+      let state = createBattleState(['stone_gargoyle'], deck, 'iron_hammer')
+      state = {
+        ...state,
+        player: {
+          ...state.player,
+          strength: 3,
+          stamina: 3,
+          hand: [...deck],
+          drawPile: [],
+        },
+        enemies: [{ ...state.enemies[0], armor: 20 }],
+      }
+      state = playCard(state, 'c1', 0)
+      expect(state.enemies[0].armor).toBe(2)
+    })
+
+    it('iron_bow: combat cards gain 30% damage when unharmed this turn', () => {
+      let state = makeWeaponState('iron_bow')
+      state = playCard(state, 'c1', 0)
+      expect(state.enemies[0].hp).toBe(21)
+    })
+
+    it('iron_staff: spell damage increased and gains charge on cast', () => {
+      const deck = [{ uid: 'c1', defId: 'fireball' }]
+      let state = createBattleState(['goblin_scout'], deck, 'iron_staff')
+      state = {
+        ...state,
+        player: {
+          ...state.player,
+          mana: 3,
+          hand: [...deck],
+          drawPile: [],
+        },
+      }
+      state = playCard(state, 'c1', 0)
+      expect(state.enemies[0].hp).toBe(16)
+      expect(state.player.charge).toBe(1)
+    })
   })
 
   describe('barrier mechanic', () => {
@@ -262,6 +358,61 @@ describe('combat', () => {
       // After one endPlayerTurn cycle, weakened -1, vulnerable -1
       expect(state.enemies[0].weakened).toBe(1)
       expect(state.enemies[0].vulnerable).toBe(2)
+    })
+
+    it('boss defend+attack armor should persist into next player turn', () => {
+      let state = createBattleState(['goblin_king'])
+      state = startTurn(state)
+      state = { ...state, enemies: [{ ...state.enemies[0], intentIndex: 3 }] }
+      state = endPlayerTurn(state)
+      expect(state.enemies[0].armor).toBe(20)
+    })
+  })
+
+  describe('elite enemies', () => {
+    it('stone gargoyle should gain 8 armor at startTurn', () => {
+      let state = createBattleState(['stone_gargoyle'])
+      expect(state.enemies[0].armor).toBe(0)
+      state = startTurn(state)
+      expect(state.enemies[0].armor).toBe(8)
+    })
+
+    it('stone gaze intent should apply weakened to player', () => {
+      let state = createBattleState(['stone_gargoyle'])
+      state = startTurn(state)
+      state = { ...state, enemies: [{ ...state.enemies[0], intentIndex: 1 }] }
+      state = endPlayerTurn(state)
+      expect(state.player.weakened).toBe(1)
+    })
+  })
+
+  describe('battle materials', () => {
+    it('iron ingot should grant armor and be limited to once per battle', () => {
+      let state = createBattleState(['goblin_scout'], undefined, undefined, { ...EMPTY_MATERIAL_BAG, iron_ingot: 2 })
+      state = startTurn(state)
+      state = useBattleMaterial(state, 'iron_ingot')
+      expect(state.player.armor).toBe(8)
+      expect(state.availableMaterials.iron_ingot).toBe(1)
+      state = useBattleMaterial(state, 'iron_ingot')
+      expect(state.player.armor).toBe(8)
+      expect(state.availableMaterials.iron_ingot).toBe(1)
+    })
+
+    it('elemental essence should add burn to all living enemies', () => {
+      let state = createBattleState(['goblin_scout', 'forest_wolf'], undefined, undefined, { ...EMPTY_MATERIAL_BAG, elemental_essence: 1 })
+      state = startTurn(state)
+      state = useBattleMaterial(state, 'elemental_essence')
+      expect(state.enemies[0].burn).toBe(2)
+      expect(state.enemies[1].burn).toBe(2)
+    })
+
+    it('guard essence should grant armor each startTurn', () => {
+      let state = createBattleState(['goblin_scout'], undefined, undefined, { ...EMPTY_MATERIAL_BAG, guard_essence: 1 })
+      state = startTurn(state)
+      state = useBattleMaterial(state, 'guard_essence')
+      expect(state.player.guardArmorPerTurn).toBe(3)
+      state = endPlayerTurn(state)
+      expect(state.player.armor).toBeGreaterThanOrEqual(3)
     })
   })
 })

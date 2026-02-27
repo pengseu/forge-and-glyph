@@ -1,10 +1,12 @@
 import type { BattleState } from '../../game/types'
 import type { GameCallbacks } from '../renderer'
 import { getEnemyDef } from '../../game/enemies'
-import { canPlayCard, cardNeedsTarget } from '../../game/combat'
+import { canPlayCard, canUseNormalAttack, cardNeedsTarget } from '../../game/combat'
 import { getWeaponDef } from '../../game/weapons'
 import { getEffectiveCardDef } from '../../game/campfire'
 import { showDamageFloat, shakeEnemy, screenShake, playerHitShake } from '../animations'
+import { formatMaterial, getBattleMaterialEffectText } from '../../game/materials'
+import type { MaterialId } from '../../game/types'
 
 let pendingCardUid: string | null = null
 
@@ -45,18 +47,19 @@ export function renderBattle(
   }
 
   // Player status effects
-  let playerStatus = ''
-  if (state.player.strength > 0) playerStatus += ` 💪${state.player.strength}`
-  if (state.player.buffNextCombat > 0) playerStatus += ` ✨+${state.player.buffNextCombat}%`
-  if (state.player.buffNextCombatDouble) playerStatus += ' ⚡x2'
-  if (state.player.buffNextSpellDamage > 0) playerStatus += ` 🔮+${state.player.buffNextSpellDamage}`
-  if (state.player.poisonOnAttack > 0) playerStatus += ` 🐍+${state.player.poisonOnAttack}`
-  if (state.player.poison > 0) playerStatus += ` ☠️${state.player.poison}`
-  if (state.turnTracking.combatDamageBonus > 0) playerStatus += ` 🗡️+${state.turnTracking.combatDamageBonus}`
-  if (state.player.wisdom > 0) playerStatus += ` 📖${state.player.wisdom}`
-  if (state.player.barrier > 0) playerStatus += ` 🔵${state.player.barrier}`
-  if (state.player.charge > 0) playerStatus += ` ⚡蓄${state.player.charge}`
-  if (state.player.weakened > 0) playerStatus += ` 😵${state.player.weakened}`
+  const playerStatusBadges: string[] = []
+  if (state.player.strength > 0) playerStatusBadges.push(`<span class="status-badge">💪${state.player.strength}</span>`)
+  if (state.player.wisdom > 0) playerStatusBadges.push(`<span class="status-badge">📖${state.player.wisdom}</span>`)
+  if (state.player.barrier > 0) playerStatusBadges.push(`<span class="status-badge">🔵${state.player.barrier}</span>`)
+  if (state.player.charge > 0) playerStatusBadges.push(`<span class="status-badge">⚡蓄${state.player.charge}</span>`)
+  if (state.player.poisonOnAttack > 0) playerStatusBadges.push(`<span class="status-badge">🐍+${state.player.poisonOnAttack}</span>`)
+  if (state.player.poison > 0) playerStatusBadges.push(`<span class="status-badge status-debuff">☠️${state.player.poison}</span>`)
+  if (state.player.weakened > 0) playerStatusBadges.push(`<span class="status-badge status-debuff">😵${state.player.weakened}</span>`)
+  if (state.turnTracking.combatDamageBonus > 0) playerStatusBadges.push(`<span class="status-badge">🗡️+${state.turnTracking.combatDamageBonus}</span>`)
+  if (state.player.buffNextCombat > 0) playerStatusBadges.push(`<span class="status-badge">✨+${state.player.buffNextCombat}%</span>`)
+  if (state.player.buffNextCombatDouble) playerStatusBadges.push('<span class="status-badge">⚡x2</span>')
+  if (state.player.buffNextSpellDamage > 0) playerStatusBadges.push(`<span class="status-badge">🔮+${state.player.buffNextSpellDamage}</span>`)
+  const playerStatus = playerStatusBadges.join('')
 
   // Build enemies HTML
   const enemiesHtml = state.enemies.map((enemy, idx) => {
@@ -65,50 +68,72 @@ export function renderBattle(
     const hpPercent = (enemy.hp / enemy.maxHp) * 100
 
     const intent = enemyDef.intents[enemy.intentIndex]
+    const passiveText =
+      enemy.defId === 'shadow_assassin'
+        ? '⚡闪避：单次≤5伤害无效'
+        : enemy.defId === 'stone_gargoyle'
+          ? '🪨石化：每回合开始+8护甲'
+          : ''
     let intentText = ''
+    let intentHint = ''
     let intentClass = ''
     if (enemy.freeze > 0) {
       intentText = '🧊 冻结中'
+      intentHint = '跳过本回合行动，随后获得短暂冻结免疫'
       intentClass = 'intent-freeze'
     } else if (intent.type === 'attack') {
       let dmg = intent.value + enemy.strength
       if (enemy.weakened > 0) dmg = Math.floor(dmg * 0.75)
       intentText = `🗡️ ${dmg}`
+      intentHint = `将造成 ${dmg} 点伤害`
       intentClass = 'intent-attack'
     } else if (intent.type === 'defend') {
       intentText = `🛡️ ${intent.value}`
+      intentHint = `将获得 ${intent.value} 点护甲`
       intentClass = 'intent-defend'
     } else if (intent.type === 'buff') {
       intentText = `💪 +${intent.value}`
+      intentHint = `将提升 ${intent.value} 点力量`
       intentClass = 'intent-buff'
     } else if (intent.type === 'poison') {
       intentText = `☠️ ${intent.value}`
+      intentHint = `将施加 ${intent.value} 层中毒`
+      intentClass = 'intent-poison'
+    } else if (intent.type === 'weaken') {
+      intentText = `😵 ${intent.value}`
+      intentHint = `将施加 ${intent.value} 层虚弱`
       intentClass = 'intent-poison'
     } else if (intent.type === 'summon') {
       intentText = '📢 召唤'
+      intentHint = '将召唤新的敌方单位'
       intentClass = 'intent-buff'
     } else if (intent.type === 'summon_multi') {
       intentText = '👥 召唤'
+      intentHint = `将尝试召唤 ${intent.count} 个单位`
       intentClass = 'intent-buff'
     } else if (intent.type === 'defend_attack') {
       let dmg = intent.attackValue + enemy.strength
       if (enemy.weakened > 0) dmg = Math.floor(dmg * 0.75)
       intentText = `🛡️${intent.defendValue} 🗡️${dmg}`
+      intentHint = `将先获得 ${intent.defendValue} 护甲，再造成 ${dmg} 伤害`
       intentClass = 'intent-attack'
     }
 
-    let enemyStatus = ''
-    if (enemy.burn > 0) enemyStatus += ` 🔥${enemy.burn}`
-    if (enemy.poison > 0) enemyStatus += ` 🐍${enemy.poison}`
-    if (enemy.freeze > 0) enemyStatus += ' 🧊'
-    if (enemy.weakened > 0) enemyStatus += ` 😵${enemy.weakened}`
-    if (enemy.vulnerable > 0) enemyStatus += ` 💀${enemy.vulnerable}`
-    if (enemy.strength > 0) enemyStatus += ` 💪${enemy.strength}`
+    const enemyStatusBadges: string[] = []
+    if (enemy.strength > 0) enemyStatusBadges.push(`<span class="status-badge">💪${enemy.strength}</span>`)
+    if (enemy.burn > 0) enemyStatusBadges.push(`<span class="status-badge">🔥${enemy.burn}</span>`)
+    if (enemy.poison > 0) enemyStatusBadges.push(`<span class="status-badge">🐍${enemy.poison}</span>`)
+    if (enemy.freeze > 0) enemyStatusBadges.push('<span class="status-badge">🧊</span>')
+    if (enemy.weakened > 0) enemyStatusBadges.push(`<span class="status-badge status-debuff">😵${enemy.weakened}</span>`)
+    if (enemy.vulnerable > 0) enemyStatusBadges.push(`<span class="status-badge status-debuff">💀${enemy.vulnerable}</span>`)
+    const enemyStatus = enemyStatusBadges.join('')
 
     return `
-      <div class="enemy-unit" data-enemy-idx="${idx}">
-        <div class="enemy-intent ${intentClass}">${intentText}</div>
+      <div class="enemy-unit" data-enemy-idx="${idx}" tabindex="0" role="button" aria-label="${enemyDef.name}">
+        <div class="enemy-intent ${intentClass}" title="${intentHint}">${intentText}</div>
+        <div class="enemy-intent-hint">${intentHint}</div>
         <div class="enemy-name">👾 ${enemyDef.name}</div>
+        ${passiveText ? `<div class="enemy-passive">${passiveText}</div>` : ''}
         <div class="hp-bar-container">
           <div class="hp-bar-fill" style="width: ${hpPercent}%"></div>
         </div>
@@ -116,7 +141,7 @@ export function renderBattle(
           HP ${enemy.hp}/${enemy.maxHp}
           ${enemy.armor > 0 ? ` 🛡️${enemy.armor}` : ''}
         </div>
-        ${enemyStatus ? `<div style="font-size:9px;">${enemyStatus}</div>` : ''}
+        ${enemyStatus ? `<div class="status-row enemy-status-row">${enemyStatus}</div>` : ''}
       </div>
     `
   }).join('')
@@ -136,7 +161,7 @@ export function renderBattle(
     }
     const selectedClass = pendingCardUid === card.uid ? 'selected' : ''
     return `
-      <div class="card ${playable ? '' : 'disabled'} ${selectedClass}" data-uid="${card.uid}">
+      <div class="card ${playable ? '' : 'disabled'} ${selectedClass}" data-uid="${card.uid}" tabindex="${playable ? '0' : '-1'}" role="button" aria-label="${def.name}">
         <div class="card-name">${def.name}</div>
         <div class="card-cost ${def.costType}">${costLabel}</div>
         <div class="card-desc">${def.description}</div>
@@ -145,6 +170,17 @@ export function renderBattle(
   }).join('')
 
   const targetModeClass = pendingCardUid ? 'target-mode' : ''
+  const battleMaterials = (Object.keys(state.availableMaterials) as MaterialId[])
+    .filter((id) => state.availableMaterials[id] > 0)
+    .map((id) => {
+      const used = !!state.usedMaterials[id]
+      return `
+        <button class="btn btn-small battle-material-btn" data-material-id="${id}" ${used ? 'disabled' : ''}>
+          <div class="battle-material-name">${formatMaterial(id)} ${used ? '(已用)' : `×${state.availableMaterials[id]}`}</div>
+          <div class="battle-material-effect">${getBattleMaterialEffectText(id)}</div>
+        </button>
+      `
+    }).join('')
 
   container.innerHTML = `
     <div class="player-bar">
@@ -153,7 +189,7 @@ export function renderBattle(
       <span class="stat stat-mana">✦ ${state.player.mana}/${state.player.maxMana}</span>
       <span class="stat stat-armor">🛡️ ${state.player.armor}</span>
       ${weaponText ? `<span class="stat" style="color:#f0a500;">${weaponText}</span>` : ''}
-      ${playerStatus ? `<span class="stat" style="color:#4caf50;">${playerStatus}</span>` : ''}
+      ${playerStatus ? `<span class="stat status-row">${playerStatus}</span>` : ''}
       <span class="stat">回合 ${state.turn}</span>
       <span class="stat stat-help" id="btn-status-help">?</span>
     </div>
@@ -181,11 +217,15 @@ export function renderBattle(
     <div class="enemy-area ${targetModeClass}">
       ${enemiesHtml}
     </div>
+    <div class="battle-material-bar">
+      ${battleMaterials || '<span class="battle-material-empty">无可用材料</span>'}
+    </div>
     ${pendingCardUid ? '<div class="target-hint">选择目标（右键取消）</div>' : ''}
     <div class="hand-area">
       <div class="hand-cards">${cardsHtml}</div>
       <div class="hand-footer">
         <span>抽牌堆: ${state.player.drawPile.length}</span>
+        <button class="btn btn-small" id="btn-normal-attack" ${canUseNormalAttack(state) ? '' : 'disabled'}>${state.player.normalAttackUsedThisTurn ? '普攻(已用)' : '普攻(0费)'}</button>
         <button class="btn" id="btn-end-turn">结束回合</button>
         <span>弃牌堆: ${state.player.discardPile.length}</span>
       </div>
@@ -203,30 +243,41 @@ export function renderBattle(
   })
 
   // Enemy click (target selection)
-  container.querySelectorAll('.enemy-unit').forEach(el => {
+  container.querySelectorAll<HTMLElement>('.enemy-unit').forEach(el => {
     el.addEventListener('click', (e) => {
       e.stopPropagation()
       if (!pendingCardUid) return
-      const idx = parseInt((el as HTMLElement).dataset.enemyIdx!, 10)
+      const idx = parseInt(el.dataset.enemyIdx!, 10)
       const uid = pendingCardUid
       exitTargetMode(container)
       callbacks.onPlayCard(uid, idx)
     })
+    el.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (!pendingCardUid) return
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        const idx = parseInt(el.dataset.enemyIdx!, 10)
+        const uid = pendingCardUid
+        exitTargetMode(container)
+        callbacks.onPlayCard(uid, idx)
+      }
+    })
   })
 
   // Card click
-  container.querySelectorAll('.card:not(.disabled)').forEach(el => {
+  container.querySelectorAll<HTMLElement>('.card:not(.disabled)').forEach(el => {
     el.addEventListener('click', (e) => {
       e.stopPropagation()
-      const uid = (el as HTMLElement).dataset.uid!
+      const uid = el.dataset.uid!
       const card = state.player.hand.find(c => c.uid === uid)
       if (!card) return
       const def = getEffectiveCardDef(card)
 
       // If already in target mode, cancel first
+      const wasPendingUid = pendingCardUid
       if (pendingCardUid) {
         exitTargetMode(container)
-        if (pendingCardUid === null && uid === pendingCardUid) return
+        if (uid === wasPendingUid) return
       }
 
       const livingEnemies = state.enemies.filter(en => en.hp > 0)
@@ -239,6 +290,12 @@ export function renderBattle(
         callbacks.onPlayCard(uid, 0)
       }
     })
+    el.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        el.click()
+      }
+    })
   })
 
   // End turn button
@@ -247,6 +304,23 @@ export function renderBattle(
       pendingCardUid = null
       callbacks.onEndTurn()
     })
+
+  container.querySelector('#btn-normal-attack')?.addEventListener('click', () => {
+    const targetIdx = state.enemies.findIndex(en => en.hp > 0)
+    if (targetIdx >= 0) {
+      callbacks.onNormalAttack(targetIdx)
+    }
+  })
+
+  container.querySelectorAll<HTMLElement>('.battle-material-btn').forEach(el => {
+    el.addEventListener('click', () => {
+      const materialId = el.dataset.materialId as MaterialId
+      if (!materialId) return
+      if (window.confirm(`确认消耗 ${formatMaterial(materialId)}？每场战斗每种材料只能使用一次。`)) {
+        callbacks.onUseBattleMaterial(materialId)
+      }
+    })
+  })
 
   // --- Animations based on state diff ---
   if (prevState) {

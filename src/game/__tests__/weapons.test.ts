@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { ALL_WEAPONS, getWeaponDef } from '../weapons'
 
 describe('weapons', () => {
-  it('should have 2 weapon definitions', () => {
-    expect(ALL_WEAPONS).toHaveLength(2)
+  it('should include forge weapon definitions', () => {
+    expect(ALL_WEAPONS.length).toBeGreaterThanOrEqual(5)
   })
 
   it('should find longsword by id', () => {

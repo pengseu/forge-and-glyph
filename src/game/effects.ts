@@ -3,6 +3,8 @@ import type { BattleState, CardCategory, CardEffect } from './types'
 function dealDamageToEnemy(state: BattleState, targetIndex: number, damage: number): BattleState {
   const enemy = state.enemies[targetIndex]
   if (!enemy || enemy.hp <= 0) return state
+  // Shadow Assassin passive: evade any single hit <= 5 final damage.
+  if (enemy.defId === 'shadow_assassin' && damage <= 5) return state
   let remaining = damage
   let armor = enemy.armor
   let hp = enemy.hp
@@ -43,9 +45,17 @@ function applyDmgMods(
   if (category === 'combat') {
     dmg += s.player.strength
   }
+  // Iron bow: if player was unharmed this turn, combat damage +30%.
+  if (category === 'combat' && s.player.equippedWeaponId === 'iron_bow' && s.turnTracking.damageTakenThisTurn === 0) {
+    dmg = Math.floor(dmg * 1.3)
+  }
   // Wisdom (spell only)
   if (category === 'spell' && s.player.wisdom > 0) {
     dmg += s.player.wisdom
+  }
+  // Iron staff: spell damage +20%.
+  if (category === 'spell' && s.player.equippedWeaponId === 'iron_staff') {
+    dmg = Math.floor(dmg * 1.2)
   }
   // Charge (spell only): +10% per stack, then clear
   if (category === 'spell' && s.player.charge > 0) {

@@ -3,6 +3,8 @@ import { STARTER_DECK_RECIPE } from './cards'
 import { getEnemyDef } from './enemies'
 import { applyCardEffects } from './effects'
 import { getEffectiveCardDef } from './campfire'
+import { EMPTY_MATERIAL_BAG } from './materials'
+import { getWeaponDef } from './weapons'
 
 function shuffleArray<T>(arr: T[]): T[] {
   const result = [...arr]
@@ -56,7 +58,12 @@ function allEnemiesDead(state: BattleState): boolean {
   return state.enemies.every(e => e.hp <= 0)
 }
 
-export function createBattleState(enemyIds: string[], initialDeck?: CardInstance[], weaponDefId?: string): BattleState {
+export function createBattleState(
+  enemyIds: string[],
+  initialDeck?: CardInstance[],
+  weaponDefId?: string,
+  initialMaterials = EMPTY_MATERIAL_BAG,
+): BattleState {
   const deck = initialDeck || createDeck()
   const drawPile = shuffleArray(deck)
   return {
@@ -81,11 +88,16 @@ export function createBattleState(enemyIds: string[], initialDeck?: CardInstance
       barrier: 0,
       charge: 0,
       weakened: 0,
+      guardArmorPerTurn: 0,
+      weaponPerTurnUsed: false,
+      normalAttackUsedThisTurn: false,
       hand: [],
       drawPile,
       discardPile: [],
     },
     enemies: enemyIds.map(id => createEnemyState(id)),
+    availableMaterials: { ...initialMaterials },
+    usedMaterials: {},
     turn: 0,
     phase: 'player_turn',
     turnTracking: defaultTurnTracking(),
@@ -119,15 +131,31 @@ export function startTurn(state: BattleState): BattleState {
   const bonusMana = s.turnTracking.bonusManaNextTurn
   s = {
     ...s,
-    player: { ...s.player, stamina: s.player.maxStamina, mana: s.player.maxMana + bonusMana },
+    player: {
+      ...s.player,
+      stamina: s.player.maxStamina,
+      mana: s.player.maxMana + bonusMana,
+      weaponPerTurnUsed: false,
+      normalAttackUsedThisTurn: false,
+    },
     turnTracking: defaultTurnTracking(),
   }
 
   // Clear player armor (barrier preserves up to N points)
   s = { ...s, player: { ...s.player, armor: Math.min(s.player.armor, s.player.barrier) } }
+  if (s.player.guardArmorPerTurn > 0) {
+    s = { ...s, player: { ...s.player, armor: s.player.armor + s.player.guardArmorPerTurn } }
+  }
 
-  // Reset per-enemy damagedThisTurn, clear enemy armor
-  s = { ...s, enemies: s.enemies.map(e => ({ ...e, damagedThisTurn: false, armor: 0 })) }
+  // Reset per-enemy damagedThisTurn (enemy armor persists across turns)
+  s = { ...s, enemies: s.enemies.map(e => ({ ...e, damagedThisTurn: false })) }
+  // Stone Gargoyle passive: gains 8 armor at turn start.
+  s = {
+    ...s,
+    enemies: s.enemies.map(e =>
+      e.defId === 'stone_gargoyle' && e.hp > 0 ? { ...e, armor: e.armor + 8 } : e
+    ),
+  }
 
   // Player poison tick (poison doesn't decay)
   if (s.player.poison > 0) {
@@ -153,6 +181,34 @@ export function startTurn(state: BattleState): BattleState {
   return s
 }
 
+export function useBattleMaterial(state: BattleState, materialId: keyof BattleState['availableMaterials']): BattleState {
+  if (state.phase !== 'player_turn') return state
+  if (state.usedMaterials[materialId]) return state
+  if (state.availableMaterials[materialId] <= 0) return state
+
+  let s = state
+  const availableMaterials = { ...s.availableMaterials, [materialId]: s.availableMaterials[materialId] - 1 }
+  const usedMaterials = { ...s.usedMaterials, [materialId]: true }
+  s = { ...s, availableMaterials, usedMaterials }
+
+  if (materialId === 'iron_ingot') {
+    s = { ...s, player: { ...s.player, armor: s.player.armor + 8 } }
+  } else if (materialId === 'steel_ingot') {
+    s = { ...s, player: { ...s.player, armor: s.player.armor + 12 } }
+  } else if (materialId === 'elemental_essence') {
+    s = {
+      ...s,
+      enemies: s.enemies.map(e => (e.hp > 0 ? { ...e, burn: e.burn + 2 } : e)),
+    }
+  } else if (materialId === 'war_essence') {
+    s = { ...s, player: { ...s.player, strength: s.player.strength + 2 } }
+  } else if (materialId === 'guard_essence') {
+    s = { ...s, player: { ...s.player, guardArmorPerTurn: s.player.guardArmorPerTurn + 3 } }
+  }
+
+  return s
+}
+
 export function canPlayCard(state: BattleState, cardUid: string): boolean {
   const card = state.player.hand.find(c => c.uid === cardUid)
   if (!card) return false
@@ -165,6 +221,38 @@ export function canPlayCard(state: BattleState, cardUid: string): boolean {
     return state.player.mana >= def.cost
   }
   return true
+}
+
+export function canUseNormalAttack(state: BattleState): boolean {
+  if (state.phase !== 'player_turn') return false
+  if (!state.player.equippedWeaponId) return false
+  if (state.player.normalAttackUsedThisTurn) return false
+  return state.enemies.some(e => e.hp > 0)
+}
+
+export function useNormalAttack(state: BattleState, targetIndex: number = 0): BattleState {
+  if (!canUseNormalAttack(state)) return state
+  const weaponId = state.player.equippedWeaponId
+  if (!weaponId) return state
+  const attack = getWeaponDef(weaponId).normalAttack
+
+  let actualTarget = targetIndex
+  const target = state.enemies[targetIndex]
+  if (!target || target.hp <= 0) {
+    actualTarget = state.enemies.findIndex(e => e.hp > 0)
+    if (actualTarget === -1) return state
+  }
+
+  const effects: import('./types').CardEffect[] = attack.hits && attack.hits > 1
+    ? [{ type: 'multi_damage', value: attack.damage, hits: attack.hits }]
+    : [{ type: 'damage', value: attack.damage }]
+
+  let s = applyCardEffects(state, effects, actualTarget, 'combat')
+  s = { ...s, player: { ...s.player, normalAttackUsedThisTurn: true } }
+  if (allEnemiesDead(s)) {
+    s = { ...s, phase: 'victory' }
+  }
+  return s
 }
 
 /** Check if a card's effects need a single-target enemy selection */
@@ -185,11 +273,15 @@ export function playCard(state: BattleState, cardUid: string, targetIndex: numbe
 
   const card = state.player.hand[cardIndex]
   const def = getEffectiveCardDef(card)
+  const targetBefore = state.enemies[targetIndex]
+  const targetBeforeHpArmor = targetBefore ? targetBefore.hp + targetBefore.armor : 0
 
   // Deduct resource
   let s = state
+  let spentStaminaCost = 0
   if (def.costType === 'stamina') {
     const actualCost = Math.max(0, def.cost - s.player.weaponDiscount)
+    spentStaminaCost = actualCost
     const newDiscount = s.player.weaponDiscount > 0 ? 0 : s.player.weaponDiscount
     s = { ...s, player: { ...s.player, stamina: s.player.stamina - actualCost, weaponDiscount: newDiscount } }
   } else if (def.costType === 'mana') {
@@ -216,10 +308,41 @@ export function playCard(state: BattleState, cardUid: string, targetIndex: numbe
     s = { ...s, turnTracking: { ...s.turnTracking, combatCardsPlayedThisTurn: s.turnTracking.combatCardsPlayedThisTurn + 1 } }
   }
 
-  // Weapon effect
-  if (def.category === 'combat' && s.player.equippedWeaponId) {
-    const discountValue = s.player.equippedWeaponId === 'longsword_upgraded' ? 2 : 1
+  // Longsword effect: next stamina card discount
+  const equippedWeaponId = s.player.equippedWeaponId || ''
+  if (def.category === 'combat' && ['longsword', 'longsword_upgraded', 'iron_longsword', 'steel_longsword'].includes(equippedWeaponId)) {
+    const discountValue = ['longsword_upgraded', 'steel_longsword'].includes(equippedWeaponId) ? 2 : 1
     s = { ...s, player: { ...s.player, weaponDiscount: discountValue } }
+  }
+  // Dagger effect: first low-cost combat card each turn draws 1
+  if (
+    s.player.equippedWeaponId === 'iron_dagger' &&
+    def.category === 'combat' &&
+    spentStaminaCost <= 1 &&
+    !s.player.weaponPerTurnUsed
+  ) {
+    s = drawCards(s, 1)
+    s = { ...s, player: { ...s.player, weaponPerTurnUsed: true } }
+  }
+  // Hammer effect: heavy hit shatters 3 armor if this card dealt >= 15 total impact.
+  if (s.player.equippedWeaponId === 'iron_hammer' && def.category === 'combat') {
+    const targetAfter = s.enemies[targetIndex]
+    if (targetAfter) {
+      const targetAfterHpArmor = targetAfter.hp + targetAfter.armor
+      const dealt = Math.max(0, targetBeforeHpArmor - targetAfterHpArmor)
+      if (dealt >= 15 && targetAfter.armor > 0) {
+        s = {
+          ...s,
+          enemies: s.enemies.map((e, i) =>
+            i === targetIndex ? { ...e, armor: Math.max(0, e.armor - 3) } : e
+          ),
+        }
+      }
+    }
+  }
+  // Staff effect: each spell grants 1 charge after cast.
+  if (s.player.equippedWeaponId === 'iron_staff' && def.category === 'spell') {
+    s = { ...s, player: { ...s.player, charge: s.player.charge + 1 } }
   }
 
   // Check victory
@@ -281,6 +404,8 @@ export function endPlayerTurn(state: BattleState): BattleState {
         s = { ...s, enemies: newEnemies }
       } else if (intent.type === 'poison') {
         s = { ...s, player: { ...s.player, poison: s.player.poison + intent.value } }
+      } else if (intent.type === 'weaken') {
+        s = { ...s, player: { ...s.player, weakened: s.player.weakened + intent.value } }
       } else if (intent.type === 'summon') {
         const minionCount = s.enemies.filter(e => e.defId === 'goblin_minion' && e.hp > 0).length
         if (minionCount >= 4) {

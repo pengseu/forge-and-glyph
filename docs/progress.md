@@ -39,40 +39,56 @@
   - 狂暴：消耗所有魔力转为体力
 - 战斗 UI 显示装备武器、折扣费用、敌人状态效果
 
+### Phase 3 — 步骤5 附魔系统（已完成）
+- 新增附魔台节点（🔮）与附魔场景
+- 武器附魔双槽（支持覆盖）
+- 6 种附魔基础效果已接入战斗
+- 5 组共鸣全部实现（熔岩、雷焰、风暴、死神、圣火）
+
 ---
 
 ## 技术栈
 - Vite + TypeScript + Vitest
 - 纯 DOM 渲染，无框架
 - 像素复古风 UI（Press Start 2P 字体）
-- 48 个测试全部通过
+- 166 个测试全部通过
 
 ## 项目结构
 ```
 src/
   game/
-    types.ts        — 所有类型定义
-    cards.ts        — 20 张卡牌定义
-    enemies.ts      — 4 种敌人定义
-    weapons.ts      — 武器定义（长剑、精钢长剑）
-    combat.ts       — 战斗系统（出牌、回合、武器效果）
-    effects.ts      — 卡牌效果应用（所有状态效果）
-    campfire.ts     — 篝火系统（回血、升级卡牌）
-    map.ts          — 路线图生成（9 节点）
-    run.ts          — 冒险状态管理（卡组、装备、节点）
-    reward.ts       — 战后奖励卡牌
-    __tests__/      — 7 个测试文件
+    types.ts          — 所有类型定义
+    cards.ts          — 卡牌定义（含阶段扩展）
+    enemies.ts        — 敌人与意图定义
+    weapons.ts        — 武器定义
+    enchantments.ts   — 附魔与共鸣规则
+    combat.ts         — 战斗流程（出牌、回合、普攻、材料）
+    effects.ts        — 卡牌与附魔效果结算
+    campfire.ts       — 篝火系统
+    map.ts            — 路线图生成
+    run.ts            — 冒险状态管理
+    reward.ts         — 战后奖励逻辑
+    shop.ts           — 商店卡牌报价逻辑
+    forge.ts          — 铁匠配方与材料校验
+    materials.ts      — 材料定义与掉落逻辑
+    __tests__/        — 游戏逻辑测试
   ui/
-    renderer.ts     — 场景路由
+    renderer.ts       — 场景路由
+    animations.ts     — 动画与浮字反馈
     scenes/
-      title.ts      — 标题场景
-      map.ts        — 路线图场景
-      battle.ts     — 战斗场景
-      campfire.ts   — 篝火场景
-      reward.ts     — 选卡场景
-      result.ts     — 结算场景
-  main.ts           — 游戏控制器
-  style.css         — 全局样式
+      title.ts        — 标题场景
+      map.ts          — 路线图场景
+      battle.ts       — 战斗场景
+      campfire.ts     — 篝火场景
+      reward.ts       — 选卡场景
+      result.ts       — 结算场景
+      shop.ts         — 商店场景
+      forge.ts        — 铁匠场景
+      enchant.ts      — 附魔台场景
+      inventory.ts    — 背包场景
+      __tests__/      — 场景逻辑测试
+  main.ts             — 游戏控制器
+  style.css           — 全局样式
 ```
 
 ---
@@ -81,14 +97,14 @@ src/
 
 ### Phase 3 — 核心差异化（下一步）
 根据设定集，Phase 3 包含：
-- [ ] 附魔系统（6 种附魔 + 共鸣组合）
-- [ ] 锻造系统（材料 + 铁匠节点）
-- [ ] 材料系统（10 种材料，战斗掉落）
-- [ ] 商店节点（买卡/买材料/移除卡）
-- [ ] 精英敌人（暗影刺客、石像鬼）
+- [x] 附魔系统（6 种附魔 + 共鸣组合）
+- [x] 锻造系统（材料 + 铁匠节点）
+- [x] 材料系统（首版：6 种材料，战斗掉落）
+- [x] 商店节点（买卡/移除卡/回复）
+- [x] 精英敌人（暗影刺客、石像鬼）
 - [ ] 完整第一幕流程
 - [ ] 扩展到 40 张卡牌
-- [ ] 更多节点类型（铁匠、附魔台、未知事件）
+- [ ] 更多节点类型（未知事件）
 
 ### Phase 4 — 完整体验
 - [ ] 三幕流程（边境荒野、深渊矿洞、龙巢神殿）

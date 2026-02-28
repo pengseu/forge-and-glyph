@@ -1,4 +1,4 @@
-import type { GameState, MaterialId } from '../game/types'
+import type { EnchantmentId, GameState, MaterialId } from '../game/types'
 import { renderTitle } from './scenes/title'
 import { renderMap } from './scenes/map'
 import { renderBattle } from './scenes/battle'
@@ -8,6 +8,7 @@ import { renderCampfire } from './scenes/campfire'
 import { renderShop } from './scenes/shop'
 import { renderInventory } from './scenes/inventory'
 import { renderForge } from './scenes/forge'
+import { renderEnchant } from './scenes/enchant'
 
 export interface GameCallbacks {
   onStartGame: () => void
@@ -34,6 +35,8 @@ export interface GameCallbacks {
   onInventoryEquip: (weaponUid: string) => void
   onForgeCraft: (recipeId: string) => void
   onForgeLeave: () => void
+  onEnchantApply: (enchantmentId: EnchantmentId, replaceIndex?: number) => void
+  onEnchantLeave: () => void
 }
 
 export function render(
@@ -91,6 +94,11 @@ export function render(
     case 'forge':
       if (state.run) {
         renderForge(container, state.run, callbacks)
+      }
+      break
+    case 'enchant':
+      if (state.run) {
+        renderEnchant(container, state.run, callbacks)
       }
       break
   }

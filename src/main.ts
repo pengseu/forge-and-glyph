@@ -18,6 +18,7 @@ import {
   removeCardFromDeck,
   addMaterialReward,
   craftWeapon,
+  enchantWeapon,
 } from './game/run'
 import { getRewardCards } from './game/reward'
 import { generateShopOffers } from './game/shop'
@@ -72,12 +73,18 @@ function update() {
         update()
         return
       }
+      if (node.type === 'enchant') {
+        gameState = { ...gameState, run: newRun, scene: 'enchant' }
+        update()
+        return
+      }
 
       if (!node.enemyIds || node.enemyIds.length === 0) return
 
       // Pass weapon info to battle
       const weaponDefId = newRun.equippedWeapon?.defId ?? undefined
-      let battle = createBattleState(node.enemyIds, newRun.deck, weaponDefId, newRun.materials)
+      const weaponEnchantments = newRun.equippedWeapon?.enchantments ?? []
+      let battle = createBattleState(node.enemyIds, newRun.deck, weaponDefId, newRun.materials, weaponEnchantments)
       battle = {
         ...battle,
         player: {
@@ -400,6 +407,18 @@ function update() {
       update()
     },
     onForgeLeave: () => {
+      if (!gameState.run) return
+      const newRun = completeNode(gameState.run, gameState.run.currentNodeId)
+      gameState = { ...gameState, run: newRun, scene: 'map' }
+      update()
+    },
+    onEnchantApply: (enchantmentId, replaceIndex) => {
+      if (!gameState.run) return
+      const newRun = enchantWeapon(gameState.run, enchantmentId, replaceIndex)
+      gameState = { ...gameState, run: newRun }
+      update()
+    },
+    onEnchantLeave: () => {
       if (!gameState.run) return
       const newRun = completeNode(gameState.run, gameState.run.currentNodeId)
       gameState = { ...gameState, run: newRun, scene: 'map' }

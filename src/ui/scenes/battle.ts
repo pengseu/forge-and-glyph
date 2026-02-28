@@ -4,11 +4,16 @@ import { getEnemyDef } from '../../game/enemies'
 import { canPlayCard, canUseNormalAttack, cardNeedsTarget } from '../../game/combat'
 import { getWeaponDef } from '../../game/weapons'
 import { getEffectiveCardDef } from '../../game/campfire'
-import { showDamageFloat, shakeEnemy, screenShake, playerHitShake } from '../animations'
+import { showDamageFloat, showTextFloat, shakeEnemy, screenShake, playerHitShake } from '../animations'
 import { formatMaterial, getBattleMaterialEffectText } from '../../game/materials'
 import type { MaterialId } from '../../game/types'
 
 let pendingCardUid: string | null = null
+let pendingNormalAttack = false
+
+export function resolveNormalAttackMode(livingEnemyCount: number): 'auto' | 'target' {
+  return livingEnemyCount > 1 ? 'target' : 'auto'
+}
 
 function enterTargetMode(container: HTMLElement, uid: string) {
   pendingCardUid = uid
@@ -28,9 +33,23 @@ function enterTargetMode(container: HTMLElement, uid: string) {
 
 function exitTargetMode(container: HTMLElement) {
   pendingCardUid = null
+  pendingNormalAttack = false
   container.querySelector('.enemy-area')?.classList.remove('target-mode')
   container.querySelectorAll('.card.selected').forEach(el => el.classList.remove('selected'))
   container.querySelector('#target-hint')?.remove()
+}
+
+function enterNormalAttackTargetMode(container: HTMLElement) {
+  pendingNormalAttack = true
+  pendingCardUid = null
+  container.querySelector('.enemy-area')?.classList.add('target-mode')
+  container.querySelector('#target-hint')?.remove()
+  const hint = document.createElement('div')
+  hint.className = 'target-hint'
+  hint.id = 'target-hint'
+  hint.textContent = '选择普攻目标（右键取消）'
+  const enemyArea = container.querySelector('.enemy-area')
+  if (enemyArea) enemyArea.after(hint)
 }
 
 export function renderBattle(
@@ -45,6 +64,12 @@ export function renderBattle(
     const wDef = getWeaponDef(state.player.equippedWeaponId)
     weaponText = `⚔️ ${wDef.name}`
   }
+  const enchantText = state.player.equippedEnchantments.length > 0
+    ? `🔮 ${state.player.equippedEnchantments.join(' / ')}`
+    : ''
+  const enchantFeedback = state.turnTracking.enchantEvents.length > 0
+    ? `<span class="stat" style="color:#7ad3ff;">${state.turnTracking.enchantEvents.join(' · ')}</span>`
+    : ''
 
   // Player status effects
   const playerStatusBadges: string[] = []
@@ -189,6 +214,8 @@ export function renderBattle(
       <span class="stat stat-mana">✦ ${state.player.mana}/${state.player.maxMana}</span>
       <span class="stat stat-armor">🛡️ ${state.player.armor}</span>
       ${weaponText ? `<span class="stat" style="color:#f0a500;">${weaponText}</span>` : ''}
+      ${enchantText ? `<span class="stat" style="color:#7ad3ff;">${enchantText}</span>` : ''}
+      ${enchantFeedback}
       ${playerStatus ? `<span class="stat status-row">${playerStatus}</span>` : ''}
       <span class="stat">回合 ${state.turn}</span>
       <span class="stat stat-help" id="btn-status-help">?</span>
@@ -253,14 +280,28 @@ export function renderBattle(
       callbacks.onPlayCard(uid, idx)
     })
     el.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (!pendingCardUid) return
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault()
         const idx = parseInt(el.dataset.enemyIdx!, 10)
-        const uid = pendingCardUid
-        exitTargetMode(container)
-        callbacks.onPlayCard(uid, idx)
+        if (pendingCardUid) {
+          const uid = pendingCardUid
+          exitTargetMode(container)
+          callbacks.onPlayCard(uid, idx)
+          return
+        }
+        if (pendingNormalAttack) {
+          exitTargetMode(container)
+          callbacks.onNormalAttack(idx)
+        }
       }
+    })
+    el.addEventListener('click', (e) => {
+      if (!pendingNormalAttack) return
+      if (pendingCardUid) return
+      e.stopPropagation()
+      const idx = parseInt(el.dataset.enemyIdx!, 10)
+      exitTargetMode(container)
+      callbacks.onNormalAttack(idx)
     })
   })
 
@@ -275,9 +316,13 @@ export function renderBattle(
 
       // If already in target mode, cancel first
       const wasPendingUid = pendingCardUid
+      const wasPendingNormalAttack = pendingNormalAttack
       if (pendingCardUid) {
         exitTargetMode(container)
         if (uid === wasPendingUid) return
+      }
+      if (wasPendingNormalAttack && !pendingCardUid) {
+        exitTargetMode(container)
       }
 
       const livingEnemies = state.enemies.filter(en => en.hp > 0)
@@ -306,6 +351,12 @@ export function renderBattle(
     })
 
   container.querySelector('#btn-normal-attack')?.addEventListener('click', () => {
+    const livingEnemies = state.enemies.filter(en => en.hp > 0)
+    const mode = resolveNormalAttackMode(livingEnemies.length)
+    if (mode === 'target') {
+      enterNormalAttackTargetMode(container)
+      return
+    }
     const targetIdx = state.enemies.findIndex(en => en.hp > 0)
     if (targetIdx >= 0) {
       callbacks.onNormalAttack(targetIdx)
@@ -351,6 +402,19 @@ export function renderBattle(
           if (poisonGain > 0) {
             showDamageFloat(container, poisonGain, x, y + 20, 'poison')
           }
+        }
+      }
+
+      const enemyEl = container.querySelector(`.enemy-unit[data-enemy-idx="${i}"]`) as HTMLElement
+      if (enemyEl) {
+        const rect = enemyEl.getBoundingClientRect()
+        const x = rect.left - containerRect.left + rect.width / 2 - 20
+        const y = rect.top - containerRect.top + rect.height / 2
+        if (curr.evadedThisAction && !prev.evadedThisAction) {
+          showTextFloat(container, '闪避！', x, y - 14, 'poison')
+        }
+        if (curr.turnStartArmorGain > 0 && curr.turnStartArmorGain !== prev.turnStartArmorGain) {
+          showDamageFloat(container, curr.turnStartArmorGain, x, y - 30, 'armor')
         }
       }
     }

@@ -99,6 +99,7 @@ export interface PlayerState {
   guardArmorPerTurn: number
   weaponPerTurnUsed: boolean
   normalAttackUsedThisTurn: boolean
+  equippedEnchantments: EnchantmentId[]
   hand: CardInstance[]
   drawPile: CardInstance[]
   discardPile: CardInstance[]
@@ -118,6 +119,8 @@ export interface EnemyState {
   freezeImmune: boolean
   intentIndex: number
   damagedThisTurn: boolean
+  evadedThisAction: boolean
+  turnStartArmorGain: number
 }
 
 export interface TurnTracking {
@@ -125,6 +128,7 @@ export interface TurnTracking {
   damageTakenThisTurn: number
   bonusManaNextTurn: number
   combatDamageBonus: number
+  enchantEvents: string[]
 }
 
 export interface BattleState {
@@ -146,9 +150,12 @@ export interface WeaponDef {
   normalAttack: { damage: number; hits?: number }
 }
 
+export type EnchantmentId = 'flame' | 'frost' | 'thunder' | 'soul' | 'void' | 'bless'
+
 export interface WeaponInstance {
   uid: string
   defId: string
+  enchantments: EnchantmentId[]
 }
 
 export interface ShopOffer {
@@ -168,7 +175,7 @@ export type MaterialId =
 export type MaterialBag = Record<MaterialId, number>
 
 // --- Scene ---
-export type Scene = 'title' | 'map' | 'battle' | 'reward' | 'result' | 'campfire' | 'shop' | 'inventory' | 'forge'
+export type Scene = 'title' | 'map' | 'battle' | 'reward' | 'result' | 'campfire' | 'shop' | 'inventory' | 'forge' | 'enchant'
 
 export interface GameState {
   scene: Scene
@@ -183,7 +190,7 @@ export interface GameState {
 }
 
 // --- Map System ---
-export type NodeType = 'normal_battle' | 'elite_battle' | 'boss_battle' | 'campfire' | 'shop' | 'forge'
+export type NodeType = 'normal_battle' | 'elite_battle' | 'boss_battle' | 'campfire' | 'shop' | 'forge' | 'enchant'
 
 export interface MapNode {
   id: string

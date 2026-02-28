@@ -53,7 +53,7 @@ export function generateMap(): MapNode[] {
 
     // Row 3
     { id: 'n5', type: 'shop', completed: false, x: 0, y: 2, connections: ['n8'] },
-    { id: 'n8', type: 'normal_battle', enemyIds: undefined, completed: false, x: 1, y: 2, connections: ['n7'] },
+    { id: 'n8', type: 'enchant', completed: false, x: 1, y: 2, connections: ['n7'] },
 
     // Boss
     { id: 'n7', type: 'boss_battle', enemyIds: ['goblin_king'], completed: false, x: 1.5, y: 3, connections: [] },

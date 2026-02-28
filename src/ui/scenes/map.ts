@@ -41,6 +41,8 @@ export function renderMap(
             ? '🏪'
             : node.type === 'forge'
               ? '⚒️'
+              : node.type === 'enchant'
+                ? '🔮'
             : '💀'
     const typeLabel = node.type === 'boss_battle'
       ? 'Boss'
@@ -52,6 +54,8 @@ export function renderMap(
             ? '商店'
             : node.type === 'forge'
               ? '铁匠'
+              : node.type === 'enchant'
+                ? '附魔台'
             : '普通'
     const statusClass = isCompleted ? 'completed' : isCurrent ? 'current' : isAccessible ? 'accessible' : 'locked'
 

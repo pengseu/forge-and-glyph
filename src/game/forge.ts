@@ -5,6 +5,7 @@ export interface ForgeRecipe {
   weaponDefId: string
   name: string
   cost: Partial<Record<MaterialId, number>>
+  anyEssenceCost?: number
 }
 
 export const FORGE_RECIPES: ForgeRecipe[] = [
@@ -24,7 +25,8 @@ export const FORGE_RECIPES: ForgeRecipe[] = [
     id: 'forge_steel_longsword',
     weaponDefId: 'steel_longsword',
     name: '精钢长剑',
-    cost: { steel_ingot: 2, elemental_essence: 1 },
+    cost: { steel_ingot: 2 },
+    anyEssenceCost: 1,
   },
   {
     id: 'forge_iron_hammer',
@@ -49,10 +51,15 @@ export const FORGE_RECIPES: ForgeRecipe[] = [
 export function canPayMaterials(
   bag: MaterialBag,
   cost: Partial<Record<MaterialId, number>>,
+  anyEssenceCost: number = 0,
 ): boolean {
   for (const [k, v] of Object.entries(cost)) {
     const mat = k as MaterialId
     if ((v ?? 0) > bag[mat]) return false
+  }
+  if (anyEssenceCost > 0) {
+    const totalEssence = bag.elemental_essence + bag.war_essence + bag.guard_essence
+    if (totalEssence < anyEssenceCost) return false
   }
   return true
 }

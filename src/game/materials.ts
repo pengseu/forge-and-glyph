@@ -27,6 +27,12 @@ export const EMPTY_MATERIAL_BAG: MaterialBag = {
   goblin_crown_fragment: 0,
 }
 
+const ESSENCE_IDS: MaterialId[] = ['elemental_essence', 'war_essence', 'guard_essence']
+
+function essenceTotal(bag: MaterialBag): number {
+  return ESSENCE_IDS.reduce((sum, id) => sum + bag[id], 0)
+}
+
 export function addMaterial(
   bag: MaterialBag,
   materialId: MaterialId,
@@ -34,9 +40,18 @@ export function addMaterial(
 ): MaterialBag {
   const current = bag[materialId]
   const cap = MATERIAL_LIMITS[materialId]
+  let next = Math.min(cap, current + value)
+
+  // Essence shares a global cap (total of all three essences <= 8).
+  if (ESSENCE_IDS.includes(materialId)) {
+    const totalWithoutCurrent = essenceTotal(bag) - current
+    const maxForThisEssence = Math.max(0, 8 - totalWithoutCurrent)
+    next = Math.min(next, maxForThisEssence)
+  }
+
   return {
     ...bag,
-    [materialId]: Math.min(cap, current + value),
+    [materialId]: next,
   }
 }
 

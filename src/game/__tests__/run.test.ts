@@ -13,6 +13,7 @@ import {
   isBossNode,
   removeCardFromDeck,
   craftWeapon,
+  enchantWeapon,
   upgradeEquippedWeapon,
 } from '../run'
 import { EMPTY_MATERIAL_BAG } from '../materials'
@@ -46,7 +47,7 @@ describe('addWeaponToInventory', () => {
 
 describe('equipWeapon', () => {
   it('should equip a weapon from inventory', () => {
-    const weapon: WeaponInstance = { uid: 'w1', defId: 'longsword' }
+    const weapon: WeaponInstance = { uid: 'w1', defId: 'longsword', enchantments: [] }
     const state = makeRunState({ weaponInventory: [weapon] })
     const next = equipWeapon(state, 'w1')
     expect(next.equippedWeapon).toEqual(weapon)
@@ -61,7 +62,7 @@ describe('equipWeapon', () => {
 
 describe('upgradeEquippedWeapon', () => {
   it('should upgrade longsword to longsword_upgraded', () => {
-    const weapon: WeaponInstance = { uid: 'w1', defId: 'longsword' }
+    const weapon: WeaponInstance = { uid: 'w1', defId: 'longsword', enchantments: [] }
     const state = makeRunState({ equippedWeapon: weapon, weaponInventory: [weapon] })
     const next = upgradeEquippedWeapon(state)
     expect(next.equippedWeapon!.defId).toBe('longsword_upgraded')
@@ -205,6 +206,24 @@ describe('materials and forge', () => {
     expect(next.materials.iron_ingot).toBe(5)
   })
 
+  it('addMaterialReward should respect shared essence total cap (8)', () => {
+    const state = makeRunState({
+      materials: {
+        ...EMPTY_MATERIAL_BAG,
+        elemental_essence: 4,
+        war_essence: 3,
+        guard_essence: 0,
+      },
+    })
+    const next = addMaterialReward(state, { guard_essence: 3 })
+    expect(next.materials.guard_essence).toBe(1)
+    expect(
+      next.materials.elemental_essence +
+      next.materials.war_essence +
+      next.materials.guard_essence
+    ).toBe(8)
+  })
+
   it('craftWeapon should consume materials and add weapon', () => {
     const state = makeRunState({
       materials: { ...EMPTY_MATERIAL_BAG, iron_ingot: 2 },
@@ -214,11 +233,57 @@ describe('materials and forge', () => {
     expect(next.weaponInventory.some(w => w.defId === 'iron_longsword')).toBe(true)
   })
 
+  it('craftWeapon steel recipe should accept any one essence', () => {
+    const state = makeRunState({
+      materials: {
+        ...EMPTY_MATERIAL_BAG,
+        steel_ingot: 2,
+        war_essence: 1,
+      },
+    })
+    const next = craftWeapon(state, 'forge_steel_longsword')
+    expect(next.materials.steel_ingot).toBe(0)
+    expect(next.materials.war_essence).toBe(0)
+    expect(next.weaponInventory.some(w => w.defId === 'steel_longsword')).toBe(true)
+  })
+
   it('craftWeapon should do nothing when materials are not enough', () => {
     const state = makeRunState({
       materials: { ...EMPTY_MATERIAL_BAG, iron_ingot: 1 },
     })
     const next = craftWeapon(state, 'forge_iron_longsword')
     expect(next).toEqual(state)
+  })
+})
+
+describe('enchantments', () => {
+  it('enchantWeapon should consume elemental essence and append enchantment when slot available', () => {
+    const weapon: WeaponInstance = { uid: 'w1', defId: 'iron_longsword', enchantments: [] }
+    const state = makeRunState({
+      equippedWeapon: weapon,
+      weaponInventory: [weapon],
+      materials: { ...EMPTY_MATERIAL_BAG, elemental_essence: 1 },
+    })
+    const next = enchantWeapon(state, 'flame')
+    expect(next.materials.elemental_essence).toBe(0)
+    expect(next.equippedWeapon?.enchantments).toEqual(['flame'])
+  })
+
+  it('enchantWeapon should require replaceIndex when slots are full', () => {
+    const weapon: WeaponInstance = {
+      uid: 'w1',
+      defId: 'iron_longsword',
+      enchantments: ['flame', 'bless'],
+    }
+    const state = makeRunState({
+      equippedWeapon: weapon,
+      weaponInventory: [weapon],
+      materials: { ...EMPTY_MATERIAL_BAG, elemental_essence: 2 },
+    })
+    const blocked = enchantWeapon(state, 'thunder')
+    expect(blocked).toEqual(state)
+    const replaced = enchantWeapon(state, 'thunder', 1)
+    expect(replaced.equippedWeapon?.enchantments).toEqual(['flame', 'thunder'])
+    expect(replaced.materials.elemental_essence).toBe(1)
   })
 })

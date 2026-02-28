@@ -24,6 +24,23 @@ export function showDamageFloat(
   el.addEventListener('animationend', () => el.remove())
 }
 
+export function showTextFloat(
+  container: HTMLElement,
+  text: string,
+  x: number,
+  y: number,
+  type: 'damage' | 'heal' | 'armor' | 'poison' = 'damage',
+): void {
+  const el = document.createElement('div')
+  el.className = `damage-float damage-float-${type}`
+  const offsetX = (Math.random() - 0.5) * 30
+  el.textContent = text
+  el.style.left = `${x + offsetX}px`
+  el.style.top = `${y}px`
+  container.appendChild(el)
+  el.addEventListener('animationend', () => el.remove())
+}
+
 export function shakeEnemy(enemyEl: HTMLElement): void {
   enemyEl.classList.add('enemy-shake')
   enemyEl.addEventListener('animationend', () => {

@@ -32,6 +32,7 @@ function defaultTurnTracking(): TurnTracking {
     damageTakenThisTurn: 0,
     bonusManaNextTurn: 0,
     combatDamageBonus: 0,
+    enchantEvents: [],
   }
 }
 
@@ -51,6 +52,8 @@ function createEnemyState(enemyId: string): EnemyState {
     freezeImmune: false,
     intentIndex: 0,
     damagedThisTurn: false,
+    evadedThisAction: false,
+    turnStartArmorGain: 0,
   }
 }
 
@@ -63,6 +66,7 @@ export function createBattleState(
   initialDeck?: CardInstance[],
   weaponDefId?: string,
   initialMaterials = EMPTY_MATERIAL_BAG,
+  weaponEnchantments: import('./types').EnchantmentId[] = [],
 ): BattleState {
   const deck = initialDeck || createDeck()
   const drawPile = shuffleArray(deck)
@@ -91,6 +95,7 @@ export function createBattleState(
       guardArmorPerTurn: 0,
       weaponPerTurnUsed: false,
       normalAttackUsedThisTurn: false,
+      equippedEnchantments: [...weaponEnchantments],
       hand: [],
       drawPile,
       discardPile: [],
@@ -147,13 +152,21 @@ export function startTurn(state: BattleState): BattleState {
     s = { ...s, player: { ...s.player, armor: s.player.armor + s.player.guardArmorPerTurn } }
   }
 
-  // Reset per-enemy damagedThisTurn (enemy armor persists across turns)
-  s = { ...s, enemies: s.enemies.map(e => ({ ...e, damagedThisTurn: false })) }
+  // Reset per-enemy transient flags (enemy armor persists across turns)
+  s = {
+    ...s,
+    enemies: s.enemies.map(e => ({
+      ...e,
+      damagedThisTurn: false,
+      evadedThisAction: false,
+      turnStartArmorGain: 0,
+    })),
+  }
   // Stone Gargoyle passive: gains 8 armor at turn start.
   s = {
     ...s,
     enemies: s.enemies.map(e =>
-      e.defId === 'stone_gargoyle' && e.hp > 0 ? { ...e, armor: e.armor + 8 } : e
+      e.defId === 'stone_gargoyle' && e.hp > 0 ? { ...e, armor: e.armor + 8, turnStartArmorGain: 8 } : e
     ),
   }
 
@@ -247,7 +260,11 @@ export function useNormalAttack(state: BattleState, targetIndex: number = 0): Ba
     ? [{ type: 'multi_damage', value: attack.damage, hits: attack.hits }]
     : [{ type: 'damage', value: attack.damage }]
 
-  let s = applyCardEffects(state, effects, actualTarget, 'combat')
+  let s: BattleState = {
+    ...state,
+    enemies: state.enemies.map(e => ({ ...e, evadedThisAction: false })),
+  }
+  s = applyCardEffects(s, effects, actualTarget, 'combat')
   s = { ...s, player: { ...s.player, normalAttackUsedThisTurn: true } }
   if (allEnemiesDead(s)) {
     s = { ...s, phase: 'victory' }
@@ -277,7 +294,10 @@ export function playCard(state: BattleState, cardUid: string, targetIndex: numbe
   const targetBeforeHpArmor = targetBefore ? targetBefore.hp + targetBefore.armor : 0
 
   // Deduct resource
-  let s = state
+  let s: BattleState = {
+    ...state,
+    enemies: state.enemies.map(e => ({ ...e, evadedThisAction: false })),
+  }
   let spentStaminaCost = 0
   if (def.costType === 'stamina') {
     const actualCost = Math.max(0, def.cost - s.player.weaponDiscount)
@@ -355,6 +375,8 @@ export function playCard(state: BattleState, cardUid: string, targetIndex: numbe
 
 export function endPlayerTurn(state: BattleState): BattleState {
   let s = state
+  // Clear previous action enchant feedback; keep only latest turn's triggers.
+  s = { ...s, turnTracking: { ...s.turnTracking, enchantEvents: [] } }
 
   // Capture enemy count so newly summoned enemies don't act this turn
   const enemyCountBeforeActions = s.enemies.length
@@ -370,6 +392,25 @@ export function endPlayerTurn(state: BattleState): BattleState {
         i === ei ? { ...e, freeze: 0, freezeImmune: true } : e
       )
       s = { ...s, enemies: newEnemies }
+      if (s.player.equippedEnchantments.includes('frost') && s.player.equippedEnchantments.includes('thunder')) {
+        const frozenTarget = s.enemies[ei]
+        if (frozenTarget) {
+          let remaining = 15
+          let armor = frozenTarget.armor
+          let hp = frozenTarget.hp
+          if (armor > 0) {
+            const absorbed = Math.min(armor, remaining)
+            armor -= absorbed
+            remaining -= absorbed
+          }
+          hp = Math.max(0, hp - remaining)
+          s = {
+            ...s,
+            enemies: s.enemies.map((e, i) => (i === ei ? { ...e, armor, hp } : e)),
+            turnTracking: { ...s.turnTracking, enchantEvents: [...s.turnTracking.enchantEvents, '风暴触发'] },
+          }
+        }
+      }
     } else {
       const enemyDef = getEnemyDef(enemy.defId)
       const intent = enemyDef.intents[enemy.intentIndex]
@@ -495,6 +536,9 @@ export function endPlayerTurn(state: BattleState): BattleState {
     if (e.hp <= 0 || e.burn <= 0) return e
     let hp = e.hp
     let remaining = e.burn
+    if (s.player.equippedEnchantments.includes('flame') && s.player.equippedEnchantments.includes('frost')) {
+      remaining = remaining * 2
+    }
     let armor = e.armor
     if (armor > 0) {
       const absorbed = Math.min(armor, remaining)
@@ -505,6 +549,9 @@ export function endPlayerTurn(state: BattleState): BattleState {
     return { ...e, hp, armor, burn: Math.max(0, e.burn - 1) }
   })
   s = { ...s, enemies: eotEnemies }
+  if (s.player.equippedEnchantments.includes('flame') && s.player.equippedEnchantments.includes('frost')) {
+    s = { ...s, turnTracking: { ...s.turnTracking, enchantEvents: [...s.turnTracking.enchantEvents, '熔岩触发'] } }
+  }
 
   // Decay weakened and vulnerable on enemies, decay player weakened
   eotEnemies = s.enemies.map(e => ({

@@ -13,16 +13,18 @@ describe('map', () => {
     expect(bossNode).toBeDefined()
   })
 
-  it('should have 3 normal, 2 elite, 1 shop, 1 forge nodes', () => {
+  it('should have 2 normal, 2 elite, 1 shop, 1 forge, 1 enchant nodes', () => {
     const map = generateMap()
     const normal = map.filter(n => n.type === 'normal_battle').length
     const elite = map.filter(n => n.type === 'elite_battle').length
     const shop = map.filter(n => n.type === 'shop').length
     const forge = map.filter(n => n.type === 'forge').length
-    expect(normal).toBe(3)
+    const enchant = map.filter(n => n.type === 'enchant').length
+    expect(normal).toBe(2)
     expect(elite).toBe(2)
     expect(shop).toBe(1)
     expect(forge).toBe(1)
+    expect(enchant).toBe(1)
   })
 
   it('elite nodes should use phase-3 elite enemies', () => {

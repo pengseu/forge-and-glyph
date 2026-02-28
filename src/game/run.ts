@@ -1,4 +1,4 @@
-import type { RunState, CardInstance, WeaponInstance, NodeType } from './types'
+import type { RunState, CardInstance, WeaponInstance, NodeType, EnchantmentId } from './types'
 import { generateMap } from './map'
 import { STARTER_DECK_RECIPE } from './cards'
 import { getCardDef } from './cards'
@@ -143,6 +143,7 @@ export function addWeaponToInventory(state: RunState, weaponDefId: string): RunS
   const newWeapon: WeaponInstance = {
     uid: `weapon_${Date.now()}_${Math.random()}`,
     defId: weaponDefId,
+    enchantments: [],
   }
   return {
     ...state,
@@ -153,12 +154,22 @@ export function addWeaponToInventory(state: RunState, weaponDefId: string): RunS
 export function craftWeapon(state: RunState, recipeId: string): RunState {
   const recipe = FORGE_RECIPES.find(r => r.id === recipeId)
   if (!recipe) return state
-  if (!canPayMaterials(state.materials, recipe.cost)) return state
+  if (!canPayMaterials(state.materials, recipe.cost, recipe.anyEssenceCost ?? 0)) return state
 
   let nextMaterials = { ...state.materials }
   for (const [k, v] of Object.entries(recipe.cost)) {
     const key = k as keyof RunState['materials']
     nextMaterials[key] = Math.max(0, nextMaterials[key] - (v ?? 0))
+  }
+  if ((recipe.anyEssenceCost ?? 0) > 0) {
+    let remaining = recipe.anyEssenceCost ?? 0
+    const essenceOrder: Array<keyof RunState['materials']> = ['elemental_essence', 'war_essence', 'guard_essence']
+    for (const essence of essenceOrder) {
+      if (remaining <= 0) break
+      const take = Math.min(nextMaterials[essence], remaining)
+      nextMaterials[essence] -= take
+      remaining -= take
+    }
   }
 
   const withCostPaid = { ...state, materials: nextMaterials }
@@ -191,4 +202,37 @@ export function upgradeEquippedWeapon(state: RunState): RunState {
     }
   }
   return state
+}
+
+export function enchantWeapon(
+  state: RunState,
+  enchantmentId: EnchantmentId,
+  replaceIndex?: number,
+): RunState {
+  if (!state.equippedWeapon) return state
+  if (state.materials.elemental_essence < 1) return state
+
+  const current = state.equippedWeapon.enchantments
+  let nextEnchantments: EnchantmentId[] = current
+
+  if (current.length < 2) {
+    nextEnchantments = [...current, enchantmentId]
+  } else {
+    if (replaceIndex === undefined || replaceIndex < 0 || replaceIndex > 1) return state
+    nextEnchantments = current.map((e, i) => (i === replaceIndex ? enchantmentId : e))
+  }
+
+  const updatedWeapon: WeaponInstance = {
+    ...state.equippedWeapon,
+    enchantments: nextEnchantments,
+  }
+  return {
+    ...state,
+    equippedWeapon: updatedWeapon,
+    weaponInventory: state.weaponInventory.map(w => (w.uid === updatedWeapon.uid ? updatedWeapon : w)),
+    materials: {
+      ...state.materials,
+      elemental_essence: state.materials.elemental_essence - 1,
+    },
+  }
 }

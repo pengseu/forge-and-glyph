@@ -10,8 +10,14 @@ export function renderForge(
   callbacks: GameCallbacks,
 ): void {
   const recipesHtml = FORGE_RECIPES.map(r => {
-    const canCraft = Object.entries(r.cost).every(([k, v]) => run.materials[k as keyof typeof run.materials] >= (v ?? 0))
-    const costText = Object.entries(r.cost).map(([k, v]) => `${formatMaterial(k as keyof RunState['materials'])}×${v}`).join(' + ')
+    const canPayFixedCost = Object.entries(r.cost).every(([k, v]) => run.materials[k as keyof typeof run.materials] >= (v ?? 0))
+    const totalEssence = run.materials.elemental_essence + run.materials.war_essence + run.materials.guard_essence
+    const canPayAnyEssence = (r.anyEssenceCost ?? 0) <= totalEssence
+    const canCraft = canPayFixedCost && canPayAnyEssence
+    const fixedCostText = Object.entries(r.cost).map(([k, v]) => `${formatMaterial(k as keyof RunState['materials'])}×${v}`).join(' + ')
+    const costText = [fixedCostText, r.anyEssenceCost ? `任意精华×${r.anyEssenceCost}` : '']
+      .filter(Boolean)
+      .join(' + ')
     const weapon = getWeaponDef(r.weaponDefId)
     return `
       <div class="forge-recipe">

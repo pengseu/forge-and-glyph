@@ -375,6 +375,7 @@ describe('combat', () => {
       expect(state.enemies[0].armor).toBe(0)
       state = startTurn(state)
       expect(state.enemies[0].armor).toBe(8)
+      expect(state.enemies[0].turnStartArmorGain).toBe(8)
     })
 
     it('stone gaze intent should apply weakened to player', () => {
@@ -383,6 +384,14 @@ describe('combat', () => {
       state = { ...state, enemies: [{ ...state.enemies[0], intentIndex: 1 }] }
       state = endPlayerTurn(state)
       expect(state.player.weakened).toBe(1)
+    })
+
+    it('shadow assassin evade should set evade flag for UI feedback', () => {
+      let state = createBattleState(['shadow_assassin'], undefined, 'iron_staff')
+      const hpBefore = state.enemies[0].hp
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[0].hp).toBe(hpBefore)
+      expect(state.enemies[0].evadedThisAction).toBe(true)
     })
   })
 
@@ -413,6 +422,117 @@ describe('combat', () => {
       expect(state.player.guardArmorPerTurn).toBe(3)
       state = endPlayerTurn(state)
       expect(state.player.armor).toBeGreaterThanOrEqual(3)
+    })
+  })
+
+  describe('enchantments and resonance', () => {
+    it('bless should add +3 combat damage', () => {
+      let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['bless'])
+      const hpBefore = state.enemies[0].hp
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[0].hp).toBe(hpBefore - 9)
+    })
+
+    it('void should ignore 3 armor for combat hit', () => {
+      let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['void'])
+      state = { ...state, enemies: [{ ...state.enemies[0], armor: 5 }] }
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[0].armor).toBe(0)
+      expect(state.enemies[0].hp).toBe(24)
+    })
+
+    it('flame should apply 1 burn on combat hit', () => {
+      let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['flame'])
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[0].burn).toBe(1)
+    })
+
+    it('frost should apply freeze on proc (20%)', () => {
+      const oldRand = Math.random
+      Math.random = () => 0.1
+      try {
+        let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['frost'])
+        state = useNormalAttack(state, 0)
+        expect(state.enemies[0].freeze).toBe(1)
+      } finally {
+        Math.random = oldRand
+      }
+    })
+
+    it('thunder should chain 3 damage to another enemy', () => {
+      let state = createBattleState(['goblin_scout', 'forest_wolf'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['thunder'])
+      const hp2 = state.enemies[1].hp
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[1].hp).toBe(hp2 - 3)
+    })
+
+    it('soul should heal 5 on kill', () => {
+      let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['soul'])
+      state = {
+        ...state,
+        player: { ...state.player, hp: 20 },
+        enemies: [{ ...state.enemies[0], hp: 6 }],
+      }
+      state = useNormalAttack(state, 0)
+      expect(state.player.hp).toBe(25)
+    })
+
+    it('flame+thunder resonance should add 1 burn on chained target', () => {
+      let state = createBattleState(['goblin_scout', 'forest_wolf'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['flame', 'thunder'])
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[1].burn).toBe(1)
+    })
+
+    it('flame+bless resonance should deal +50% damage to burning target', () => {
+      let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['flame', 'bless'])
+      state = { ...state, enemies: [{ ...state.enemies[0], burn: 1 }] }
+      const hpBefore = state.enemies[0].hp
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[0].hp).toBe(hpBefore - 13)
+    })
+
+    it('thunder should choose a random other enemy when multiple candidates exist', () => {
+      const oldRand = Math.random
+      Math.random = () => 0.99
+      try {
+        let state = createBattleState(['goblin_scout', 'forest_wolf', 'mushroom_creature'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['thunder'])
+        const hp1 = state.enemies[1].hp
+        const hp2 = state.enemies[2].hp
+        state = useNormalAttack(state, 0)
+        expect(state.enemies[1].hp).toBe(hp1)
+        expect(state.enemies[2].hp).toBe(hp2 - 3)
+      } finally {
+        Math.random = oldRand
+      }
+    })
+
+    it('flame+frost resonance should double burn settlement damage', () => {
+      let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['flame', 'frost'])
+      state = startTurn(state)
+      state = { ...state, enemies: [{ ...state.enemies[0], burn: 2 }] }
+      const hpBefore = state.enemies[0].hp
+      state = endPlayerTurn(state)
+      expect(state.enemies[0].hp).toBe(hpBefore - 4)
+    })
+
+    it('frost+thunder resonance should deal 15 damage when freeze is removed', () => {
+      let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['frost', 'thunder'])
+      state = startTurn(state)
+      state = { ...state, enemies: [{ ...state.enemies[0], freeze: 1 }] }
+      const hpBefore = state.enemies[0].hp
+      state = endPlayerTurn(state)
+      expect(state.enemies[0].hp).toBe(hpBefore - 15)
+    })
+
+    it('soul+void resonance should heal player to full on kill', () => {
+      let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['soul', 'void'])
+      state = {
+        ...state,
+        player: { ...state.player, hp: 20 },
+        enemies: [{ ...state.enemies[0], hp: 6 }],
+      }
+      state = useNormalAttack(state, 0)
+      expect(state.player.hp).toBe(state.player.maxHp)
     })
   })
 })

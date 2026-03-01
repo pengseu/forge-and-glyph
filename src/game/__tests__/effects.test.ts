@@ -251,19 +251,39 @@ describe('effects', () => {
     expect(state.player.pendingEndTurnSelfDamage).toBe(5)
   })
 
+  it('self_damage should reduce hp but not below 1', () => {
+    state = { ...state, player: { ...state.player, hp: 6 } }
+    state = applyCardEffects(state, [{ type: 'self_damage', value: 5 }], 0)
+    expect(state.player.hp).toBe(1)
+  })
+
+  it('set_double_damage_armor_this_turn should double following damage and armor effects', () => {
+    const hpBefore = state.enemies[0].hp
+    state = applyCardEffects(state, [{ type: 'set_double_damage_armor_this_turn' }], 0)
+    state = applyCardEffects(state, [{ type: 'damage', value: 6 }], 0)
+    state = applyCardEffects(state, [{ type: 'armor', value: 5 }], 0)
+    expect(state.enemies[0].hp).toBe(hpBefore - 12)
+    expect(state.player.armor).toBe(10)
+  })
+
+  it('set_damage_taken_multiplier should set player damage multiplier', () => {
+    state = applyCardEffects(state, [{ type: 'set_damage_taken_multiplier', value: 0.5 }], 0)
+    expect(state.player.damageTakenMultiplier).toBe(0.5)
+  })
+
   describe('elite passives', () => {
-    it('shadow assassin should evade single-hit damage <= 5', () => {
+    it('shadow assassin should evade single-hit damage <= 4', () => {
       state = createBattleState(['shadow_assassin'])
       const hpBefore = state.enemies[0].hp
-      state = applyCardEffects(state, [{ type: 'damage', value: 5 }], 0, 'combat')
+      state = applyCardEffects(state, [{ type: 'damage', value: 4 }], 0, 'combat')
       expect(state.enemies[0].hp).toBe(hpBefore)
     })
 
-    it('shadow assassin should take damage when single-hit damage > 5', () => {
+    it('shadow assassin should take damage when single-hit damage > 4', () => {
       state = createBattleState(['shadow_assassin'])
       const hpBefore = state.enemies[0].hp
-      state = applyCardEffects(state, [{ type: 'damage', value: 6 }], 0, 'combat')
-      expect(state.enemies[0].hp).toBe(hpBefore - 6)
+      state = applyCardEffects(state, [{ type: 'damage', value: 5 }], 0, 'combat')
+      expect(state.enemies[0].hp).toBe(hpBefore - 5)
     })
 
     it('shadow assassin evade threshold should use final damage after modifiers', () => {

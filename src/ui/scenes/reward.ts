@@ -1,6 +1,6 @@
 import type { CardDef, MaterialBag } from '../../game/types'
 import type { GameCallbacks } from '../renderer'
-import { getWeaponDef } from '../../game/weapons'
+import { describeWeaponEffect, getWeaponDef } from '../../game/weapons'
 import { formatMaterial } from '../../game/materials'
 
 export function renderReward(
@@ -9,7 +9,15 @@ export function renderReward(
   materialRewards: Partial<MaterialBag>,
   droppedWeaponId: string | null,
   callbacks: GameCallbacks,
+  act: 1 | 2 | 3 = 1,
+  bossAutoDropHint: string | null = null,
 ): void {
+  const materialRuleHint = act === 1
+    ? 'Act 1 掉落：普通=铁锭×1；精英=元素精华×1；Boss=王冠碎片×1'
+    : act === 2
+      ? 'Act 2 掉落：普通=铁/精钢；精英=精钢+随机精华；Boss=Boss材料+额外资源'
+      : 'Act 3 掉落：普通=精钢/高阶材质；精英=高阶材质+精华；Boss=终幕专属材料'
+
   const cardsHtml = candidateCards.map(card => `
     <div class="reward-card" data-card-id="${card.id}" tabindex="0" role="button" aria-label="${card.name}">
       <div class="card-name">${card.name}</div>
@@ -35,7 +43,7 @@ export function renderReward(
     weaponHtml = `
       <div class="weapon-drop">
         <div class="weapon-drop-name">${weaponDef.name}</div>
-        <div class="weapon-drop-effect">${weaponDef.effect}</div>
+        <div class="weapon-drop-effect">${describeWeaponEffect(weaponDef.effect)}</div>
         <button class="btn" id="btn-equip-weapon">装备</button>
       </div>
     `
@@ -44,6 +52,8 @@ export function renderReward(
   container.innerHTML = `
     <div class="scene-reward">
       <h2>选择一张卡牌</h2>
+      <div class="reward-rule-hint">📘 当前幕材料规则：${materialRuleHint}</div>
+      ${bossAutoDropHint ? `<div class="reward-boss-drop-hint">🏆 ${bossAutoDropHint}</div>` : ''}
       <div class="reward-cards">${cardsHtml}</div>
       ${materialHtml}
       ${weaponHtml}

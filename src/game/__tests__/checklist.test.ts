@@ -249,13 +249,14 @@ describe('Checklist: 卡牌存在性', () => {
     expect(card!.effects[0].type).toBe('gain_charge')
   })
 
-  it('坚守卡存在于卡池', () => {
-    const card = ALL_CARDS.find(c => c.id === 'fortify')
+  it('永恒之盾存在于卡池', () => {
+    const card = ALL_CARDS.find(c => c.id === 'eternal_shield')
     expect(card).toBeDefined()
-    expect(card!.name).toBe('坚守')
+    expect(card!.name).toBe('永恒之盾')
     expect(card!.effects).toEqual([
-      { type: 'armor', value: 8 },
-      { type: 'gain_barrier', value: 3 },
+      { type: 'armor', value: 20 },
+      { type: 'gain_barrier', value: 5 },
+      { type: 'set_damage_taken_multiplier', value: 0.5 },
     ])
   })
 

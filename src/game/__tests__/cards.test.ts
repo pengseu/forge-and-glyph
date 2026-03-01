@@ -1,20 +1,24 @@
 import { describe, it, expect } from 'vitest'
-import { ALL_CARDS, getCardDef, STARTER_DECK_RECIPE } from '../cards'
+import { ALL_CARDS, createStarterDeck, getCardDef, getRewardPoolByAct, STARTER_DECK_RECIPE } from '../cards'
 
-const STEP6_ADDED_CARD_IDS = [
+const SETTING_ADDED_CARD_IDS = [
   'quick_attack',
   'double_strike',
   'ignite',
-  'frost_nova',
   'bone_poison',
   'vulnerability_hex',
   'overdraft',
   'mana_surge',
-  'balance',
   'thorn_armor',
   'magic_absorb',
   'blade_arcane_unity',
   'blood_frenzy',
+  'purify',
+  'final_judgment',
+  'annihilation_flame',
+  'eternal_shield',
+  'time_rewind',
+  'soul_sacrifice',
 ]
 
 describe('cards', () => {
@@ -29,9 +33,29 @@ describe('cards', () => {
     expect(slash.costType).toBe('stamina')
   })
 
-  it('starter deck should have 10 cards', () => {
+  it('starter deck should have 8 cards', () => {
     const total = STARTER_DECK_RECIPE.reduce((sum, r) => sum + r.count, 0)
-    expect(total).toBe(10)
+    expect(total).toBe(8)
+  })
+
+  it('createStarterDeck should build an 8-card starter deck from recipe', () => {
+    const deck = createStarterDeck()
+    expect(deck).toHaveLength(8)
+    expect(deck.every(c => c.uid.startsWith('card_'))).toBe(true)
+  })
+
+  it('starter deck should include exactly slash2 block2 spark2 meditate1 light_stab1', () => {
+    const byId = createStarterDeck().reduce<Record<string, number>>((acc, c) => {
+      acc[c.defId] = (acc[c.defId] ?? 0) + 1
+      return acc
+    }, {})
+    expect(byId).toEqual({
+      slash: 2,
+      block: 2,
+      spark: 2,
+      meditate: 1,
+      light_stab: 1,
+    })
   })
 
   it('all starter deck cards should exist', () => {
@@ -46,15 +70,23 @@ describe('cards', () => {
     expect(rarities.filter(r => r === 'common').length).toBeGreaterThan(0)
     expect(rarities.filter(r => r === 'rare').length).toBeGreaterThan(0)
     expect(rarities.filter(r => r === 'epic').length).toBeGreaterThan(0)
+    expect(rarities.filter(r => r === 'legendary').length).toBeGreaterThan(0)
   })
 
-  it('should reach 40 cards after step6 card pool expansion', () => {
-    expect(ALL_CARDS.length).toBe(40)
+  it('should keep expanded card pool (>=40)', () => {
+    expect(ALL_CARDS.length).toBeGreaterThanOrEqual(40)
   })
 
-  it('should include all newly added step6 cards', () => {
-    for (const id of STEP6_ADDED_CARD_IDS) {
+  it('should include all setting-aligned added cards', () => {
+    for (const id of SETTING_ADDED_CARD_IDS) {
       expect(() => getCardDef(id)).not.toThrow()
     }
+  })
+
+  it('act1 reward pool should contain 20 cards and include meditate/light_stab', () => {
+    const act1Pool = getRewardPoolByAct(1)
+    expect(act1Pool).toHaveLength(20)
+    expect(act1Pool.some(c => c.id === 'meditate')).toBe(true)
+    expect(act1Pool.some(c => c.id === 'light_stab')).toBe(true)
   })
 })

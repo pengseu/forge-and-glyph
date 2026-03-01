@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { createBattleState, startTurn, playCard, endPlayerTurn, canPlayCard, useBattleMaterial, canUseNormalAttack, useNormalAttack } from '../combat'
+import { createBattleState, startTurn, playCard, endPlayerTurn, canPlayCard, useBattleMaterial, canUseNormalAttack, useNormalAttack, drawCards } from '../combat'
 import { EMPTY_MATERIAL_BAG } from '../materials'
 import { getCardDef } from '../cards'
 
 describe('combat', () => {
   it('createBattleState should set up initial state', () => {
     const state = createBattleState(['goblin_scout'])
-    expect(state.player.maxHp).toBe(50)
+    expect(state.player.maxHp).toBe(60)
     expect(state.player.maxStamina).toBe(3)
     expect(state.player.maxMana).toBe(2)
     expect(state.enemies[0].maxHp).toBe(28)
@@ -76,6 +76,31 @@ describe('combat', () => {
     }
   })
 
+  it('vine curse should be unplayable and occupy hand slot', () => {
+    const deck = [{ uid: 'c1', defId: 'curse_doubt' }]
+    let state = createBattleState(['goblin_scout'], deck)
+    state = {
+      ...state,
+      player: { ...state.player, hand: [...deck], drawPile: [] },
+    }
+    expect(canPlayCard(state, 'c1')).toBe(false)
+    expect(state.player.hand).toHaveLength(1)
+  })
+
+  it('soul erosion curse should deal damage on draw then exhaust', () => {
+    const deck = [{ uid: 'c1', defId: 'curse_pain' }]
+    let state = createBattleState(['goblin_scout'], deck)
+    state = {
+      ...state,
+      player: { ...state.player, hp: 20, hand: [], drawPile: [...deck], discardPile: [] },
+    }
+    state = drawCards(state, 1)
+    expect(state.player.hp).toBe(18)
+    expect(state.player.hand).toHaveLength(0)
+    expect(state.player.drawPile).toHaveLength(0)
+    expect(state.player.discardPile).toHaveLength(0)
+  })
+
   it('endPlayerTurn should execute enemy intent and discard hand', () => {
     let state = createBattleState(['goblin_scout'])
     state = startTurn(state)
@@ -130,21 +155,21 @@ describe('combat', () => {
       return state
     }
 
-    it('longsword: playing combat card sets weaponDiscount to 1', () => {
-      let state = makeWeaponState('longsword')
+    it('iron_longsword: playing combat card sets weaponDiscount to 1', () => {
+      let state = makeWeaponState('iron_longsword')
       expect(state.player.weaponDiscount).toBe(0)
       state = playCard(state, 'c1', 0)
       expect(state.player.weaponDiscount).toBe(1)
     })
 
-    it('longsword_upgraded: playing combat card sets weaponDiscount to 2', () => {
-      let state = makeWeaponState('longsword_upgraded')
+    it('steel_longsword: playing combat card sets weaponDiscount to 2', () => {
+      let state = makeWeaponState('steel_longsword')
       state = playCard(state, 'c1', 0)
       expect(state.player.weaponDiscount).toBe(2)
     })
 
     it('weaponDiscount reduces stamina cost of next stamina card', () => {
-      let state = makeWeaponState('longsword')
+      let state = makeWeaponState('iron_longsword')
       state = playCard(state, 'c1', 0)
       expect(state.player.stamina).toBe(2)
       expect(state.player.weaponDiscount).toBe(1)
@@ -154,7 +179,7 @@ describe('combat', () => {
     })
 
     it('weaponDiscount clears after being used on stamina card', () => {
-      let state = makeWeaponState('longsword')
+      let state = makeWeaponState('iron_longsword')
       state = { ...state, player: { ...state.player, weaponDiscount: 1, equippedWeaponId: null } }
       state = playCard(state, 'c1', 0)
       expect(state.player.stamina).toBe(3)
@@ -162,25 +187,25 @@ describe('combat', () => {
     })
 
     it('non-combat card does not trigger weapon effect', () => {
-      let state = makeWeaponState('longsword')
+      let state = makeWeaponState('iron_longsword')
       state = playCard(state, 'c4', 0)
       expect(state.player.weaponDiscount).toBe(0)
     })
 
     it('canPlayCard considers weaponDiscount', () => {
-      let state = makeWeaponState('longsword')
+      let state = makeWeaponState('iron_longsword')
       state = { ...state, player: { ...state.player, stamina: 1, weaponDiscount: 1 } }
       expect(canPlayCard(state, 'c3')).toBe(true)
     })
 
     it('canPlayCard rejects when discount is not enough', () => {
-      let state = makeWeaponState('longsword')
+      let state = makeWeaponState('iron_longsword')
       state = { ...state, player: { ...state.player, stamina: 0, weaponDiscount: 1 } }
       expect(canPlayCard(state, 'c3')).toBe(false)
     })
 
     it('normal attack should be available only when weapon is equipped and once per turn', () => {
-      let noWeaponState = makeWeaponState('longsword')
+      let noWeaponState = makeWeaponState('iron_longsword')
       noWeaponState = { ...noWeaponState, player: { ...noWeaponState.player, equippedWeaponId: null } }
       expect(canUseNormalAttack(noWeaponState)).toBe(false)
 
@@ -250,14 +275,21 @@ describe('combat', () => {
       expect(state.enemies[0].armor).toBe(2)
     })
 
-    it('iron_bow: combat cards gain 30% damage when unharmed this turn', () => {
+    it('iron_bow: first combat card each turn gains 30% damage', () => {
       let state = makeWeaponState('iron_bow')
       state = playCard(state, 'c1', 0)
       expect(state.enemies[0].hp).toBe(21)
     })
 
+    it('iron_bow: second combat card in same turn should not gain 30% damage', () => {
+      let state = makeWeaponState('iron_bow')
+      state = playCard(state, 'c1', 0)
+      state = playCard(state, 'c2', 0)
+      expect(state.enemies[0].hp).toBe(15)
+    })
+
     it('iron_staff: spell damage increased and gains charge on cast', () => {
-      const deck = [{ uid: 'c1', defId: 'fireball' }]
+      const deck = [{ uid: 'c1', defId: 'meteor_spell' }]
       let state = createBattleState(['goblin_scout'], deck, 'iron_staff')
       state = {
         ...state,
@@ -269,7 +301,7 @@ describe('combat', () => {
         },
       }
       state = playCard(state, 'c1', 0)
-      expect(state.enemies[0].hp).toBe(16)
+      expect(state.enemies[0].hp).toBe(4)
       expect(state.player.charge).toBe(1)
     })
   })
@@ -365,17 +397,104 @@ describe('combat', () => {
       state = startTurn(state)
       state = { ...state, enemies: [{ ...state.enemies[0], intentIndex: 3 }] }
       state = endPlayerTurn(state)
-      expect(state.enemies[0].armor).toBe(24)
+      expect(state.enemies[0].armor).toBe(6)
+    })
+
+    it('goblin king phase2 should stop summoning and use phase2 pattern (20 attack)', () => {
+      let state = createBattleState(['goblin_king'])
+      state = startTurn(state)
+      const phase2Hp = Math.floor(state.enemies[0].maxHp * 0.4)
+      state = {
+        ...state,
+        player: { ...state.player, hp: 60, armor: 0 },
+        enemies: [{ ...state.enemies[0], hp: phase2Hp, intentIndex: 0 }],
+      }
+      state = endPlayerTurn(state)
+      expect(state.enemies).toHaveLength(1)
+      expect(state.player.hp).toBe(40)
+    })
+
+    it('goblin king phase2 second intent should be defend+attack (10 armor + 12 attack)', () => {
+      let state = createBattleState(['goblin_king', 'goblin_minion', 'goblin_minion'])
+      state = startTurn(state)
+      const phase2Hp = Math.floor(state.enemies[0].maxHp * 0.4)
+      state = {
+        ...state,
+        player: { ...state.player, hp: 60, armor: 0 },
+        enemies: [
+          { ...state.enemies[0], hp: phase2Hp, intentIndex: 1, armor: 0 },
+          { ...state.enemies[1], freeze: 1, hp: 0 },
+          { ...state.enemies[2], freeze: 1, hp: 0 },
+        ],
+      }
+      state = endPlayerTurn(state)
+      expect(state.enemies).toHaveLength(3)
+      expect(state.player.hp).toBe(48)
+      expect(state.enemies[0].armor).toBe(10)
+    })
+
+    it('curse intent should add curse cards into player discard pile', () => {
+      let state = createBattleState(['lich'])
+      state = startTurn(state)
+      state = {
+        ...state,
+        enemies: [{ ...state.enemies[0], intentIndex: 0 }],
+      }
+      state = endPlayerTurn(state)
+      const curseCards = [
+        ...state.player.hand,
+        ...state.player.drawPile,
+        ...state.player.discardPile,
+      ].filter(c => c.defId.startsWith('curse_'))
+      expect(curseCards.length).toBeGreaterThan(0)
+    })
+
+    it('abyss lord should gain phase2 passive armor and execute first action pattern', () => {
+      let state = createBattleState(['abyss_lord'])
+      state = startTurn(state)
+      state = {
+        ...state,
+        enemies: [
+          {
+            ...state.enemies[0],
+            hp: Math.floor(state.enemies[0].maxHp * 0.5),
+            intentIndex: 0,
+          },
+        ],
+      }
+      state = endPlayerTurn(state)
+      expect(state.enemies[0].armor).toBe(5)
+      expect(state.player.hp).toBe(40)
+    })
+
+    it('abyss lord phase3 should apply weaken attack and end-turn unavoidable damage', () => {
+      let state = createBattleState(['abyss_lord'])
+      state = startTurn(state)
+      state = {
+        ...state,
+        player: { ...state.player, hp: 60, armor: 0 },
+        enemies: [
+          {
+            ...state.enemies[0],
+            hp: Math.floor(state.enemies[0].maxHp * 0.3),
+            intentIndex: 1,
+            armor: 0,
+          },
+        ],
+      }
+      state = endPlayerTurn(state)
+      expect(state.player.hp).toBe(35)
+      expect(state.player.weakened).toBe(2)
     })
   })
 
   describe('elite enemies', () => {
-    it('stone gargoyle should gain 8 armor at startTurn', () => {
+    it('stone gargoyle should gain 6 armor at startTurn', () => {
       let state = createBattleState(['stone_gargoyle'])
       expect(state.enemies[0].armor).toBe(0)
       state = startTurn(state)
-      expect(state.enemies[0].armor).toBe(8)
-      expect(state.enemies[0].turnStartArmorGain).toBe(8)
+      expect(state.enemies[0].armor).toBe(6)
+      expect(state.enemies[0].turnStartArmorGain).toBe(6)
     })
 
     it('stone gaze intent should apply weakened to player', () => {
@@ -386,7 +505,7 @@ describe('combat', () => {
       expect(state.player.weakened).toBe(1)
     })
 
-    it('shadow assassin evade should set evade flag for UI feedback', () => {
+    it('shadow assassin evade should trigger on single-hit damage <= 4', () => {
       let state = createBattleState(['shadow_assassin'], undefined, 'iron_staff')
       const hpBefore = state.enemies[0].hp
       state = useNormalAttack(state, 0)
@@ -400,10 +519,10 @@ describe('combat', () => {
       let state = createBattleState(['goblin_scout'], undefined, undefined, { ...EMPTY_MATERIAL_BAG, iron_ingot: 2 })
       state = startTurn(state)
       state = useBattleMaterial(state, 'iron_ingot')
-      expect(state.player.armor).toBe(8)
+      expect(state.player.armor).toBe(10)
       expect(state.availableMaterials.iron_ingot).toBe(1)
       state = useBattleMaterial(state, 'iron_ingot')
-      expect(state.player.armor).toBe(8)
+      expect(state.player.armor).toBe(10)
       expect(state.availableMaterials.iron_ingot).toBe(1)
     })
 
@@ -411,21 +530,36 @@ describe('combat', () => {
       let state = createBattleState(['goblin_scout', 'forest_wolf'], undefined, undefined, { ...EMPTY_MATERIAL_BAG, elemental_essence: 1 })
       state = startTurn(state)
       state = useBattleMaterial(state, 'elemental_essence')
-      expect(state.enemies[0].burn).toBe(2)
-      expect(state.enemies[1].burn).toBe(2)
+      expect(state.enemies[0].burn).toBe(3)
+      expect(state.enemies[1].burn).toBe(3)
     })
 
     it('guard essence should grant armor each startTurn', () => {
       let state = createBattleState(['goblin_scout'], undefined, undefined, { ...EMPTY_MATERIAL_BAG, guard_essence: 1 })
       state = startTurn(state)
       state = useBattleMaterial(state, 'guard_essence')
-      expect(state.player.guardArmorPerTurn).toBe(3)
+      expect(state.player.guardArmorPerTurn).toBe(5)
       state = endPlayerTurn(state)
       expect(state.player.armor).toBeGreaterThanOrEqual(3)
     })
   })
 
   describe('step6 card mechanics', () => {
+    it('quick_attack should draw 1 card after dealing damage', () => {
+      const deck = [
+        { uid: 'c1', defId: 'quick_attack' },
+        { uid: 'd1', defId: 'block' },
+      ]
+      let state = createBattleState(['goblin_scout'], deck)
+      state = {
+        ...state,
+        player: { ...state.player, stamina: 3, hand: [{ uid: 'c1', defId: 'quick_attack' }], drawPile: [{ uid: 'd1', defId: 'block' }] },
+      }
+      state = playCard(state, 'c1', 0)
+      expect(state.player.hand).toHaveLength(1)
+      expect(state.player.hand[0].uid).toBe('d1')
+    })
+
     it('overdraft should grant stamina now and reduce next turn stamina by 1', () => {
       const deck = [{ uid: 'c1', defId: 'overdraft' }]
       let state = createBattleState(['goblin_scout'], deck)
@@ -449,6 +583,19 @@ describe('combat', () => {
       state = playCard(state, 'c1', 0)
       state = endPlayerTurn(state)
       expect(state.player.hp).toBeLessThanOrEqual(35)
+    })
+
+    it('mana_surge base should deal exactly 3 self damage at end of turn', () => {
+      const deck = [{ uid: 'c1', defId: 'mana_surge' }]
+      let state = createBattleState(['goblin_scout'], deck)
+      state = {
+        ...state,
+        player: { ...state.player, hp: 40, hand: [...deck], drawPile: [] },
+        enemies: [{ ...state.enemies[0], freeze: 1 }],
+      }
+      state = playCard(state, 'c1', 0)
+      state = endPlayerTurn(state)
+      expect(state.player.hp).toBe(37)
     })
 
     it('thorn_armor should retaliate when enemy attacks', () => {
@@ -479,12 +626,12 @@ describe('combat', () => {
     it('blade_arcane_unity should reduce hybrid card costs this turn', () => {
       const deck = [
         { uid: 'c1', defId: 'blade_arcane_unity' },
-        { uid: 'c2', defId: 'frost_nova' },
+        { uid: 'c2', defId: 'destiny_rewrite' },
       ]
       let state = createBattleState(['goblin_scout'], deck)
       state = {
         ...state,
-        player: { ...state.player, hand: [...deck], drawPile: [], stamina: 1, mana: 2 },
+        player: { ...state.player, hand: [...deck], drawPile: [], stamina: 1, mana: 1 },
       }
       state = playCard(state, 'c1', 0)
       expect(canPlayCard(state, 'c2')).toBe(true)
@@ -498,7 +645,7 @@ describe('combat', () => {
         player: { ...state.player, hp: 50, hand: [...deck], drawPile: [] },
       }
       state = playCard(state, 'c1', 0)
-      expect(state.player.hp).toBe(35)
+      expect(state.player.hp).toBe(38)
       expect(state.player.strength).toBe(5)
     })
   })
@@ -511,12 +658,12 @@ describe('combat', () => {
       expect(state.enemies[0].hp).toBe(hpBefore - 9)
     })
 
-    it('void should ignore 3 armor for combat hit', () => {
+    it('void should ignore 4 armor for attack hit', () => {
       let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['void'])
       state = { ...state, enemies: [{ ...state.enemies[0], armor: 5 }] }
       state = useNormalAttack(state, 0)
       expect(state.enemies[0].armor).toBe(0)
-      expect(state.enemies[0].hp).toBe(24)
+      expect(state.enemies[0].hp).toBe(23)
     })
 
     it('flame should apply 1 burn on combat hit', () => {
@@ -525,23 +672,23 @@ describe('combat', () => {
       expect(state.enemies[0].burn).toBe(1)
     })
 
-    it('frost should apply freeze on proc (20%)', () => {
-      const oldRand = Math.random
-      Math.random = () => 0.1
-      try {
-        let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['frost'])
-        state = useNormalAttack(state, 0)
-        expect(state.enemies[0].freeze).toBe(1)
-      } finally {
-        Math.random = oldRand
-      }
+    it('frost should freeze on every 3rd hit', () => {
+      let state = createBattleState(['goblin_scout'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['frost'])
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[0].freeze).toBe(0)
+      state = endPlayerTurn(state)
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[0].freeze).toBe(0)
+      state = endPlayerTurn(state)
+      state = useNormalAttack(state, 0)
+      expect(state.enemies[0].freeze).toBe(1)
     })
 
-    it('thunder should chain 3 damage to another enemy', () => {
+    it('thunder should chain 4 damage to another enemy', () => {
       let state = createBattleState(['goblin_scout', 'forest_wolf'], undefined, 'iron_longsword', EMPTY_MATERIAL_BAG, ['thunder'])
       const hp2 = state.enemies[1].hp
       state = useNormalAttack(state, 0)
-      expect(state.enemies[1].hp).toBe(hp2 - 3)
+      expect(state.enemies[1].hp).toBe(hp2 - 4)
     })
 
     it('soul should heal 5 on kill', () => {
@@ -578,7 +725,7 @@ describe('combat', () => {
         const hp2 = state.enemies[2].hp
         state = useNormalAttack(state, 0)
         expect(state.enemies[1].hp).toBe(hp1)
-        expect(state.enemies[2].hp).toBe(hp2 - 3)
+        expect(state.enemies[2].hp).toBe(hp2 - 4)
       } finally {
         Math.random = oldRand
       }
@@ -614,3 +761,38 @@ describe('combat', () => {
     })
   })
 })
+    it('flame should trigger on spell hit as well', () => {
+      const deck = [{ uid: 'sp1', defId: 'spark' }]
+      let state = createBattleState(['goblin_scout'], deck, 'iron_staff', EMPTY_MATERIAL_BAG, ['flame'])
+      state = {
+        ...state,
+        player: { ...state.player, mana: 2, hand: [...deck], drawPile: [] },
+      }
+      state = playCard(state, 'sp1', 0)
+      expect(state.enemies[0].burn).toBeGreaterThanOrEqual(2)
+    })
+
+    it('trial flame should add burn to all enemies and player each turn', () => {
+      let state = createBattleState(['goblin_scout'])
+      state = { ...state, trialModifier: 'flame' }
+      state = startTurn(state)
+      expect(state.enemies[0].burn).toBe(1)
+      expect(state.player.pendingEndTurnSelfDamage).toBe(1)
+    })
+
+    it('trial speed should fail once turn limit is exceeded', () => {
+      let state = createBattleState(['goblin_scout'])
+      state = { ...state, trialModifier: 'speed', trialTurnLimit: 1 }
+      state = startTurn(state)
+      state = endPlayerTurn(state)
+      expect(state.phase).toBe('defeat')
+    })
+
+    it('trial endure should halve enemy damage', () => {
+      let state = createBattleState(['goblin_scout'])
+      state = { ...state, enemyDamageMultiplier: 0.5 }
+      state = startTurn(state)
+      const hpBefore = state.player.hp
+      state = endPlayerTurn(state)
+      expect(hpBefore - state.player.hp).toBe(4)
+    })

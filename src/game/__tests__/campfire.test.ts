@@ -4,29 +4,33 @@ import { getCardDef } from '../cards'
 import type { RunState, CardInstance } from '../types'
 
 const dummyRun = {} as RunState
-const STEP6_ADDED_CARD_IDS = [
+const SETTING_ADDED_CARD_IDS = [
   'quick_attack',
   'double_strike',
   'ignite',
-  'frost_nova',
   'bone_poison',
   'vulnerability_hex',
   'overdraft',
   'mana_surge',
-  'balance',
   'thorn_armor',
   'magic_absorb',
   'blade_arcane_unity',
   'blood_frenzy',
+  'purify',
+  'final_judgment',
+  'annihilation_flame',
+  'eternal_shield',
+  'time_rewind',
+  'soul_sacrifice',
 ]
 
 describe('campfire', () => {
   describe('restoreHp', () => {
-    it('restores HP to max', () => {
+    it('restores to full HP', () => {
       expect(restoreHp(dummyRun, 30, 80).hp).toBe(80)
     })
 
-    it('returns maxHp even when already full', () => {
+    it('keeps maxHp when already full', () => {
       expect(restoreHp(dummyRun, 80, 80).hp).toBe(80)
     })
   })
@@ -102,8 +106,8 @@ describe('campfire', () => {
       }
     })
 
-    it('should have upgrade mappings for newly added step6 cards', () => {
-      for (const id of STEP6_ADDED_CARD_IDS) {
+    it('should have upgrade mappings for setting-aligned added cards', () => {
+      for (const id of SETTING_ADDED_CARD_IDS) {
         const base = getCardDef(id)
         expect(canUpgrade(base)).toBe(true)
         const upgraded = upgradeCard(base)

@@ -1,6 +1,6 @@
 import { getCardDef } from '../../game/cards'
 import type { RunState } from '../../game/types'
-import { getWeaponDef } from '../../game/weapons'
+import { describeWeaponEffect, getWeaponDef } from '../../game/weapons'
 import type { GameCallbacks } from '../renderer'
 import { formatMaterial } from '../../game/materials'
 
@@ -29,7 +29,7 @@ export function renderInventory(
     return `
       <div class="inventory-weapon ${equipped ? 'equipped' : ''}">
         <div>${def.name}</div>
-        <div class="inventory-weapon-effect">效果：${def.effect}</div>
+        <div class="inventory-weapon-effect">效果：${describeWeaponEffect(def.effect)}</div>
         <button class="btn btn-small" data-weapon-uid="${w.uid}" ${equipped ? 'disabled' : ''}>
           ${equipped ? '已装备' : '装备'}
         </button>

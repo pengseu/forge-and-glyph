@@ -16,31 +16,51 @@ import {
   addBattleGoldReward,
   healInShop,
   removeCardFromDeck,
+  transformCardInShop,
   addMaterialReward,
   craftWeapon,
   enchantWeapon,
 } from './game/run'
-import { getRewardCards } from './game/reward'
-import { generateShopOffers } from './game/shop'
-import { rollMaterialReward } from './game/materials'
+import { getRewardCardsByAct } from './game/reward'
+import { getRewardPoolByAct } from './game/cards'
+import { generateShopMaterialOffersByAct, generateShopOffersByAct } from './game/shop'
+import { rollMaterialRewardByAct } from './game/materials'
 import { restoreHp } from './game/campfire'
-import { rollEvent, resolveEventOption } from './game/events'
+import { createTempleEvent, createTrialChoiceEvent, rollEventByAct, resolveEventOption } from './game/events'
 import { getEnemyDef } from './game/enemies'
 import { getEffectiveCardDef } from './game/campfire'
+import { getNodeHpScale, scaleEnemyHp } from './game/difficulty'
+import { advanceToNextAct, applyIntermissionChoice } from './game/act'
+import {
+  applyRunResultToMeta,
+  createLegacyWeaponEvent,
+  getBossLegendaryWeaponByAct,
+  loadMetaProfile,
+  saveMetaProfile,
+} from './game/meta'
+import { createSeededRng, hashSeed } from './game/rng'
 import { render } from './ui/renderer'
 
 const app = document.getElementById('app')!
 
 let prevBattle: BattleState | null = null
+const seedParam = new URLSearchParams(window.location.search).get('seed')
+const runtimeRng = createSeededRng(seedParam ? hashSeed(seedParam) : Date.now())
+let metaProfile = loadMetaProfile()
 
 let gameState: GameState = {
   scene: 'title',
   run: null,
   battle: null,
   currentEvent: null,
+  activeTrialModifier: null,
+  intermissionMode: 'none',
+  intermissionCardOptions: [],
+  intermissionRemoveRemaining: 0,
   rewardCards: [],
   rewardMaterials: {},
   shopOffers: [],
+  shopMaterialOffers: [],
   droppedWeaponId: null,
   lastResult: null,
   stats: { turns: 0, remainingHp: 0, runReport: null, finalSnapshot: null },
@@ -83,6 +103,22 @@ function activeBattleReport(): NonNullable<GameState['stats']['runReport']>['bat
   return report.battles[report.battles.length - 1]
 }
 
+function pickIntermissionCardsByRarity(
+  act: 1 | 2 | 3,
+  rarity: 'rare' | 'epic',
+  count: number,
+): import('./game/types').CardDef[] {
+  const pool = getRewardPoolByAct(act).filter(card => card.rarity === rarity)
+  const copy = [...pool]
+  const picked: typeof pool = []
+  while (picked.length < count && copy.length > 0) {
+    const idx = Math.floor(runtimeRng.next() * copy.length)
+    picked.push(copy[idx])
+    copy.splice(idx, 1)
+  }
+  return picked
+}
+
 function pushBattleLog(actor: 'player' | 'enemy' | 'system', turn: number, message: string): void {
   const report = activeBattleReport()
   if (!report) return
@@ -99,6 +135,7 @@ function closeBattleReport(result: 'victory' | 'defeat', turns: number): void {
 
 function finalizeRun(result: 'victory' | 'defeat', runLike: import('./game/types').RunState | null, remainingHp: number): void {
   if (!gameState.stats.runReport) return
+  gameState.stats.turns = gameState.stats.runReport.battles.reduce((sum, battle) => sum + battle.turns, 0)
   gameState.stats.runReport.endedAt = Date.now()
   gameState.stats.runReport.durationSec = Math.max(1, Math.floor((gameState.stats.runReport.endedAt - gameState.stats.runReport.startedAt) / 1000))
   if (runLike) {
@@ -113,7 +150,121 @@ function finalizeRun(result: 'victory' | 'defeat', runLike: import('./game/types
   } else {
     gameState.stats.finalSnapshot = null
   }
+  metaProfile = applyRunResultToMeta(metaProfile, {
+    result,
+    act: runLike?.act ?? 1,
+    equippedWeaponDefId: runLike?.equippedWeapon?.defId ?? null,
+    equippedWeaponEnchantments: runLike?.equippedWeapon?.enchantments ?? [],
+    unlockedBlueprints: runLike?.unlockedBlueprints ?? [],
+    blueprintMastery: runLike?.blueprintMastery ?? {},
+    replicaEliteKills: runLike?.replicaEliteKills ?? {},
+    completedReplicaInheritanceBlueprints: runLike?.completedReplicaInheritanceBlueprints ?? [],
+  })
+  saveMetaProfile(metaProfile)
   pushGlobalLog(`本局结束：${result === 'victory' ? '胜利' : '失败'}`)
+}
+
+function handleBattleVictory(newBattle: BattleState): void {
+  if (!gameState.run) return
+  let newRun = { ...gameState.run, playerHp: newBattle.player.hp, materials: { ...newBattle.availableMaterials } }
+  const currentNode = newRun.mapNodes.find(n => n.id === newRun.currentNodeId)
+  if (!currentNode) return
+
+  if (currentNode.type === 'elite_battle' && newRun.equippedWeapon?.defId.startsWith('replica_')) {
+    const defId = newRun.equippedWeapon.defId
+    const prev = newRun.replicaEliteKills ?? {}
+    newRun = {
+      ...newRun,
+      replicaEliteKills: {
+        ...prev,
+        [defId]: (prev[defId] ?? 0) + 1,
+      },
+    }
+  }
+
+  const goldReward = generateBattleGold(currentNode.type, runtimeRng.next)
+  newRun = addBattleGoldReward(newRun, goldReward)
+  newRun = applyBattleVictoryRewards(newRun, currentNode.type)
+
+  let rewardCards = getRewardCardsByAct(currentNode.type, newRun.act, runtimeRng.next)
+  let rewardMaterials = currentNode.type === 'boss_battle'
+    ? {}
+    : rollMaterialRewardByAct(currentNode.type, newRun.act, runtimeRng.next)
+
+  if (currentNode.type === 'trial' && gameState.activeTrialModifier) {
+    if (gameState.activeTrialModifier === 'flame') {
+      rewardCards = []
+      rewardMaterials = { elemental_essence: 2 }
+    } else if (gameState.activeTrialModifier === 'speed') {
+      const epics = getRewardPoolByAct(newRun.act).filter(card => card.rarity === 'epic')
+      const pool = [...epics]
+      const picks: typeof epics = []
+      while (picks.length < 3 && pool.length > 0) {
+        const idx = Math.floor(runtimeRng.next() * pool.length)
+        picks.push(pool[idx])
+        pool.splice(idx, 1)
+      }
+      rewardCards = picks
+      rewardMaterials = {}
+    } else if (gameState.activeTrialModifier === 'endure') {
+      rewardCards = []
+      rewardMaterials = { guard_essence: 1 }
+      newRun = { ...newRun, playerHp: newRun.playerMaxHp }
+    }
+  }
+
+  let droppedWeaponId: string | null = null
+  if (currentNode.type === 'boss_battle') {
+    newRun = addMaterialReward(newRun, rollMaterialRewardByAct('boss_battle', newRun.act, runtimeRng.next))
+    droppedWeaponId = getBossLegendaryWeaponByAct(newRun.act)
+    if (!(newRun.unlockedBlueprints ?? []).includes(droppedWeaponId)) {
+      newRun = { ...newRun, unlockedBlueprints: [...(newRun.unlockedBlueprints ?? []), droppedWeaponId] }
+    }
+  } else {
+    const hasLongsword = newRun.weaponInventory.some(w => w.defId === 'iron_longsword' || w.defId === 'steel_longsword')
+    if (!hasLongsword && runtimeRng.chance(0.3)) {
+      droppedWeaponId = 'iron_longsword'
+    }
+  }
+
+  closeBattleReport('victory', newBattle.turn)
+  pushGlobalLog(`战斗胜利：${currentNode.id}，${newBattle.turn} 回合`)
+
+  gameState = {
+    ...gameState,
+    run: newRun,
+    battle: null,
+    currentEvent: null,
+    activeTrialModifier: null,
+    scene: 'reward',
+    rewardCards,
+    rewardMaterials,
+    droppedWeaponId,
+    stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
+  }
+}
+
+function handleBattleDefeat(newBattle: BattleState): void {
+  closeBattleReport('defeat', newBattle.turn)
+  pushGlobalLog(`战斗失败：${gameState.run?.currentNodeId ?? 'unknown'}，${newBattle.turn} 回合`)
+  finalizeRun('defeat', gameState.run, 0)
+  gameState = {
+    scene: 'result',
+    run: null,
+    battle: null,
+    currentEvent: null,
+    activeTrialModifier: null,
+    intermissionMode: 'none',
+    intermissionCardOptions: [],
+    intermissionRemoveRemaining: 0,
+    rewardCards: [],
+    rewardMaterials: {},
+    shopOffers: [],
+    shopMaterialOffers: [],
+    droppedWeaponId: null,
+    lastResult: 'defeat',
+    stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: 0 },
+  }
 }
 
 function logBattleDiff(prev: BattleState, next: BattleState): void {
@@ -147,20 +298,51 @@ function logBattleDiff(prev: BattleState, next: BattleState): void {
 }
 
 function update() {
+  const clearIntermissionState = {
+    intermissionMode: 'none' as const,
+    intermissionCardOptions: [] as import('./game/types').CardDef[],
+    intermissionRemoveRemaining: 0,
+  }
+  const advanceFromIntermission = (run: import('./game/types').RunState): void => {
+    const nextRun = advanceToNextAct(run, runtimeRng.next)
+    pushGlobalLog(`进入第 ${nextRun.act} 幕`)
+    gameState = { ...gameState, run: nextRun, scene: 'map', ...clearIntermissionState }
+    update()
+  }
+
   render(app, gameState, {
     onStartGame: () => {
-      const run = createRunState()
+      const run = createRunState({
+        unlockedBlueprints: [...metaProfile.unlockedBlueprints],
+        blueprintMastery: { ...metaProfile.blueprintMastery },
+        legacyWeaponDefId: metaProfile.legacyWeaponDefId,
+        legacyWeaponEnchantments: [...(metaProfile.legacyWeaponEnchantments ?? [])],
+      }, runtimeRng.next)
       prevBattle = null
       gameState = {
         ...gameState,
-        scene: 'map',
+        scene: 'weapon_select',
         run,
         currentEvent: null,
+        activeTrialModifier: null,
+        intermissionMode: 'none',
+        intermissionCardOptions: [],
+        intermissionRemoveRemaining: 0,
         rewardMaterials: {},
         shopOffers: [],
+        shopMaterialOffers: [],
         stats: { turns: 0, remainingHp: 0, runReport: initRunReport(), finalSnapshot: null },
       }
       pushGlobalLog('开始新的一局冒险')
+      update()
+    },
+    onSelectStartingWeapon: (weaponDefId) => {
+      if (!gameState.run) return
+      let newRun = addWeaponToInventory(gameState.run, weaponDefId)
+      const selected = newRun.weaponInventory[newRun.weaponInventory.length - 1]
+      newRun = equipWeapon(newRun, selected.uid)
+      gameState = { ...gameState, run: newRun, scene: 'map' }
+      pushGlobalLog(`选择起始武器：${weaponDefId}`)
       update()
     },
     onSelectNode: (nodeId: string) => {
@@ -179,7 +361,13 @@ function update() {
         return
       }
       if (node.type === 'shop') {
-        gameState = { ...gameState, run: newRun, scene: 'shop', shopOffers: generateShopOffers() }
+        gameState = {
+          ...gameState,
+          run: newRun,
+          scene: 'shop',
+          shopOffers: generateShopOffersByAct(newRun.act, runtimeRng.next),
+          shopMaterialOffers: generateShopMaterialOffersByAct(newRun.act),
+        }
         update()
         return
       }
@@ -194,7 +382,34 @@ function update() {
         return
       }
       if (node.type === 'event') {
-        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: rollEvent() }
+        const eventDef = newRun.act === 2 && newRun.legacyWeaponDefId && !newRun.legacyEventSeen
+          ? createLegacyWeaponEvent(newRun.legacyWeaponDefId)
+          : rollEventByAct(newRun.act, runtimeRng.next)
+        pushGlobalLog(`触发事件：${eventDef.title}`)
+        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef }
+        update()
+        return
+      }
+      if (node.type === 'temple') {
+        const eventDef = createTempleEvent()
+        pushGlobalLog(`进入圣殿：${eventDef.title}`)
+        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef }
+        update()
+        return
+      }
+      if (node.type === 'trial') {
+        const eventDef = createTrialChoiceEvent()
+        pushGlobalLog(`进入试炼：${eventDef.title}`)
+        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef }
+        update()
+        return
+      }
+      if (node.type === 'treasure') {
+        pushGlobalLog('发现隐藏宝库：获得金币与稀有材料')
+        let rewardedRun = { ...newRun, gold: newRun.gold + 60 }
+        rewardedRun = addMaterialReward(rewardedRun, { steel_ingot: 1, elemental_essence: 1 })
+        rewardedRun = completeNode(rewardedRun, rewardedRun.currentNodeId)
+        gameState = { ...gameState, run: rewardedRun, scene: 'map' }
         update()
         return
       }
@@ -205,13 +420,26 @@ function update() {
       const weaponDefId = newRun.equippedWeapon?.defId ?? undefined
       const weaponEnchantments = newRun.equippedWeapon?.enchantments ?? []
       let battle = createBattleState(node.enemyIds, newRun.deck, weaponDefId, newRun.materials, weaponEnchantments)
+      const hpScale = getNodeHpScale(node.y, node.type, newRun.act)
+      battle = { ...battle, enemies: scaleEnemyHp(battle.enemies, hpScale) }
       battle = {
         ...battle,
         player: {
           ...battle.player,
           hp: newRun.playerHp,
           maxHp: newRun.playerMaxHp,
+          strength: battle.player.strength + newRun.bonusStrength,
+          wisdom: battle.player.wisdom + newRun.bonusWisdom,
+          maxMana: battle.player.maxMana + newRun.bonusMaxMana,
+          mana: battle.player.mana + newRun.bonusMaxMana,
         },
+        enemies: battle.enemies.map((enemy) => ({
+          ...enemy,
+          strength: enemy.strength + newRun.nextBattleEnemyStrengthBonus,
+        })),
+      }
+      if (newRun.nextBattleEnemyStrengthBonus > 0) {
+        newRun = { ...newRun, nextBattleEnemyStrengthBonus: 0 }
       }
       battle = startTurn(battle)
       beginBattleReport(node.id, node.type, node.enemyIds)
@@ -231,39 +459,7 @@ function update() {
       const newBattle = playCard(gameState.battle, cardUid, targetIndex ?? 0)
       logBattleDiff(gameState.battle, newBattle)
       if (newBattle.phase === 'victory') {
-        if (!gameState.run) return
-        let newRun = { ...gameState.run, playerHp: newBattle.player.hp, materials: { ...newBattle.availableMaterials } }
-        const currentNode = newRun.mapNodes.find(n => n.id === newRun.currentNodeId)
-        if (!currentNode) return
-        const goldReward = generateBattleGold(currentNode.type)
-        newRun = addBattleGoldReward(newRun, goldReward)
-        newRun = applyBattleVictoryRewards(newRun, currentNode.type)
-
-        const rewardCards = getRewardCards(currentNode.type)
-        const rewardMaterials = currentNode.type === 'boss_battle' ? {} : rollMaterialReward(currentNode.type)
-        if (currentNode.type === 'boss_battle') {
-          newRun = addMaterialReward(newRun, rollMaterialReward('boss_battle'))
-        }
-
-        let droppedWeaponId: string | null = null
-        const hasLongsword = newRun.weaponInventory.some(w => w.defId === 'longsword' || w.defId === 'longsword_upgraded')
-        if (!hasLongsword && Math.random() < 0.3) {
-          droppedWeaponId = 'longsword'
-        }
-        closeBattleReport('victory', newBattle.turn)
-        pushGlobalLog(`战斗胜利：${currentNode.id}，${newBattle.turn} 回合`)
-
-        gameState = {
-          ...gameState,
-          run: newRun,
-          battle: null,
-          currentEvent: null,
-          scene: 'reward',
-          rewardCards,
-          rewardMaterials,
-          droppedWeaponId,
-          stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
-        }
+        handleBattleVictory(newBattle)
       } else {
         gameState = { ...gameState, battle: newBattle, run: { ...gameState.run!, materials: { ...newBattle.availableMaterials } } }
       }
@@ -276,39 +472,7 @@ function update() {
       const newBattle = useNormalAttack(gameState.battle, targetIndex ?? 0)
       logBattleDiff(gameState.battle, newBattle)
       if (newBattle.phase === 'victory') {
-        if (!gameState.run) return
-        let newRun = { ...gameState.run, playerHp: newBattle.player.hp, materials: { ...newBattle.availableMaterials } }
-        const currentNode = newRun.mapNodes.find(n => n.id === newRun.currentNodeId)
-        if (!currentNode) return
-        const goldReward = generateBattleGold(currentNode.type)
-        newRun = addBattleGoldReward(newRun, goldReward)
-        newRun = applyBattleVictoryRewards(newRun, currentNode.type)
-
-        const rewardCards = getRewardCards(currentNode.type)
-        const rewardMaterials = currentNode.type === 'boss_battle' ? {} : rollMaterialReward(currentNode.type)
-        if (currentNode.type === 'boss_battle') {
-          newRun = addMaterialReward(newRun, rollMaterialReward('boss_battle'))
-        }
-
-        let droppedWeaponId: string | null = null
-        const hasLongsword = newRun.weaponInventory.some(w => w.defId === 'longsword' || w.defId === 'longsword_upgraded')
-        if (!hasLongsword && Math.random() < 0.3) {
-          droppedWeaponId = 'longsword'
-        }
-        closeBattleReport('victory', newBattle.turn)
-        pushGlobalLog(`战斗胜利：${currentNode.id}，${newBattle.turn} 回合`)
-
-        gameState = {
-          ...gameState,
-          run: newRun,
-          battle: null,
-          currentEvent: null,
-          scene: 'reward',
-          rewardCards,
-          rewardMaterials,
-          droppedWeaponId,
-          stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
-        }
+        handleBattleVictory(newBattle)
       } else {
         gameState = { ...gameState, battle: newBattle, run: { ...gameState.run!, materials: { ...newBattle.availableMaterials } } }
       }
@@ -333,55 +497,9 @@ function update() {
       const newBattle = endPlayerTurn(gameState.battle)
       logBattleDiff(gameState.battle, newBattle)
       if (newBattle.phase === 'defeat') {
-        closeBattleReport('defeat', newBattle.turn)
-        pushGlobalLog(`战斗失败：${gameState.run?.currentNodeId ?? 'unknown'}，${newBattle.turn} 回合`)
-        finalizeRun('defeat', gameState.run, 0)
-        gameState = {
-          scene: 'result',
-          run: null,
-          battle: null,
-          currentEvent: null,
-          rewardCards: [],
-          rewardMaterials: {},
-          shopOffers: [],
-          droppedWeaponId: null,
-          lastResult: 'defeat',
-          stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: 0 },
-        }
+        handleBattleDefeat(newBattle)
       } else if (newBattle.phase === 'victory') {
-        if (!gameState.run) return
-        let newRun = { ...gameState.run, playerHp: newBattle.player.hp, materials: { ...newBattle.availableMaterials } }
-        const currentNode = newRun.mapNodes.find(n => n.id === newRun.currentNodeId)
-        if (!currentNode) return
-        const goldReward = generateBattleGold(currentNode.type)
-        newRun = addBattleGoldReward(newRun, goldReward)
-        newRun = applyBattleVictoryRewards(newRun, currentNode.type)
-
-        const rewardCards = getRewardCards(currentNode.type)
-        const rewardMaterials = currentNode.type === 'boss_battle' ? {} : rollMaterialReward(currentNode.type)
-        if (currentNode.type === 'boss_battle') {
-          newRun = addMaterialReward(newRun, rollMaterialReward('boss_battle'))
-        }
-
-        let droppedWeaponId: string | null = null
-        const hasLongsword = newRun.weaponInventory.some(w => w.defId === 'longsword' || w.defId === 'longsword_upgraded')
-        if (!hasLongsword && Math.random() < 0.3) {
-          droppedWeaponId = 'longsword'
-        }
-        closeBattleReport('victory', newBattle.turn)
-        pushGlobalLog(`战斗胜利：${currentNode.id}，${newBattle.turn} 回合`)
-
-        gameState = {
-          ...gameState,
-          run: newRun,
-          battle: null,
-          currentEvent: null,
-          scene: 'reward',
-          rewardCards,
-          rewardMaterials,
-          droppedWeaponId,
-          stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
-        }
+        handleBattleVictory(newBattle)
       } else {
         gameState = {
           ...gameState,
@@ -394,25 +512,56 @@ function update() {
     onSelectCard: (cardId: string) => {
       if (!gameState.run) return
       const picked = cardId
-      let newRun = addCardToDeck(gameState.run, cardId)
+      let newRun = addCardToDeck(gameState.run, cardId, runtimeRng.next)
       pushGlobalLog(`奖励选卡：${picked}`)
       newRun = completeNode(newRun, newRun.currentNodeId)
       if (isBossNode(newRun)) {
-        finalizeRun('victory', newRun, gameState.stats.remainingHp)
+        if (newRun.act < 3) {
+          pushGlobalLog(`第 ${newRun.act} 幕完成，进入幕间`)
+          gameState = {
+            ...gameState,
+            run: newRun,
+            scene: 'act_transition',
+            intermissionMode: 'none',
+            intermissionCardOptions: [],
+            intermissionRemoveRemaining: 0,
+            rewardCards: [],
+            rewardMaterials: {},
+            shopOffers: [],
+            shopMaterialOffers: [],
+            droppedWeaponId: null,
+          }
+        } else {
+          finalizeRun('victory', newRun, gameState.stats.remainingHp)
+          gameState = {
+            scene: 'result',
+            run: null,
+            battle: null,
+            currentEvent: null,
+            activeTrialModifier: null,
+            intermissionMode: 'none',
+            intermissionCardOptions: [],
+            intermissionRemoveRemaining: 0,
+            rewardCards: [],
+            rewardMaterials: {},
+            shopOffers: [],
+            shopMaterialOffers: [],
+            droppedWeaponId: null,
+            lastResult: 'victory',
+            stats: { ...gameState.stats },
+          }
+        }
+      } else {
         gameState = {
-          scene: 'result',
-          run: null,
-          battle: null,
-          currentEvent: null,
+          ...gameState,
+          run: newRun,
+          scene: 'map',
           rewardCards: [],
           rewardMaterials: {},
           shopOffers: [],
+          shopMaterialOffers: [],
           droppedWeaponId: null,
-          lastResult: 'victory',
-          stats: { ...gameState.stats },
         }
-      } else {
-        gameState = { ...gameState, run: newRun, scene: 'map', rewardCards: [], rewardMaterials: {}, shopOffers: [], droppedWeaponId: null }
       }
       update()
     },
@@ -421,21 +570,52 @@ function update() {
       pushGlobalLog('跳过奖励')
       let newRun = completeNode(gameState.run, gameState.run.currentNodeId)
       if (isBossNode(newRun)) {
-        finalizeRun('victory', newRun, gameState.stats.remainingHp)
+        if (newRun.act < 3) {
+          pushGlobalLog(`第 ${newRun.act} 幕完成，进入幕间`)
+          gameState = {
+            ...gameState,
+            run: newRun,
+            scene: 'act_transition',
+            intermissionMode: 'none',
+            intermissionCardOptions: [],
+            intermissionRemoveRemaining: 0,
+            rewardCards: [],
+            rewardMaterials: {},
+            shopOffers: [],
+            shopMaterialOffers: [],
+            droppedWeaponId: null,
+          }
+        } else {
+          finalizeRun('victory', newRun, gameState.stats.remainingHp)
+          gameState = {
+            scene: 'result',
+            run: null,
+            battle: null,
+            currentEvent: null,
+            activeTrialModifier: null,
+            intermissionMode: 'none',
+            intermissionCardOptions: [],
+            intermissionRemoveRemaining: 0,
+            rewardCards: [],
+            rewardMaterials: {},
+            shopOffers: [],
+            shopMaterialOffers: [],
+            droppedWeaponId: null,
+            lastResult: 'victory',
+            stats: { ...gameState.stats },
+          }
+        }
+      } else {
         gameState = {
-          scene: 'result',
-          run: null,
-          battle: null,
-          currentEvent: null,
+          ...gameState,
+          run: newRun,
+          scene: 'map',
           rewardCards: [],
           rewardMaterials: {},
           shopOffers: [],
+          shopMaterialOffers: [],
           droppedWeaponId: null,
-          lastResult: 'victory',
-          stats: { ...gameState.stats },
         }
-      } else {
-        gameState = { ...gameState, run: newRun, scene: 'map', rewardCards: [], rewardMaterials: {}, shopOffers: [], droppedWeaponId: null }
       }
       update()
     },
@@ -445,21 +625,52 @@ function update() {
       let newRun = addMaterialReward(gameState.run, gameState.rewardMaterials)
       newRun = completeNode(newRun, newRun.currentNodeId)
       if (isBossNode(newRun)) {
-        finalizeRun('victory', newRun, gameState.stats.remainingHp)
+        if (newRun.act < 3) {
+          pushGlobalLog(`第 ${newRun.act} 幕完成，进入幕间`)
+          gameState = {
+            ...gameState,
+            run: newRun,
+            scene: 'act_transition',
+            intermissionMode: 'none',
+            intermissionCardOptions: [],
+            intermissionRemoveRemaining: 0,
+            rewardCards: [],
+            rewardMaterials: {},
+            shopOffers: [],
+            shopMaterialOffers: [],
+            droppedWeaponId: null,
+          }
+        } else {
+          finalizeRun('victory', newRun, gameState.stats.remainingHp)
+          gameState = {
+            scene: 'result',
+            run: null,
+            battle: null,
+            currentEvent: null,
+            activeTrialModifier: null,
+            intermissionMode: 'none',
+            intermissionCardOptions: [],
+            intermissionRemoveRemaining: 0,
+            rewardCards: [],
+            rewardMaterials: {},
+            shopOffers: [],
+            shopMaterialOffers: [],
+            droppedWeaponId: null,
+            lastResult: 'victory',
+            stats: { ...gameState.stats },
+          }
+        }
+      } else {
         gameState = {
-          scene: 'result',
-          run: null,
-          battle: null,
-          currentEvent: null,
+          ...gameState,
+          run: newRun,
+          scene: 'map',
           rewardCards: [],
           rewardMaterials: {},
           shopOffers: [],
+          shopMaterialOffers: [],
           droppedWeaponId: null,
-          lastResult: 'victory',
-          stats: { ...gameState.stats },
         }
-      } else {
-        gameState = { ...gameState, run: newRun, scene: 'map', rewardCards: [], rewardMaterials: {}, shopOffers: [], droppedWeaponId: null }
       }
       update()
     },
@@ -477,9 +688,14 @@ function update() {
         run: null,
         battle: null,
         currentEvent: null,
+        activeTrialModifier: null,
+        intermissionMode: 'none',
+        intermissionCardOptions: [],
+        intermissionRemoveRemaining: 0,
         rewardCards: [],
         rewardMaterials: {},
         shopOffers: [],
+        shopMaterialOffers: [],
         droppedWeaponId: null,
         lastResult: null,
         stats: { turns: 0, remainingHp: 0, runReport: null, finalSnapshot: null },
@@ -527,9 +743,20 @@ function update() {
       if (!offer || offer.sold || gameState.run.gold < offer.price) return
       pushGlobalLog(`商店：购买卡牌 ${offer.cardId} (${offer.price}G)`)
       let newRun = { ...gameState.run, gold: gameState.run.gold - offer.price }
-      newRun = addCardToDeck(newRun, offer.cardId)
+      newRun = addCardToDeck(newRun, offer.cardId, runtimeRng.next)
       const nextOffers = gameState.shopOffers.map((o, i) => (i === index ? { ...o, sold: true } : o))
       gameState = { ...gameState, run: newRun, shopOffers: nextOffers }
+      update()
+    },
+    onShopBuyMaterial: (index: number) => {
+      if (!gameState.run) return
+      const offer = gameState.shopMaterialOffers[index]
+      if (!offer || offer.sold || gameState.run.gold < offer.price) return
+      pushGlobalLog(`商店：购买材料 ${offer.materialId} (${offer.price}G)`)
+      let newRun = { ...gameState.run, gold: gameState.run.gold - offer.price }
+      newRun = addMaterialReward(newRun, { [offer.materialId]: offer.quantity ?? 1 })
+      const nextOffers = gameState.shopMaterialOffers.map((o, i) => (i === index ? { ...o, sold: true } : o))
+      gameState = { ...gameState, run: newRun, shopMaterialOffers: nextOffers }
       update()
     },
     onShopHeal: () => {
@@ -546,11 +773,18 @@ function update() {
       gameState = { ...gameState, run: newRun }
       update()
     },
+    onShopTransformCard: (cardUid: string) => {
+      if (!gameState.run) return
+      pushGlobalLog(`商店：变换卡牌 ${cardUid}`)
+      const newRun = transformCardInShop(gameState.run, cardUid, runtimeRng.next)
+      gameState = { ...gameState, run: newRun }
+      update()
+    },
     onShopLeave: () => {
       if (!gameState.run) return
       pushGlobalLog('离开商店')
       let newRun = completeNode(gameState.run, gameState.run.currentNodeId)
-      gameState = { ...gameState, run: newRun, scene: 'map', shopOffers: [] }
+      gameState = { ...gameState, run: newRun, scene: 'map', shopOffers: [], shopMaterialOffers: [] }
       update()
     },
     onOpenInventory: () => {
@@ -573,8 +807,44 @@ function update() {
     onForgeCraft: (recipeId: string) => {
       if (!gameState.run) return
       pushGlobalLog(`铁匠：锻造 ${recipeId}`)
-      const newRun = craftWeapon(gameState.run, recipeId)
-      gameState = { ...gameState, run: newRun }
+      const before = gameState.run
+      const crafted = craftWeapon(before, recipeId)
+      const craftedOk = crafted.weaponInventory.length > before.weaponInventory.length
+      const newRun = craftedOk ? completeNode(crafted, crafted.currentNodeId) : crafted
+      gameState = { ...gameState, run: newRun, scene: craftedOk ? 'map' : 'forge' }
+      update()
+    },
+    onForgeEnchant: (enchantmentId, replaceIndex) => {
+      if (!gameState.run) return
+      pushGlobalLog(`工坊附魔：${enchantmentId}`)
+      const before = gameState.run
+      const enchanted = enchantWeapon(before, enchantmentId, replaceIndex)
+      const consumed = enchanted.materials.elemental_essence < before.materials.elemental_essence
+      const newRun = consumed ? completeNode(enchanted, enchanted.currentNodeId) : enchanted
+      gameState = { ...gameState, run: newRun, scene: consumed ? 'map' : 'forge' }
+      update()
+    },
+    onForgeUpgradeCard: (cardUid) => {
+      if (!gameState.run) return
+      pushGlobalLog(`工坊升级卡牌：${cardUid}`)
+      const upgraded = {
+        ...gameState.run,
+        deck: gameState.run.deck.map(c => (c.uid === cardUid ? { ...c, upgraded: true } : c)),
+      }
+      const newRun = completeNode(upgraded, upgraded.currentNodeId)
+      gameState = { ...gameState, run: newRun, scene: 'map' }
+      update()
+    },
+    onForgeRemoveCard: (cardUid) => {
+      if (!gameState.run) return
+      pushGlobalLog(`工坊移除卡牌：${cardUid}`)
+      if (!gameState.run.deck.some(c => c.uid === cardUid)) return
+      const removed = {
+        ...gameState.run,
+        deck: gameState.run.deck.filter(c => c.uid !== cardUid),
+      }
+      const newRun = completeNode(removed, removed.currentNodeId)
+      gameState = { ...gameState, run: newRun, scene: 'map' }
       update()
     },
     onForgeLeave: () => {
@@ -601,7 +871,76 @@ function update() {
     onEventChoose: (optionId) => {
       if (!gameState.run || !gameState.currentEvent) return
       pushGlobalLog(`事件【${gameState.currentEvent.title}】选择：${optionId}`)
-      const resolved = resolveEventOption(gameState.run, gameState.currentEvent, optionId)
+      if (gameState.currentEvent.id === 'trial_choice') {
+        const node = gameState.run.mapNodes.find(n => n.id === gameState.run!.currentNodeId)
+        if (!node || node.type !== 'trial' || !node.enemyIds || node.enemyIds.length === 0) return
+        if (optionId !== 'trial_flame' && optionId !== 'trial_speed' && optionId !== 'trial_endure') return
+
+        let trialModifier: 'flame' | 'speed' | 'endure' = 'flame'
+        if (optionId === 'trial_speed') trialModifier = 'speed'
+        if (optionId === 'trial_endure') trialModifier = 'endure'
+
+        let nextRun = gameState.run
+        const weaponDefId = nextRun.equippedWeapon?.defId ?? undefined
+        const weaponEnchantments = nextRun.equippedWeapon?.enchantments ?? []
+        let battle = createBattleState(
+          node.enemyIds,
+          nextRun.deck,
+          weaponDefId,
+          nextRun.materials,
+          weaponEnchantments,
+        )
+        const hpScale = getNodeHpScale(node.y, node.type, nextRun.act)
+        battle = { ...battle, enemies: scaleEnemyHp(battle.enemies, hpScale) }
+        battle = {
+          ...battle,
+          player: {
+            ...battle.player,
+            hp: nextRun.playerHp,
+            maxHp: nextRun.playerMaxHp,
+            strength: battle.player.strength + nextRun.bonusStrength,
+            wisdom: battle.player.wisdom + nextRun.bonusWisdom,
+            maxMana: battle.player.maxMana + nextRun.bonusMaxMana,
+            mana: battle.player.mana + nextRun.bonusMaxMana,
+          },
+          enemies: battle.enemies.map((enemy) => ({
+            ...enemy,
+            strength: enemy.strength + nextRun.nextBattleEnemyStrengthBonus,
+          })),
+          trialModifier,
+        }
+        if (trialModifier === 'speed') {
+          battle = { ...battle, trialTurnLimit: 5 }
+        }
+        if (trialModifier === 'endure') {
+          battle = {
+            ...battle,
+            enemyDamageMultiplier: 0.5,
+            enemies: battle.enemies.map(enemy => ({
+              ...enemy,
+              hp: enemy.hp * 2,
+              maxHp: enemy.maxHp * 2,
+            })),
+          }
+        }
+        if (nextRun.nextBattleEnemyStrengthBonus > 0) {
+          nextRun = { ...nextRun, nextBattleEnemyStrengthBonus: 0 }
+        }
+        battle = startTurn(battle)
+        beginBattleReport(node.id, node.type, node.enemyIds)
+        pushBattleLog('system', battle.turn, `试炼战斗开始（${optionId}），玩家 HP ${battle.player.hp}/${battle.player.maxHp}`)
+        gameState = {
+          ...gameState,
+          run: nextRun,
+          battle,
+          currentEvent: null,
+          activeTrialModifier: trialModifier,
+          scene: 'battle',
+        }
+        update()
+        return
+      }
+      const resolved = resolveEventOption(gameState.run, gameState.currentEvent, optionId, runtimeRng.next)
       let nextRun = resolved.run
       if (resolved.triggerBattleEnemyIds && resolved.triggerBattleEnemyIds.length > 0) {
         const weaponDefId = nextRun.equippedWeapon?.defId ?? undefined
@@ -619,7 +958,18 @@ function update() {
             ...battle.player,
             hp: nextRun.playerHp,
             maxHp: nextRun.playerMaxHp,
+            strength: battle.player.strength + nextRun.bonusStrength,
+            wisdom: battle.player.wisdom + nextRun.bonusWisdom,
+            maxMana: battle.player.maxMana + nextRun.bonusMaxMana,
+            mana: battle.player.mana + nextRun.bonusMaxMana,
           },
+          enemies: battle.enemies.map((enemy) => ({
+            ...enemy,
+            strength: enemy.strength + nextRun.nextBattleEnemyStrengthBonus,
+          })),
+        }
+        if (nextRun.nextBattleEnemyStrengthBonus > 0) {
+          nextRun = { ...nextRun, nextBattleEnemyStrengthBonus: 0 }
         }
         battle = startTurn(battle)
         beginBattleReport(nextRun.currentNodeId, 'event', resolved.triggerBattleEnemyIds)
@@ -631,6 +981,106 @@ function update() {
 
       nextRun = completeNode(nextRun, nextRun.currentNodeId)
       gameState = { ...gameState, run: nextRun, currentEvent: null, scene: 'map' }
+      update()
+    },
+    onChooseIntermission: (choiceId) => {
+      if (!gameState.run) return
+      const choiceNameMap: Record<string, string> = {
+        elite_armament: '精锐武装',
+        knowledge_accumulation: '知识积累',
+        war_loot_reserve: '战利储备',
+        legend_forge: '传说锻造',
+        deep_purify: '深度净化',
+        foresight_eye: '远见之眼',
+      }
+      const choiceName = choiceNameMap[choiceId] ?? choiceId
+      pushGlobalLog(`幕间选择：${choiceName}`)
+      if (choiceId === 'knowledge_accumulation') {
+        const draftAct = gameState.run.act === 1 ? 2 : 3
+        gameState = {
+          ...gameState,
+          intermissionMode: 'knowledge_pick',
+          intermissionCardOptions: pickIntermissionCardsByRarity(draftAct, 'rare', 3),
+          intermissionRemoveRemaining: 0,
+        }
+        update()
+        return
+      }
+      if (choiceId === 'foresight_eye') {
+        const draftAct = gameState.run.act === 1 ? 2 : 3
+        gameState = {
+          ...gameState,
+          intermissionMode: 'foresight_pick',
+          intermissionCardOptions: pickIntermissionCardsByRarity(draftAct, 'epic', 3),
+          intermissionRemoveRemaining: 0,
+        }
+        update()
+        return
+      }
+      if (choiceId === 'deep_purify') {
+        gameState = {
+          ...gameState,
+          run: { ...gameState.run, playerHp: gameState.run.playerMaxHp },
+          intermissionMode: 'deep_purify',
+          intermissionCardOptions: [],
+          intermissionRemoveRemaining: 3,
+        }
+        update()
+        return
+      }
+      const nextRun = applyIntermissionChoice(gameState.run, choiceId, runtimeRng.next)
+      advanceFromIntermission(nextRun)
+    },
+    onChooseIntermissionCard: (cardId) => {
+      if (!gameState.run) return
+      if (gameState.intermissionMode === 'knowledge_pick') {
+        pushGlobalLog(`幕间：选择稀有卡 ${cardId}`)
+        const withCard = addCardToDeck(gameState.run, cardId, runtimeRng.next)
+        if (withCard.deck.length <= 1) {
+          advanceFromIntermission(withCard)
+          return
+        }
+        gameState = {
+          ...gameState,
+          run: withCard,
+          intermissionMode: 'knowledge_remove',
+          intermissionCardOptions: [],
+          intermissionRemoveRemaining: 1,
+        }
+        update()
+        return
+      }
+      if (gameState.intermissionMode === 'foresight_pick') {
+        pushGlobalLog(`幕间：选择史诗卡 ${cardId}`)
+        const withCard = addCardToDeck(gameState.run, cardId, runtimeRng.next)
+        advanceFromIntermission({ ...withCard, gold: withCard.gold + 50 })
+      }
+    },
+    onRemoveIntermissionCard: (cardUid) => {
+      if (!gameState.run) return
+      if (gameState.intermissionMode !== 'knowledge_remove' && gameState.intermissionMode !== 'deep_purify') return
+      if (gameState.run.deck.length <= 1) return
+      if (!gameState.run.deck.some(card => card.uid === cardUid)) return
+      pushGlobalLog(`幕间：移除卡牌 ${cardUid}`)
+      const nextRun = {
+        ...gameState.run,
+        deck: gameState.run.deck.filter(card => card.uid !== cardUid),
+      }
+      const remaining = Math.max(0, gameState.intermissionRemoveRemaining - 1)
+      if (gameState.intermissionMode === 'knowledge_remove' || remaining === 0) {
+        advanceFromIntermission(nextRun)
+        return
+      }
+      gameState = { ...gameState, run: nextRun, intermissionRemoveRemaining: remaining }
+      update()
+    },
+    onConfirmIntermission: () => {
+      if (!gameState.run) return
+      if (gameState.intermissionMode === 'deep_purify') {
+        pushGlobalLog('幕间：完成深度净化')
+        advanceFromIntermission(gameState.run)
+        return
+      }
       update()
     },
   }, prevBattle)

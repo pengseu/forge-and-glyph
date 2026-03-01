@@ -1,5 +1,5 @@
 import type { BattleState, CardInstance, EnemyState, TurnTracking } from './types'
-import { STARTER_DECK_RECIPE } from './cards'
+import { createStarterDeck } from './cards'
 import { getEnemyDef } from './enemies'
 import { applyCardEffects } from './effects'
 import { getEffectiveCardDef } from './campfire'
@@ -15,21 +15,11 @@ function shuffleArray<T>(arr: T[]): T[] {
   return result
 }
 
-function createDeck(): CardInstance[] {
-  const cards: CardInstance[] = []
-  let uid = 0
-  for (const recipe of STARTER_DECK_RECIPE) {
-    for (let i = 0; i < recipe.count; i++) {
-      cards.push({ uid: `card_${uid++}`, defId: recipe.cardId })
-    }
-  }
-  return shuffleArray(cards)
-}
-
 function defaultTurnTracking(): TurnTracking {
   return {
     combatCardsPlayedThisTurn: 0,
     damageTakenThisTurn: 0,
+    damageDealtThisTurn: 0,
     bonusManaNextTurn: 0,
     combatDamageBonus: 0,
     enchantEvents: [],
@@ -54,6 +44,133 @@ function createEnemyState(enemyId: string): EnemyState {
     damagedThisTurn: false,
     evadedThisAction: false,
     turnStartArmorGain: 0,
+    bossPhase: 1,
+  }
+}
+
+function createGeneratedCard(defId: string): CardInstance {
+  return {
+    uid: `generated_${Date.now()}_${Math.random()}`,
+    defId,
+  }
+}
+
+export function resolveAbyssLordPhase(enemy: EnemyState): 1 | 2 | 3 {
+  const hpRate = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 1
+  if (hpRate > 0.6) return 1
+  if (hpRate > 0.3) return 2
+  return 3
+}
+
+export function resolveDarkWitchPhase(enemy: EnemyState): 1 | 2 {
+  const hpRate = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 1
+  if (hpRate > 0.5) return 1
+  return 2
+}
+
+export type DarkWitchAction =
+  | { type: 'ritual' }
+  | { type: 'shadow_arrow'; damage: number; burn: number }
+  | { type: 'life_drain'; damage: number; heal: number }
+  | { type: 'storm'; damage: number; eyeHeal: number }
+  | { type: 'consume_eye'; heal: number; fallbackDamage: number }
+
+export function resolveDarkWitchAction(intentIndex: number, phase: 1 | 2): DarkWitchAction {
+  const idx = intentIndex % 4
+  if (phase === 1) {
+    if (idx === 0) return { type: 'ritual' }
+    if (idx === 1) return { type: 'shadow_arrow', damage: 16, burn: 2 }
+    if (idx === 2) return { type: 'life_drain', damage: 12, heal: 8 }
+    return { type: 'shadow_arrow', damage: 16, burn: 2 }
+  }
+  if (idx === 0) return { type: 'storm', damage: 14, eyeHeal: 5 }
+  if (idx === 1) return { type: 'shadow_arrow', damage: 20, burn: 0 }
+  if (idx === 2) return { type: 'consume_eye', heal: 20, fallbackDamage: 18 }
+  return { type: 'shadow_arrow', damage: 20, burn: 0 }
+}
+
+export type AbyssLordAction =
+  | { type: 'gaze' }
+  | { type: 'attack'; value: number }
+  | { type: 'fortify'; armor: number; strength: number }
+  | { type: 'aoe_attack_burn'; value: number; burn: number }
+  | { type: 'attack_heal'; value: number; heal: number }
+  | { type: 'weaken_attack'; value: number; weaken: number }
+
+export function resolveAbyssLordAction(intentIndex: number, phase: 1 | 2 | 3): AbyssLordAction {
+  if (phase === 1) {
+    const idx = intentIndex % 4
+    if (idx === 0) return { type: 'gaze' }
+    if (idx === 1) return { type: 'attack', value: 18 }
+    if (idx === 2) return { type: 'fortify', armor: 12, strength: 2 }
+    return { type: 'attack', value: 22 }
+  }
+  if (phase === 2) {
+    const idx = intentIndex % 4
+    if (idx === 0) return { type: 'attack', value: 20 }
+    if (idx === 1) return { type: 'aoe_attack_burn', value: 12, burn: 2 }
+    if (idx === 2) return { type: 'attack', value: 20 }
+    return { type: 'attack_heal', value: 15, heal: 10 }
+  }
+  const idx = intentIndex % 2
+  if (idx === 0) return { type: 'attack', value: 30 }
+  return { type: 'weaken_attack', value: 20, weaken: 3 }
+}
+
+function abyssLordIntentCycle(phase: 1 | 2 | 3): number {
+  return phase === 3 ? 2 : 4
+}
+
+function darkWitchIntentCycle(): number {
+  return 4
+}
+
+function addCostIncreaseToRandomCards(state: BattleState, count: number): BattleState {
+  const seen = new Set<string>()
+  for (const card of state.player.hand) seen.add(card.defId)
+  for (const card of state.player.drawPile) seen.add(card.defId)
+  for (const card of state.player.discardPile) seen.add(card.defId)
+  const pool = [...seen].filter(id => !state.player.costIncreasedCardDefIds.includes(id))
+  const picked: string[] = []
+  while (picked.length < count && pool.length > 0) {
+    const idx = Math.floor(Math.random() * pool.length)
+    picked.push(pool[idx])
+    pool.splice(idx, 1)
+  }
+  if (picked.length === 0) return state
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      costIncreasedCardDefIds: [...state.player.costIncreasedCardDefIds, ...picked],
+    },
+  }
+}
+
+function countAliveByDef(state: BattleState, defId: string): number {
+  return state.enemies.filter(enemy => enemy.defId === defId && enemy.hp > 0).length
+}
+
+function healEnemyAt(state: BattleState, index: number, value: number): BattleState {
+  const target = state.enemies[index]
+  if (!target) return state
+  return {
+    ...state,
+    enemies: state.enemies.map((enemy, i) =>
+      i === index ? { ...enemy, hp: Math.min(enemy.maxHp, enemy.hp + value) } : enemy,
+    ),
+  }
+}
+
+function damagePlayerIgnoringArmor(state: BattleState, value: number): BattleState {
+  const hp = Math.max(0, state.player.hp - value)
+  return {
+    ...state,
+    player: { ...state.player, hp },
+    turnTracking: {
+      ...state.turnTracking,
+      damageTakenThisTurn: state.turnTracking.damageTakenThisTurn + value,
+    },
   }
 }
 
@@ -68,12 +185,12 @@ export function createBattleState(
   initialMaterials = EMPTY_MATERIAL_BAG,
   weaponEnchantments: import('./types').EnchantmentId[] = [],
 ): BattleState {
-  const deck = initialDeck || createDeck()
+  const deck = initialDeck || createStarterDeck()
   const drawPile = shuffleArray(deck)
   return {
     player: {
-      hp: 50,
-      maxHp: 50,
+      hp: 60,
+      maxHp: 60,
       stamina: 3,
       maxStamina: 3,
       mana: 2,
@@ -98,9 +215,18 @@ export function createBattleState(
       pendingEndTurnSelfDamage: 0,
       thorns: 0,
       magicAbsorbBonusMana: 0,
+      damageTakenMultiplier: 1,
+      doubleDamageArmorThisTurn: false,
+      attackDamageMultiplierThisTurn: 1,
+      firstSpellDiscountUsed: false,
+      spellDiscountUsedCountThisTurn: 0,
       weaponPerTurnUsed: false,
+      attackCounterThisBattle: 0,
+      spellCounterThisBattle: 0,
+      costIncreasedCardDefIds: [],
       normalAttackUsedThisTurn: false,
       equippedEnchantments: [...weaponEnchantments],
+      frostCounter: 0,
       hand: [],
       drawPile,
       discardPile: [],
@@ -117,6 +243,8 @@ export function createBattleState(
 export function drawCards(state: BattleState, count: number): BattleState {
   let { drawPile, discardPile, hand } = state.player
   const newHand = [...hand]
+  let hp = state.player.hp
+  let phase = state.phase
 
   for (let i = 0; i < count; i++) {
     if (drawPile.length === 0) {
@@ -124,13 +252,25 @@ export function drawCards(state: BattleState, count: number): BattleState {
       discardPile = []
     }
     if (drawPile.length > 0) {
-      newHand.push(drawPile.pop()!)
+      const drawn = drawPile.pop()!
+      const def = getEffectiveCardDef(drawn)
+      if (def.onDrawSelfDamage && def.onDrawSelfDamage > 0) {
+        hp = Math.max(0, hp - def.onDrawSelfDamage)
+        if (hp <= 0) {
+          phase = 'defeat'
+        }
+      }
+      if (!def.onDrawExhaust) {
+        newHand.push(drawn)
+      }
+      if (phase === 'defeat') break
     }
   }
 
   return {
     ...state,
-    player: { ...state.player, hand: newHand, drawPile, discardPile },
+    phase,
+    player: { ...state.player, hp, hand: newHand, drawPile, discardPile },
   }
 }
 
@@ -148,6 +288,11 @@ export function startTurn(state: BattleState): BattleState {
       mana: s.player.maxMana + bonusMana,
       tempCostReduction: 0,
       nextTurnStaminaPenalty: 0,
+      damageTakenMultiplier: 1,
+      doubleDamageArmorThisTurn: false,
+      attackDamageMultiplierThisTurn: 1,
+      firstSpellDiscountUsed: false,
+      spellDiscountUsedCountThisTurn: 0,
       weaponPerTurnUsed: false,
       normalAttackUsedThisTurn: false,
     },
@@ -170,11 +315,11 @@ export function startTurn(state: BattleState): BattleState {
       turnStartArmorGain: 0,
     })),
   }
-  // Stone Gargoyle passive: gains 8 armor at turn start.
+  // Stone Gargoyle passive: gains 6 armor at turn start.
   s = {
     ...s,
     enemies: s.enemies.map(e =>
-      e.defId === 'stone_gargoyle' && e.hp > 0 ? { ...e, armor: e.armor + 8, turnStartArmorGain: 8 } : e
+      e.defId === 'stone_gargoyle' && e.hp > 0 ? { ...e, armor: e.armor + 6, turnStartArmorGain: 6 } : e
     ),
   }
 
@@ -199,6 +344,18 @@ export function startTurn(state: BattleState): BattleState {
   // Increment turn and set phase
   s = { ...s, turn: s.turn + 1, phase: 'player_turn' }
 
+  // Trial modifier: all characters gain +1 burn each turn.
+  if (s.trialModifier === 'flame') {
+    s = {
+      ...s,
+      player: {
+        ...s.player,
+        pendingEndTurnSelfDamage: s.player.pendingEndTurnSelfDamage + 1,
+      },
+      enemies: s.enemies.map((enemy) => (enemy.hp > 0 ? { ...enemy, burn: enemy.burn + 1 } : enemy)),
+    }
+  }
+
   return s
 }
 
@@ -213,18 +370,22 @@ export function useBattleMaterial(state: BattleState, materialId: keyof BattleSt
   s = { ...s, availableMaterials, usedMaterials }
 
   if (materialId === 'iron_ingot') {
-    s = { ...s, player: { ...s.player, armor: s.player.armor + 8 } }
+    s = { ...s, player: { ...s.player, armor: s.player.armor + 10 } }
   } else if (materialId === 'steel_ingot') {
-    s = { ...s, player: { ...s.player, armor: s.player.armor + 12 } }
+    s = { ...s, player: { ...s.player, armor: s.player.armor + 15 } }
+  } else if (materialId === 'mythril_ingot') {
+    s = { ...s, player: { ...s.player, tempCostReduction: s.player.tempCostReduction + 1 } }
+  } else if (materialId === 'meteor_iron_ingot') {
+    s = { ...s, player: { ...s.player, attackDamageMultiplierThisTurn: 1.5 } }
   } else if (materialId === 'elemental_essence') {
     s = {
       ...s,
-      enemies: s.enemies.map(e => (e.hp > 0 ? { ...e, burn: e.burn + 2 } : e)),
+      enemies: s.enemies.map(e => (e.hp > 0 ? { ...e, burn: e.burn + 3 } : e)),
     }
   } else if (materialId === 'war_essence') {
-    s = { ...s, player: { ...s.player, strength: s.player.strength + 2 } }
+    s = { ...s, player: { ...s.player, strength: s.player.strength + 3 } }
   } else if (materialId === 'guard_essence') {
-    s = { ...s, player: { ...s.player, guardArmorPerTurn: s.player.guardArmorPerTurn + 3 } }
+    s = { ...s, player: { ...s.player, guardArmorPerTurn: s.player.guardArmorPerTurn + 5 } }
   }
 
   return s
@@ -235,14 +396,31 @@ export function canPlayCard(state: BattleState, cardUid: string): boolean {
   if (!card) return false
 
   const def = getEffectiveCardDef(card)
-  const reducedCost = Math.max(0, def.cost - state.player.tempCostReduction)
+  if (def.unplayable) return false
+  const gazeCostIncrease = state.player.costIncreasedCardDefIds.includes(def.id) ? 1 : 0
+  const baseReducedCost = Math.max(0, def.cost + gazeCostIncrease - state.player.tempCostReduction)
+  const spellDiscount = (() => {
+    if (def.category !== 'spell') return 0
+    const weaponId = state.player.equippedWeaponId
+    if ((weaponId === 'iron_staff' || weaponId === 'steel_staff') && !state.player.firstSpellDiscountUsed) {
+      return 1
+    }
+    if (weaponId === 'legend_prismatic_scepter' && state.player.spellDiscountUsedCountThisTurn < 2) {
+      return 1
+    }
+    return 0
+  })()
+  const reducedCost = Math.max(0, baseReducedCost - spellDiscount)
+  const thirdCombatFree = state.player.equippedWeaponId === 'legend_shadow_daggers'
+    && def.category === 'combat'
+    && state.turnTracking.combatCardsPlayedThisTurn >= 2
   if (def.costType === 'stamina') {
-    const actualCost = Math.max(0, reducedCost - state.player.weaponDiscount)
+    const actualCost = thirdCombatFree ? 0 : Math.max(0, reducedCost - state.player.weaponDiscount)
     return state.player.stamina >= actualCost
   } else if (def.costType === 'mana') {
     return state.player.mana >= reducedCost
   } else if (def.costType === 'hybrid') {
-    const staminaCost = Math.max(0, reducedCost - state.player.weaponDiscount)
+    const staminaCost = thirdCombatFree ? 0 : Math.max(0, reducedCost - state.player.weaponDiscount)
     return state.player.stamina >= staminaCost && state.player.mana >= reducedCost
   }
   return true
@@ -271,12 +449,13 @@ export function useNormalAttack(state: BattleState, targetIndex: number = 0): Ba
   const effects: import('./types').CardEffect[] = attack.hits && attack.hits > 1
     ? [{ type: 'multi_damage', value: attack.damage, hits: attack.hits }]
     : [{ type: 'damage', value: attack.damage }]
+  const category: import('./types').CardCategory = weaponId === 'legend_prismatic_scepter' ? 'spell' : 'combat'
 
   let s: BattleState = {
     ...state,
     enemies: state.enemies.map(e => ({ ...e, evadedThisAction: false })),
   }
-  s = applyCardEffects(s, effects, actualTarget, 'combat')
+  s = applyCardEffects(s, effects, actualTarget, category)
   s = { ...s, player: { ...s.player, normalAttackUsedThisTurn: true } }
   if (allEnemiesDead(s)) {
     s = { ...s, phase: 'victory' }
@@ -287,7 +466,7 @@ export function useNormalAttack(state: BattleState, targetIndex: number = 0): Ba
 /** Check if a card's effects need a single-target enemy selection */
 export function cardNeedsTarget(effects: import('./types').CardEffect[]): boolean {
   const singleTargetTypes = ['damage', 'multi_damage', 'chain_damage', 'execute',
-    'conditional_damage', 'scaling_damage', 'damage_gain_armor', 'lifesteal',
+    'conditional_damage', 'scaling_damage', 'damage_gain_armor', 'damage_shred_armor', 'lifesteal',
     'burn', 'freeze', 'poison', 'weaken_enemy', 'vulnerable', 'burn_burst', 'poison_burst']
   const hasAoe = effects.some(e => e.type === 'aoe_damage' || e.type === 'aoe_burn')
   if (hasAoe) return false
@@ -311,24 +490,52 @@ export function playCard(state: BattleState, cardUid: string, targetIndex: numbe
     enemies: state.enemies.map(e => ({ ...e, evadedThisAction: false })),
   }
   let spentStaminaCost = 0
-  const reducedCost = Math.max(0, def.cost - s.player.tempCostReduction)
+  const gazeCostIncrease = s.player.costIncreasedCardDefIds.includes(def.id) ? 1 : 0
+  const baseReducedCost = Math.max(0, def.cost + gazeCostIncrease - s.player.tempCostReduction)
+  const spellDiscount = (() => {
+    if (def.category !== 'spell') return 0
+    const weaponId = s.player.equippedWeaponId
+    if ((weaponId === 'iron_staff' || weaponId === 'steel_staff') && !s.player.firstSpellDiscountUsed) {
+      return 1
+    }
+    if (weaponId === 'legend_prismatic_scepter' && s.player.spellDiscountUsedCountThisTurn < 2) {
+      return 1
+    }
+    return 0
+  })()
+  const reducedCost = Math.max(0, baseReducedCost - spellDiscount)
+  const thirdCombatFree = s.player.equippedWeaponId === 'legend_shadow_daggers'
+    && def.category === 'combat'
+    && s.turnTracking.combatCardsPlayedThisTurn >= 2
   if (def.costType === 'stamina') {
-    const actualCost = Math.max(0, reducedCost - s.player.weaponDiscount)
+    const actualCost = thirdCombatFree ? 0 : Math.max(0, reducedCost - s.player.weaponDiscount)
     spentStaminaCost = actualCost
     const newDiscount = s.player.weaponDiscount > 0 ? 0 : s.player.weaponDiscount
     s = { ...s, player: { ...s.player, stamina: s.player.stamina - actualCost, weaponDiscount: newDiscount } }
   } else if (def.costType === 'mana') {
     s = { ...s, player: { ...s.player, mana: s.player.mana - reducedCost } }
   } else if (def.costType === 'hybrid') {
-    spentStaminaCost = reducedCost
+    spentStaminaCost = thirdCombatFree ? 0 : reducedCost
     const newDiscount = s.player.weaponDiscount > 0 ? 0 : s.player.weaponDiscount
     s = {
       ...s,
       player: {
         ...s.player,
-        stamina: s.player.stamina - Math.max(0, reducedCost - s.player.weaponDiscount),
+        stamina: s.player.stamina - (thirdCombatFree ? 0 : Math.max(0, reducedCost - s.player.weaponDiscount)),
         mana: s.player.mana - reducedCost,
         weaponDiscount: newDiscount,
+      },
+    }
+  }
+
+  if (def.category === 'spell' && spellDiscount > 0) {
+    const shouldMarkFirstUsed = s.player.equippedWeaponId === 'iron_staff' || s.player.equippedWeaponId === 'steel_staff'
+    s = {
+      ...s,
+      player: {
+        ...s.player,
+        firstSpellDiscountUsed: shouldMarkFirstUsed ? true : s.player.firstSpellDiscountUsed,
+        spellDiscountUsedCountThisTurn: s.player.spellDiscountUsedCountThisTurn + 1,
       },
     }
   }
@@ -344,11 +551,31 @@ export function playCard(state: BattleState, cardUid: string, targetIndex: numbe
     if (eff.type === 'draw_cards_if_affordable') {
       s = drawCards(s, eff.value)
     }
+    if (eff.type === 'redraw_hand') {
+      const keptHand = s.player.hand.filter((c) => c.uid !== cardUid)
+      s = {
+        ...s,
+        player: {
+          ...s.player,
+          hand: [],
+          discardPile: [...s.player.discardPile, ...keptHand],
+        },
+      }
+      s = drawCards(s, eff.value)
+    }
+    if (eff.type === 'purge_curse_in_hand_draw') {
+      const keptHand = s.player.hand.filter((c) => !c.defId.startsWith('curse_'))
+      const removed = s.player.hand.length - keptHand.length
+      s = { ...s, player: { ...s.player, hand: keptHand } }
+      if (removed > 0) {
+        s = drawCards(s, removed)
+      }
+    }
   }
 
-  // Move card to discard
-  const newHand = s.player.hand.filter((_, i) => i !== cardIndex)
-  const newDiscard = [...s.player.discardPile, card]
+  // Move card to discard unless exhausted
+  const newHand = s.player.hand.filter((c) => c.uid !== cardUid)
+  const newDiscard = def.exhaust ? s.player.discardPile : [...s.player.discardPile, card]
   s = { ...s, player: { ...s.player, hand: newHand, discardPile: newDiscard } }
 
   // Track combat cards played
@@ -356,41 +583,19 @@ export function playCard(state: BattleState, cardUid: string, targetIndex: numbe
     s = { ...s, turnTracking: { ...s.turnTracking, combatCardsPlayedThisTurn: s.turnTracking.combatCardsPlayedThisTurn + 1 } }
   }
 
-  // Longsword effect: next stamina card discount
-  const equippedWeaponId = s.player.equippedWeaponId || ''
-  if (def.category === 'combat' && ['longsword', 'longsword_upgraded', 'iron_longsword', 'steel_longsword'].includes(equippedWeaponId)) {
-    const discountValue = ['longsword_upgraded', 'steel_longsword'].includes(equippedWeaponId) ? 2 : 1
-    s = { ...s, player: { ...s.player, weaponDiscount: discountValue } }
-  }
-  // Dagger effect: first low-cost combat card each turn draws 1
-  if (
-    s.player.equippedWeaponId === 'iron_dagger' &&
-    def.category === 'combat' &&
-    spentStaminaCost <= 1 &&
-    !s.player.weaponPerTurnUsed
-  ) {
-    s = drawCards(s, 1)
-    s = { ...s, player: { ...s.player, weaponPerTurnUsed: true } }
-  }
-  // Hammer effect: heavy hit shatters 3 armor if this card dealt >= 15 total impact.
-  if (s.player.equippedWeaponId === 'iron_hammer' && def.category === 'combat') {
-    const targetAfter = s.enemies[targetIndex]
-    if (targetAfter) {
-      const targetAfterHpArmor = targetAfter.hp + targetAfter.armor
-      const dealt = Math.max(0, targetBeforeHpArmor - targetAfterHpArmor)
-      if (dealt >= 15 && targetAfter.armor > 0) {
-        s = {
-          ...s,
-          enemies: s.enemies.map((e, i) =>
-            i === targetIndex ? { ...e, armor: Math.max(0, e.armor - 3) } : e
-          ),
-        }
-      }
+  const equippedWeaponId = s.player.equippedWeaponId
+  if (equippedWeaponId) {
+    const weapon = getWeaponDef(equippedWeaponId)
+    if (weapon.onCardPlayed) {
+      s = weapon.onCardPlayed({
+        state: s,
+        cardDef: def,
+        spentStaminaCost,
+        targetIndex,
+        targetBeforeHpArmor,
+        drawCards,
+      })
     }
-  }
-  // Staff effect: each spell grants 1 charge after cast.
-  if (s.player.equippedWeaponId === 'iron_staff' && def.category === 'spell') {
-    s = { ...s, player: { ...s.player, charge: s.player.charge + 1 } }
   }
 
   // Check victory
@@ -460,12 +665,10 @@ export function endPlayerTurn(state: BattleState): BattleState {
         }
       }
 
-      if (intent.type === 'attack') {
-        let damage = intent.value + enemy.strength
-        if (enemy.weakened > 0) {
-          damage = Math.floor(damage * 0.75)
-        }
-        let remaining = damage
+      const dealDamageToPlayer = (damage: number): void => {
+        const trialMultiplier = s.enemyDamageMultiplier ?? 1
+        const totalMultiplier = trialMultiplier * s.player.damageTakenMultiplier
+        let remaining = Math.max(0, Math.floor(damage * totalMultiplier))
         let armor = s.player.armor
         let hp = s.player.hp
         if (armor > 0) {
@@ -475,8 +678,187 @@ export function endPlayerTurn(state: BattleState): BattleState {
         }
         hp = Math.max(0, hp - remaining)
         s = { ...s, player: { ...s.player, armor, hp } }
-        s = { ...s, turnTracking: { ...s.turnTracking, damageTakenThisTurn: s.turnTracking.damageTakenThisTurn + remaining } }
+        s = {
+          ...s,
+          turnTracking: { ...s.turnTracking, damageTakenThisTurn: s.turnTracking.damageTakenThisTurn + remaining },
+        }
         retaliateToEnemy(ei)
+      }
+
+      if (enemy.defId === 'iron_golem') {
+        s = {
+          ...s,
+          enemies: s.enemies.map((e, i) => (i === ei ? { ...e, armor: e.armor + 10 } : e)),
+        }
+      }
+      if (enemy.defId === 'lich' && enemy.intentIndex > 0 && enemy.intentIndex % 2 === 0) {
+        s = healEnemyAt(s, ei, 8)
+      }
+
+      const goblinKingPhase2 = enemy.defId === 'goblin_king' && enemy.hp <= Math.floor(enemy.maxHp * 0.4)
+      if (enemy.defId === 'abyss_lord') {
+        const phase = resolveAbyssLordPhase(enemy)
+        if (phase > enemy.bossPhase) {
+          if (phase === 2) {
+            s = {
+              ...s,
+              enemies: s.enemies.map((e, i) =>
+                i === ei ? { ...e, strength: e.strength + 3, burn: 0, poison: 0, weakened: 0, vulnerable: 0, freeze: 0, bossPhase: 2 } : e,
+              ),
+            }
+          } else {
+            s = {
+              ...s,
+              enemies: s.enemies.map((e, i) => (i === ei ? { ...e, armor: 0, bossPhase: 3 } : e)),
+            }
+          }
+        }
+        if (phase === 2) {
+          s = {
+            ...s,
+            enemies: s.enemies.map((e, i) => (i === ei ? { ...e, armor: e.armor + 5 } : e)),
+          }
+        }
+        const action = resolveAbyssLordAction(enemy.intentIndex, phase)
+        if (action.type === 'gaze') {
+          s = addCostIncreaseToRandomCards(s, 3)
+        } else if (action.type === 'attack') {
+          let damage = action.value + enemy.strength
+          if (enemy.weakened > 0) {
+            damage = Math.floor(damage * 0.75)
+          }
+          dealDamageToPlayer(damage)
+        } else if (action.type === 'fortify') {
+          s = {
+            ...s,
+            enemies: s.enemies.map((e, i) =>
+              i === ei ? { ...e, armor: e.armor + action.armor, strength: e.strength + action.strength } : e,
+            ),
+          }
+        } else if (action.type === 'aoe_attack_burn') {
+          let damage = action.value + enemy.strength
+          if (enemy.weakened > 0) {
+            damage = Math.floor(damage * 0.75)
+          }
+          dealDamageToPlayer(damage)
+          s = {
+            ...s,
+            player: { ...s.player, pendingEndTurnSelfDamage: s.player.pendingEndTurnSelfDamage + action.burn },
+          }
+        } else if (action.type === 'attack_heal') {
+          let damage = action.value + enemy.strength
+          if (enemy.weakened > 0) {
+            damage = Math.floor(damage * 0.75)
+          }
+          dealDamageToPlayer(damage)
+          s = healEnemyAt(s, ei, action.heal)
+        } else if (action.type === 'weaken_attack') {
+          let damage = action.value + enemy.strength
+          if (enemy.weakened > 0) {
+            damage = Math.floor(damage * 0.75)
+          }
+          dealDamageToPlayer(damage)
+          s = { ...s, player: { ...s.player, weakened: s.player.weakened + action.weaken } }
+        }
+      } else if (enemy.defId === 'dark_witch') {
+        const phase = resolveDarkWitchPhase(enemy)
+        if (phase > enemy.bossPhase) {
+          const eyesToSummon = Math.max(0, 2 - countAliveByDef(s, 'shadow_eye'))
+          for (let si = 0; si < eyesToSummon; si++) {
+            s = { ...s, enemies: [...s.enemies, createEnemyState('shadow_eye')] }
+          }
+          s = {
+            ...s,
+            enemies: s.enemies.map((e, i) => (i === ei ? { ...e, bossPhase: 2 } : e)),
+          }
+        }
+        const action = resolveDarkWitchAction(enemy.intentIndex, phase)
+        if (action.type === 'ritual') {
+          s = {
+            ...s,
+            enemies: s.enemies.map((e, i) => (i === ei ? { ...e, strength: e.strength + 3 } : e)),
+            player: {
+              ...s.player,
+              discardPile: [...s.player.discardPile, createGeneratedCard('curse_pain'), createGeneratedCard('curse_pain')],
+            },
+          }
+        } else if (action.type === 'shadow_arrow') {
+          dealDamageToPlayer(action.damage + enemy.strength)
+          if (action.burn > 0) {
+            s = {
+              ...s,
+              player: { ...s.player, pendingEndTurnSelfDamage: s.player.pendingEndTurnSelfDamage + action.burn },
+            }
+          }
+        } else if (action.type === 'life_drain') {
+          dealDamageToPlayer(action.damage + enemy.strength)
+          s = healEnemyAt(s, ei, action.heal)
+        } else if (action.type === 'storm') {
+          dealDamageToPlayer(action.damage + enemy.strength)
+          s = {
+            ...s,
+            enemies: s.enemies.map((e) =>
+              e.defId === 'shadow_eye' && e.hp > 0 ? { ...e, hp: Math.min(e.maxHp, e.hp + action.eyeHeal) } : e,
+            ),
+          }
+        } else if (action.type === 'consume_eye') {
+          const eyeIndex = s.enemies.findIndex((e) => e.defId === 'shadow_eye' && e.hp > 0)
+          if (eyeIndex >= 0) {
+            s = {
+              ...s,
+              enemies: s.enemies.map((e, i) => (i === eyeIndex ? { ...e, hp: 0, armor: 0 } : e)),
+            }
+            s = healEnemyAt(s, ei, action.heal)
+          } else {
+            dealDamageToPlayer(action.fallbackDamage + enemy.strength)
+          }
+        }
+      } else if (goblinKingPhase2) {
+        const phase2Step = enemy.intentIndex % 2
+        if (phase2Step === 0) {
+          let damage = 20 + enemy.strength
+          if (enemy.weakened > 0) {
+            damage = Math.floor(damage * 0.75)
+          }
+          dealDamageToPlayer(damage)
+        } else {
+          s = {
+            ...s,
+            enemies: s.enemies.map((e, i) => (i === ei ? { ...e, armor: e.armor + 10 } : e)),
+          }
+          let damage = 12 + enemy.strength
+          if (enemy.weakened > 0) {
+            damage = Math.floor(damage * 0.75)
+          }
+          dealDamageToPlayer(damage)
+        }
+      } else if (intent.type === 'attack') {
+        let damage = intent.value + enemy.strength
+        if (enemy.weakened > 0) {
+          damage = Math.floor(damage * 0.75)
+        }
+        if (enemy.defId === 'void_messenger') {
+          const ignoredArmor = Math.floor(s.player.armor * 0.5)
+          const trialMultiplier = s.enemyDamageMultiplier ?? 1
+          const totalMultiplier = trialMultiplier * s.player.damageTakenMultiplier
+          let remaining = Math.max(0, Math.floor(damage * totalMultiplier))
+          let armor = Math.max(0, s.player.armor - ignoredArmor)
+          let hp = s.player.hp
+          if (armor > 0) {
+            const absorbed = Math.min(armor, remaining)
+            armor -= absorbed
+            remaining -= absorbed
+          }
+          hp = Math.max(0, hp - remaining)
+          s = { ...s, player: { ...s.player, armor, hp } }
+          s = {
+            ...s,
+            turnTracking: { ...s.turnTracking, damageTakenThisTurn: s.turnTracking.damageTakenThisTurn + remaining },
+          }
+          retaliateToEnemy(ei)
+        } else {
+          dealDamageToPlayer(damage)
+        }
       } else if (intent.type === 'buff') {
         if (intent.buffType === 'strength') {
           const newEnemies = s.enemies.map((e, i) =>
@@ -485,46 +867,67 @@ export function endPlayerTurn(state: BattleState): BattleState {
           s = { ...s, enemies: newEnemies }
         }
       } else if (intent.type === 'defend') {
-        const newEnemies = s.enemies.map((e, i) =>
-          i === ei ? { ...e, armor: e.armor + intent.value } : e
-        )
-        s = { ...s, enemies: newEnemies }
+        if (enemy.defId === 'shadow_eye') {
+          const witchIndex = s.enemies.findIndex((e) => e.defId === 'dark_witch' && e.hp > 0)
+          if (witchIndex >= 0) {
+            s = {
+              ...s,
+              enemies: s.enemies.map((e, i) =>
+                i === witchIndex ? { ...e, armor: e.armor + 6 } : e,
+              ),
+            }
+          }
+        } else {
+          const newEnemies = s.enemies.map((e, i) =>
+            i === ei ? { ...e, armor: e.armor + intent.value } : e
+          )
+          s = { ...s, enemies: newEnemies }
+        }
       } else if (intent.type === 'poison') {
         s = { ...s, player: { ...s.player, poison: s.player.poison + intent.value } }
       } else if (intent.type === 'weaken') {
         s = { ...s, player: { ...s.player, weakened: s.player.weakened + intent.value } }
+      } else if (intent.type === 'curse') {
+        const generated = Array.from({ length: intent.count }, () => createGeneratedCard(intent.cardId))
+        s = {
+          ...s,
+          player: {
+            ...s.player,
+            discardPile: [...s.player.discardPile, ...generated],
+          },
+        }
       } else if (intent.type === 'summon') {
         const minionCount = s.enemies.filter(e => e.defId === 'goblin_minion' && e.hp > 0).length
-        if (minionCount >= 4) {
-          let damage = 20 + enemy.strength
-          let remaining = damage
-          let armor = s.player.armor
-          let hp = s.player.hp
-          if (armor > 0) { const absorbed = Math.min(armor, remaining); armor -= absorbed; remaining -= absorbed }
-          hp = Math.max(0, hp - remaining)
-          s = { ...s, player: { ...s.player, armor, hp } }
-          s = { ...s, turnTracking: { ...s.turnTracking, damageTakenThisTurn: s.turnTracking.damageTakenThisTurn + remaining } }
-          retaliateToEnemy(ei)
+        const summonCap = enemy.defId === 'goblin_king' ? 2 : 4
+        if (minionCount >= summonCap) {
+          let damage = (enemy.defId === 'goblin_king' ? 16 : 20) + enemy.strength
+          dealDamageToPlayer(damage)
         } else {
           s = { ...s, enemies: [...s.enemies, createEnemyState(intent.enemyId)] }
+          if (enemy.defId === 'goblin_king') {
+            s = {
+              ...s,
+              enemies: s.enemies.map((e, i) => (i === ei ? { ...e, armor: e.armor + 8 } : e)),
+            }
+          }
         }
       } else if (intent.type === 'summon_multi') {
         const minionCount = s.enemies.filter(e => e.defId === intent.enemyId && e.hp > 0).length
-        if (minionCount >= 4) {
-          // Fallback: heavy attack 20
-          let damage = 20 + enemy.strength
-          let remaining = damage
-          let armor = s.player.armor
-          let hp = s.player.hp
-          if (armor > 0) { const absorbed = Math.min(armor, remaining); armor -= absorbed; remaining -= absorbed }
-          hp = Math.max(0, hp - remaining)
-          s = { ...s, player: { ...s.player, armor, hp } }
-          s = { ...s, turnTracking: { ...s.turnTracking, damageTakenThisTurn: s.turnTracking.damageTakenThisTurn + remaining } }
-          retaliateToEnemy(ei)
+        const summonCap = enemy.defId === 'goblin_king' ? 2 : 4
+        if (minionCount >= summonCap) {
+          // Fallback: heavy attack
+          let damage = (enemy.defId === 'goblin_king' ? 16 : 20) + enemy.strength
+          dealDamageToPlayer(damage)
         } else {
-          const toSummon = Math.min(intent.count, 4 - minionCount)
+          const toSummon = Math.min(intent.count, summonCap - minionCount)
           for (let si = 0; si < toSummon; si++) {
             s = { ...s, enemies: [...s.enemies, createEnemyState(intent.enemyId)] }
+          }
+          if (enemy.defId === 'goblin_king') {
+            s = {
+              ...s,
+              enemies: s.enemies.map((e, i) => (i === ei ? { ...e, armor: e.armor + 8 } : e)),
+            }
           }
         }
       } else if (intent.type === 'defend_attack') {
@@ -538,20 +941,47 @@ export function endPlayerTurn(state: BattleState): BattleState {
         if (enemy.weakened > 0) {
           damage = Math.floor(damage * 0.75)
         }
-        let remaining = damage
-        let armor = s.player.armor
-        let hp = s.player.hp
-        if (armor > 0) { const absorbed = Math.min(armor, remaining); armor -= absorbed; remaining -= absorbed }
-        hp = Math.max(0, hp - remaining)
-        s = { ...s, player: { ...s.player, armor, hp } }
-        s = { ...s, turnTracking: { ...s.turnTracking, damageTakenThisTurn: s.turnTracking.damageTakenThisTurn + remaining } }
-        retaliateToEnemy(ei)
+        dealDamageToPlayer(damage)
+      } else if (intent.type === 'heal_ally_lowest') {
+        const alive = s.enemies
+          .map((e, idx) => ({ e, idx }))
+          .filter(({ e }) => e.hp > 0)
+        if (alive.length > 0) {
+          const lowest = alive.reduce((min, cur) => (cur.e.hp < min.e.hp ? cur : min))
+          s = {
+            ...s,
+            enemies: s.enemies.map((e, i) =>
+              i === lowest.idx ? { ...e, hp: Math.min(e.maxHp, e.hp + intent.value) } : e
+            ),
+          }
+        }
+      } else if (intent.type === 'buff_ally_highest_hp') {
+        const alive = s.enemies
+          .map((e, idx) => ({ e, idx }))
+          .filter(({ e }) => e.hp > 0)
+        if (alive.length > 0) {
+          const highest = alive.reduce((max, cur) => (cur.e.hp > max.e.hp ? cur : max))
+          s = {
+            ...s,
+            enemies: s.enemies.map((e, i) =>
+              i === highest.idx ? { ...e, strength: e.strength + intent.value } : e
+            ),
+          }
+        }
       }
 
       // Advance intent index + clear freezeImmune (enemy acted normally)
       const enemyDef2 = getEnemyDef(s.enemies[ei].defId)
+      const actedEnemy = s.enemies[ei]
+      const modulo = actedEnemy.defId === 'goblin_king' && actedEnemy.hp > 0 && actedEnemy.hp <= Math.floor(actedEnemy.maxHp * 0.4)
+        ? 2
+        : actedEnemy.defId === 'dark_witch'
+          ? darkWitchIntentCycle()
+        : actedEnemy.defId === 'abyss_lord'
+          ? abyssLordIntentCycle(resolveAbyssLordPhase(actedEnemy))
+          : enemyDef2.intents.length
       const newEnemies = s.enemies.map((e, i) =>
-        i === ei ? { ...e, intentIndex: (e.intentIndex + 1) % enemyDef2.intents.length, freezeImmune: false } : e
+        i === ei ? { ...e, intentIndex: (e.intentIndex + 1) % modulo, freezeImmune: false } : e
       )
       s = { ...s, enemies: newEnemies }
     }
@@ -563,10 +993,17 @@ export function endPlayerTurn(state: BattleState): BattleState {
   }
 
   // --- End-of-turn settlement (after enemy actions, before discard) ---
+  const livingAbyssLord = s.enemies.find((enemy) => enemy.defId === 'abyss_lord' && enemy.hp > 0)
+  if (livingAbyssLord && resolveAbyssLordPhase(livingAbyssLord) === 3) {
+    s = damagePlayerIgnoringArmor(s, 5)
+    if (s.player.hp <= 0) {
+      return { ...s, phase: 'defeat' }
+    }
+  }
 
   // Poison settlement: each enemy takes poison damage (poison persists)
   let eotEnemies = s.enemies.map(e => {
-    if (e.hp <= 0 || e.poison <= 0) return e
+    if (e.hp <= 0 || e.poison <= 0 || e.defId === 'elemental_symbiote') return e
     let hp = e.hp
     let remaining = e.poison
     let armor = e.armor
@@ -582,11 +1019,14 @@ export function endPlayerTurn(state: BattleState): BattleState {
 
   // Burn settlement: each enemy takes burn damage, burn-1
   eotEnemies = s.enemies.map(e => {
-    if (e.hp <= 0 || e.burn <= 0) return e
+    if (e.hp <= 0 || e.burn <= 0 || e.defId === 'elemental_symbiote') return e
     let hp = e.hp
     let remaining = e.burn
     if (s.player.equippedEnchantments.includes('flame') && s.player.equippedEnchantments.includes('frost')) {
       remaining = remaining * 2
+    }
+    if (s.player.equippedEnchantments.includes('abyss') && s.player.equippedEnchantments.includes('flame')) {
+      remaining += e.burn * 3
     }
     let armor = e.armor
     if (armor > 0) {
@@ -600,6 +1040,9 @@ export function endPlayerTurn(state: BattleState): BattleState {
   s = { ...s, enemies: eotEnemies }
   if (s.player.equippedEnchantments.includes('flame') && s.player.equippedEnchantments.includes('frost')) {
     s = { ...s, turnTracking: { ...s.turnTracking, enchantEvents: [...s.turnTracking.enchantEvents, '熔岩触发'] } }
+  }
+  if (s.player.equippedEnchantments.includes('abyss') && s.player.equippedEnchantments.includes('flame')) {
+    s = { ...s, turnTracking: { ...s.turnTracking, enchantEvents: [...s.turnTracking.enchantEvents, '末日触发'] } }
   }
 
   // Decay weakened and vulnerable on enemies, decay player weakened
@@ -645,6 +1088,11 @@ export function endPlayerTurn(state: BattleState): BattleState {
 
   // Start next turn
   s = startTurn(s)
+
+  // Trial modifier: speed trial fails if turn limit exceeded.
+  if (s.trialModifier === 'speed' && s.trialTurnLimit && s.turn > s.trialTurnLimit && s.phase !== 'victory') {
+    return { ...s, phase: 'defeat' }
+  }
 
   return s
 }

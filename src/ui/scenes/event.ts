@@ -1,5 +1,9 @@
 import type { EventDef } from '../../game/types'
 
+export function buildEventNameHint(title: string): string {
+  return `当前随机事件：${title}`
+}
+
 export function renderEvent(
   container: HTMLElement,
   eventDef: EventDef,
@@ -16,6 +20,7 @@ export function renderEvent(
     <div class="scene-event">
       <div class="panel event-panel">
         <h2>❓ ${eventDef.title}</h2>
+        <div class="event-name-hint">${buildEventNameHint(eventDef.title)}</div>
         <p class="event-desc">${eventDef.description}</p>
         <div class="event-options">${optionsHtml}</div>
       </div>

@@ -24,6 +24,7 @@ import { getNodeById } from '../map'
 
 function makeRunState(overrides: Partial<RunState> = {}): RunState {
   return {
+    act: 1,
     currentNodeId: 'node_0',
     visitedNodes: new Set(),
     deck: [],
@@ -31,9 +32,13 @@ function makeRunState(overrides: Partial<RunState> = {}): RunState {
     turn: 0,
     equippedWeapon: null,
     weaponInventory: [],
-    playerHp: 50,
-    playerMaxHp: 50,
+    playerHp: 60,
+    playerMaxHp: 60,
     gold: 0,
+    bonusStrength: 0,
+    bonusWisdom: 0,
+    bonusMaxMana: 0,
+    nextBattleEnemyStrengthBonus: 0,
     materials: { ...EMPTY_MATERIAL_BAG },
     ...overrides,
   }
@@ -42,16 +47,16 @@ function makeRunState(overrides: Partial<RunState> = {}): RunState {
 describe('addWeaponToInventory', () => {
   it('should add a weapon to the inventory', () => {
     const state = makeRunState()
-    const next = addWeaponToInventory(state, 'longsword')
+    const next = addWeaponToInventory(state, 'iron_longsword')
     expect(next.weaponInventory).toHaveLength(1)
-    expect(next.weaponInventory[0].defId).toBe('longsword')
+    expect(next.weaponInventory[0].defId).toBe('iron_longsword')
     expect(next.weaponInventory[0].uid).toMatch(/^weapon_/)
   })
 })
 
 describe('equipWeapon', () => {
   it('should equip a weapon from inventory', () => {
-    const weapon: WeaponInstance = { uid: 'w1', defId: 'longsword', enchantments: [] }
+    const weapon: WeaponInstance = { uid: 'w1', defId: 'iron_longsword', enchantments: [] }
     const state = makeRunState({ weaponInventory: [weapon] })
     const next = equipWeapon(state, 'w1')
     expect(next.equippedWeapon).toEqual(weapon)
@@ -65,13 +70,13 @@ describe('equipWeapon', () => {
 })
 
 describe('upgradeEquippedWeapon', () => {
-  it('should upgrade longsword to longsword_upgraded', () => {
-    const weapon: WeaponInstance = { uid: 'w1', defId: 'longsword', enchantments: [] }
+  it('should upgrade iron_longsword to steel_longsword', () => {
+    const weapon: WeaponInstance = { uid: 'w1', defId: 'iron_longsword', enchantments: [] }
     const state = makeRunState({ equippedWeapon: weapon, weaponInventory: [weapon] })
     const next = upgradeEquippedWeapon(state)
-    expect(next.equippedWeapon!.defId).toBe('longsword_upgraded')
+    expect(next.equippedWeapon!.defId).toBe('steel_longsword')
     expect(next.equippedWeapon!.uid).toBe('w1')
-    expect(next.weaponInventory[0].defId).toBe('longsword_upgraded')
+    expect(next.weaponInventory[0].defId).toBe('steel_longsword')
   })
 
   it('should return original state when no weapon equipped', () => {
@@ -91,9 +96,20 @@ describe('canAccessNode', () => {
     ],
   })
 
-  it('allows current and connected uncompleted nodes', () => {
+  it('allows current node even when not completed', () => {
     expect(canAccessNode(base, 'n1')).toBe(true)
-    expect(canAccessNode(base, 'n2')).toBe(true)
+  })
+
+  it('blocks moving forward when current node is not completed', () => {
+    expect(canAccessNode(base, 'n2')).toBe(false)
+  })
+
+  it('allows connected node only after current node is completed', () => {
+    const withCurrentCompleted = {
+      ...base,
+      mapNodes: base.mapNodes.map(n => (n.id === 'n1' ? { ...n, completed: true } : n)),
+    }
+    expect(canAccessNode(withCurrentCompleted, 'n2')).toBe(true)
   })
 
   it('rejects unconnected nodes', () => {
@@ -106,6 +122,46 @@ describe('canAccessNode', () => {
       mapNodes: base.mapNodes.map(n => (n.id === 'n2' ? { ...n, completed: true } : n)),
     }
     expect(canAccessNode(withCompleted, 'n2')).toBe(false)
+  })
+
+  it('rejects node when material requirement is not met', () => {
+    const run = makeRunState({
+      currentNodeId: 'n1',
+      materials: { ...EMPTY_MATERIAL_BAG, goblin_crown_fragment: 0 },
+      mapNodes: [
+        { id: 'n1', type: 'normal_battle', completed: true, x: 0, y: 0, connections: ['n2'] },
+        {
+          id: 'n2',
+          type: 'treasure',
+          completed: false,
+          x: 1,
+          y: 0,
+          connections: [],
+          requiresMaterial: 'goblin_crown_fragment',
+        },
+      ],
+    })
+    expect(canAccessNode(run, 'n2')).toBe(false)
+  })
+
+  it('allows node when material requirement is met', () => {
+    const run = makeRunState({
+      currentNodeId: 'n1',
+      materials: { ...EMPTY_MATERIAL_BAG, goblin_crown_fragment: 1 },
+      mapNodes: [
+        { id: 'n1', type: 'normal_battle', completed: true, x: 0, y: 0, connections: ['n2'] },
+        {
+          id: 'n2',
+          type: 'treasure',
+          completed: false,
+          x: 1,
+          y: 0,
+          connections: [],
+          requiresMaterial: 'goblin_crown_fragment',
+        },
+      ],
+    })
+    expect(canAccessNode(run, 'n2')).toBe(true)
   })
 })
 
@@ -132,29 +188,29 @@ describe('isBossNode', () => {
 })
 
 describe('applyBattleVictoryRewards', () => {
-  it('elite battle should increase max hp by 5 and heal 5', () => {
-    const state = makeRunState({ playerHp: 40, playerMaxHp: 50 })
-    const next = applyBattleVictoryRewards(state, 'elite_battle')
-    expect(next.playerMaxHp).toBe(55)
-    expect(next.playerHp).toBe(45)
+  it('normal battle should heal 4 hp', () => {
+    const state = makeRunState({ playerHp: 40, playerMaxHp: 60 })
+    const next = applyBattleVictoryRewards(state, 'normal_battle')
+    expect(next.playerMaxHp).toBe(60)
+    expect(next.playerHp).toBe(44)
   })
 
-  it('normal battle should not increase max hp', () => {
-    const state = makeRunState({ playerHp: 40, playerMaxHp: 50 })
-    const next = applyBattleVictoryRewards(state, 'normal_battle')
-    expect(next.playerMaxHp).toBe(50)
-    expect(next.playerHp).toBe(40)
+  it('elite battle should increase max hp by 5 and additionally heal 8 hp', () => {
+    const state = makeRunState({ playerHp: 40, playerMaxHp: 60 })
+    const next = applyBattleVictoryRewards(state, 'elite_battle')
+    expect(next.playerMaxHp).toBe(65)
+    expect(next.playerHp).toBe(52)
   })
 })
 
 describe('gold rewards', () => {
-  it('normal battle gold range should be 15~25', () => {
-    expect(generateBattleGold('normal_battle', () => 0)).toBe(15)
+  it('normal battle gold range should be 18~25', () => {
+    expect(generateBattleGold('normal_battle', () => 0)).toBe(18)
     expect(generateBattleGold('normal_battle', () => 0.999999)).toBe(25)
   })
 
-  it('elite battle gold range should be 30~40', () => {
-    expect(generateBattleGold('elite_battle', () => 0)).toBe(30)
+  it('elite battle gold range should be 32~40', () => {
+    expect(generateBattleGold('elite_battle', () => 0)).toBe(32)
     expect(generateBattleGold('elite_battle', () => 0.999999)).toBe(40)
   })
 
@@ -171,14 +227,14 @@ describe('gold rewards', () => {
 })
 
 describe('shop services', () => {
-  it('healInShop should heal 30% max hp and cost 30 gold', () => {
-    const state = makeRunState({ playerHp: 20, playerMaxHp: 50, gold: 40 })
+  it('healInShop should heal 30% max hp and cost 25 gold', () => {
+    const state = makeRunState({ playerHp: 20, playerMaxHp: 60, gold: 40 })
     const next = healInShop(state)
-    expect(next.playerHp).toBe(35)
-    expect(next.gold).toBe(10)
+    expect(next.playerHp).toBe(38)
+    expect(next.gold).toBe(15)
   })
 
-  it('removeCardFromDeck should remove exactly one card and cost 50 gold', () => {
+  it('removeCardFromDeck should remove exactly one card and cost 40 gold', () => {
     const state = makeRunState({
       gold: 70,
       deck: [
@@ -188,7 +244,28 @@ describe('shop services', () => {
     })
     const next = removeCardFromDeck(state, 'c2')
     expect(next.deck).toEqual([{ uid: 'c1', defId: 'slash' }])
-    expect(next.gold).toBe(20)
+    expect(next.gold).toBe(30)
+  })
+
+  it('shop service prices should scale by act', () => {
+    const act2 = makeRunState({ act: 2, playerHp: 20, playerMaxHp: 60, gold: 60 })
+    const healed = healInShop(act2)
+    expect(healed.playerHp).toBe(38)
+    expect(healed.gold).toBe(35)
+
+    const removed = removeCardFromDeck(
+      {
+        ...act2,
+        gold: 70,
+        deck: [
+          { uid: 'c1', defId: 'slash' },
+          { uid: 'c2', defId: 'block' },
+        ],
+      },
+      'c2',
+    )
+    expect(removed.deck).toEqual([{ uid: 'c1', defId: 'slash' }])
+    expect(removed.gold).toBe(20)
   })
 
   it('addCardToDeck should allow shop purchase flow when gold is deducted externally', () => {
@@ -258,6 +335,52 @@ describe('materials and forge', () => {
     const next = craftWeapon(state, 'forge_iron_longsword')
     expect(next).toEqual(state)
   })
+
+  it('replica recipe should require unlocked blueprint', () => {
+    const locked = makeRunState({
+      act: 2,
+      materials: {
+        ...EMPTY_MATERIAL_BAG,
+        iron_ingot: 3,
+        elemental_essence: 1,
+      },
+      unlockedBlueprints: [],
+      blueprintMastery: {},
+    })
+    const next = craftWeapon(locked, 'forge_replica_ant_swarm_dagger')
+    expect(next).toEqual(locked)
+  })
+
+  it('replica recipe should consume adjusted cost and increase mastery', () => {
+    const unlocked = makeRunState({
+      act: 2,
+      materials: {
+        ...EMPTY_MATERIAL_BAG,
+        iron_ingot: 3,
+        elemental_essence: 1,
+      },
+      unlockedBlueprints: ['mythic_ant_swarm_dagger'],
+      blueprintMastery: { mythic_ant_swarm_dagger: 0 },
+    })
+    const next = craftWeapon(unlocked, 'forge_replica_ant_swarm_dagger')
+    expect(next.weaponInventory.some(w => w.defId === 'replica_ant_swarm_dagger')).toBe(true)
+    expect(next.blueprintMastery?.mythic_ant_swarm_dagger).toBe(1)
+  })
+
+  it('mastery level 3 should reduce replica cost', () => {
+    const state = makeRunState({
+      act: 2,
+      materials: {
+        ...EMPTY_MATERIAL_BAG,
+        iron_ingot: 2,
+        elemental_essence: 1,
+      },
+      unlockedBlueprints: ['mythic_ant_swarm_dagger'],
+      blueprintMastery: { mythic_ant_swarm_dagger: 3 },
+    })
+    const next = craftWeapon(state, 'forge_replica_ant_swarm_dagger')
+    expect(next.weaponInventory.some(w => w.defId === 'replica_ant_swarm_dagger')).toBe(true)
+  })
 })
 
 describe('enchantments', () => {
@@ -295,13 +418,14 @@ describe('enchantments', () => {
 describe('act1 flow smoke', () => {
   it('should traverse a valid route from start to boss without blockers', () => {
     let run = createRunState()
+    run = completeNode(run, run.currentNodeId)
     const route = [
-      'l2_left',   // layer2 normal
-      'l3_mid',    // layer3 event
-      'l4_left',   // layer4 normal
-      'l5_mid',    // layer5 elite
-      'l6_right',  // layer6 campfire
-      'l7_boss',   // boss
+      'l2_a',
+      'l3_b',
+      'l4_a',
+      'l5_shop',
+      'l6_a',
+      'l7_boss',
     ]
 
     for (const nodeId of route) {

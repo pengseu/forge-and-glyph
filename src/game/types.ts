@@ -1,6 +1,7 @@
 // --- Card Effects ---
 export type CardEffect =
   | { type: 'damage'; value: number }
+  | { type: 'damage_shred_armor'; damage: number; shred: number }
   | { type: 'multi_damage'; value: number; hits: number }
   | { type: 'armor'; value: number }
   | { type: 'heal'; value: number }
@@ -24,8 +25,10 @@ export type CardEffect =
   | { type: 'damage_gain_armor'; damage: number; armor: number }
   | { type: 'conditional_armor'; value: number; condition: 'damage_taken' }
   | { type: 'draw_cards'; value: number }
+  | { type: 'redraw_hand'; value: number }
   | { type: 'aoe_damage'; value: number }
   | { type: 'aoe_burn'; value: number }
+  | { type: 'self_damage'; value: number }
   | { type: 'lifesteal'; value: number }
   | { type: 'combat_damage_bonus'; value: number }
   | { type: 'vulnerable'; value: number }
@@ -40,12 +43,18 @@ export type CardEffect =
   | { type: 'gain_thorns'; value: number }
   | { type: 'set_magic_absorb'; bonusMana: number }
   | { type: 'global_cost_reduction'; value: number }
+  | { type: 'set_damage_taken_multiplier'; value: number }
+  | { type: 'set_double_damage_armor_this_turn' }
   | { type: 'hp_percent_for_strength'; hpPercent: number; strength: number }
+  | { type: 'current_hp_percent_for_strength'; hpPercent: number; strength: number }
   | { type: 'draw_cards_if_affordable'; value: number }
+  | { type: 'conditional_damage_vs_vulnerable'; base: number; vulnerableDamage: number }
+  | { type: 'purge_curse'; value: number }
+  | { type: 'purge_curse_in_hand_draw' }
 
 export type CostType = 'stamina' | 'mana' | 'free' | 'hybrid'
 export type CardCategory = 'combat' | 'spell' | 'technique'
-export type Rarity = 'basic' | 'common' | 'rare' | 'epic'
+export type Rarity = 'basic' | 'common' | 'rare' | 'epic' | 'legendary'
 
 export interface CardDef {
   id: string
@@ -56,6 +65,10 @@ export interface CardDef {
   rarity: Rarity
   description: string
   effects: CardEffect[]
+  exhaust?: boolean
+  unplayable?: boolean
+  onDrawSelfDamage?: number
+  onDrawExhaust?: boolean
 }
 
 export interface CardInstance {
@@ -71,9 +84,12 @@ export type EnemyIntent =
   | { type: 'buff'; buffType: 'strength'; value: number }
   | { type: 'weaken'; value: number }
   | { type: 'poison'; value: number }
+  | { type: 'curse'; cardId: string; count: number }
   | { type: 'summon'; enemyId: string }
   | { type: 'summon_multi'; enemyId: string; count: number }
   | { type: 'defend_attack'; defendValue: number; attackValue: number }
+  | { type: 'heal_ally_lowest'; value: number }
+  | { type: 'buff_ally_highest_hp'; value: number }
 
 export interface EnemyDef {
   id: string
@@ -112,9 +128,18 @@ export interface PlayerState {
   pendingEndTurnSelfDamage: number
   thorns: number
   magicAbsorbBonusMana: number
+  damageTakenMultiplier: number
+  doubleDamageArmorThisTurn: boolean
+  attackDamageMultiplierThisTurn: number
+  firstSpellDiscountUsed: boolean
+  spellDiscountUsedCountThisTurn: number
   weaponPerTurnUsed: boolean
+  attackCounterThisBattle: number
+  spellCounterThisBattle: number
+  costIncreasedCardDefIds: string[]
   normalAttackUsedThisTurn: boolean
   equippedEnchantments: EnchantmentId[]
+  frostCounter: number
   hand: CardInstance[]
   drawPile: CardInstance[]
   discardPile: CardInstance[]
@@ -136,11 +161,13 @@ export interface EnemyState {
   damagedThisTurn: boolean
   evadedThisAction: boolean
   turnStartArmorGain: number
+  bossPhase: number
 }
 
 export interface TurnTracking {
   combatCardsPlayedThisTurn: number
   damageTakenThisTurn: number
+  damageDealtThisTurn: number
   bonusManaNextTurn: number
   combatDamageBonus: number
   enchantEvents: string[]
@@ -149,6 +176,9 @@ export interface TurnTracking {
 export interface BattleState {
   player: PlayerState
   enemies: EnemyState[]
+  trialModifier?: 'flame' | 'speed' | 'endure'
+  trialTurnLimit?: number
+  enemyDamageMultiplier?: number
   availableMaterials: MaterialBag
   usedMaterials: Partial<Record<MaterialId, boolean>>
   turn: number
@@ -156,16 +186,34 @@ export interface BattleState {
   turnTracking: TurnTracking
 }
 
+export interface WeaponOnCardPlayedContext {
+  state: BattleState
+  cardDef: CardDef
+  spentStaminaCost: number
+  targetIndex: number
+  targetBeforeHpArmor: number
+  drawCards: (state: BattleState, count: number) => BattleState
+}
+
 // --- Weapon ---
+export type WeaponEffect =
+  | { type: 'next_combat_discount'; discount: number }
+  | { type: 'first_low_cost_combat_draw'; maxCost: number; draw: number }
+  | { type: 'heavy_hit_shred_armor'; minDamage: number; shred: number }
+  | { type: 'first_combat_damage_bonus_percent'; percent: number }
+  | { type: 'spell_damage_bonus_and_charge'; damagePercent: number; chargeGain: number }
+  | { type: 'custom'; text: string }
+
 export interface WeaponDef {
   id: string
   name: string
-  rarity: 'basic' | 'upgraded'
-  effect: string
+  rarity: 'basic' | 'upgraded' | 'legendary' | 'replica'
+  effect: WeaponEffect
   normalAttack: { damage: number; hits?: number }
+  onCardPlayed?: (ctx: WeaponOnCardPlayedContext) => BattleState
 }
 
-export type EnchantmentId = 'flame' | 'frost' | 'thunder' | 'soul' | 'void' | 'bless'
+export type EnchantmentId = 'flame' | 'frost' | 'thunder' | 'soul' | 'void' | 'bless' | 'abyss'
 
 export interface WeaponInstance {
   uid: string
@@ -179,27 +227,75 @@ export interface ShopOffer {
   sold: boolean
 }
 
+export interface ShopMaterialOffer {
+  materialId: MaterialId
+  price: number
+  sold: boolean
+  quantity?: number
+}
+
 export type MaterialId =
   | 'iron_ingot'
   | 'steel_ingot'
+  | 'mythril_ingot'
+  | 'meteor_iron_ingot'
   | 'elemental_essence'
   | 'war_essence'
   | 'guard_essence'
   | 'goblin_crown_fragment'
+  | 'shadow_crystal'
+  | 'abyss_heart'
 
 export type MaterialBag = Record<MaterialId, number>
 
 // --- Scene ---
-export type Scene = 'title' | 'map' | 'battle' | 'reward' | 'result' | 'campfire' | 'shop' | 'inventory' | 'forge' | 'enchant' | 'event'
+export type Scene = 'title' | 'weapon_select' | 'map' | 'battle' | 'reward' | 'result' | 'campfire' | 'shop' | 'inventory' | 'forge' | 'enchant' | 'event' | 'act_transition'
 
 export type EventOptionId =
   | 'leave'
   | 'trade_hp_for_rare'
   | 'search_camp'
+  | 'camp_rest'
   | 'altar_blood'
   | 'altar_gold'
+  | 'altar_leave'
   | 'take_traveler_gift'
+  | 'traveler_gold'
+  | 'traveler_iron'
+  | 'traveler_essence'
+  | 'traveler_heal'
   | 'upgrade_random_card'
+  | 'remove_random_card'
+  | 'temple_power'
+  | 'temple_guard'
+  | 'temple_wealth'
+  | 'temple_purge'
+  | 'legacy_equip'
+  | 'legacy_salvage'
+  | 'cursed_open'
+  | 'cursed_leave'
+  | 'smith_upgrade'
+  | 'smith_steel'
+  | 'traveler_help'
+  | 'traveler_rob'
+  | 'traveler_ignore'
+  | 'library_take_two'
+  | 'rift_gaze'
+  | 'rift_avoid'
+  | 'guardian_challenge'
+  | 'guardian_escape'
+  | 'pool_sacrifice'
+  | 'pool_drink'
+  | 'caravan_sell_materials'
+  | 'caravan_buy_steel_bundle'
+  | 'caravan_buy_essence_bundle'
+  | 'sanctum_sacrifice'
+  | 'sanctum_warrior'
+  | 'sanctum_mage'
+  | 'sanctum_balance'
+  | 'trial_flame'
+  | 'trial_speed'
+  | 'trial_endure'
 
 export interface EventOptionDef {
   id: EventOptionId
@@ -208,7 +304,25 @@ export interface EventOptionDef {
 }
 
 export interface EventDef {
-  id: 'mysterious_merchant' | 'abandoned_camp' | 'altar' | 'traveler' | 'forge_spirit'
+  id:
+    | 'mysterious_merchant'
+    | 'abandoned_camp'
+    | 'altar'
+    | 'traveler'
+    | 'forge_spirit'
+    | 'temple'
+    | 'legacy_echo'
+    | 'cursed_chest'
+    | 'wandering_smith'
+    | 'shadow_altar'
+    | 'injured_traveler'
+    | 'ancient_library'
+    | 'abyss_rift'
+    | 'ancient_guardian'
+    | 'destiny_pool'
+    | 'last_caravan'
+    | 'sanctum_choice'
+    | 'trial_choice'
   title: string
   description: string
   options: EventOptionDef[]
@@ -261,9 +375,14 @@ export interface GameState {
   run: RunState | null
   battle: BattleState | null
   currentEvent: EventDef | null
+  activeTrialModifier: 'flame' | 'speed' | 'endure' | null
+  intermissionMode: 'none' | 'knowledge_pick' | 'knowledge_remove' | 'foresight_pick' | 'deep_purify'
+  intermissionCardOptions: CardDef[]
+  intermissionRemoveRemaining: number
   rewardCards: CardDef[]
   rewardMaterials: Partial<MaterialBag>
   shopOffers: ShopOffer[]
+  shopMaterialOffers: ShopMaterialOffer[]
   droppedWeaponId: string | null
   lastResult: 'victory' | 'defeat' | null
   stats: {
@@ -275,12 +394,24 @@ export interface GameState {
 }
 
 // --- Map System ---
-export type NodeType = 'normal_battle' | 'elite_battle' | 'boss_battle' | 'campfire' | 'shop' | 'forge' | 'enchant' | 'event'
+export type NodeType =
+  | 'normal_battle'
+  | 'elite_battle'
+  | 'boss_battle'
+  | 'campfire'
+  | 'shop'
+  | 'forge'
+  | 'enchant'
+  | 'event'
+  | 'trial'
+  | 'temple'
+  | 'treasure'
 
 export interface MapNode {
   id: string
   type: NodeType
   enemyIds?: string[]
+  requiresMaterial?: MaterialId
   completed: boolean
   x: number
   y: number
@@ -288,6 +419,7 @@ export interface MapNode {
 }
 
 export interface RunState {
+  act: 1 | 2 | 3
   currentNodeId: string
   visitedNodes: Set<string>
   deck: CardInstance[]
@@ -298,7 +430,18 @@ export interface RunState {
   playerHp: number
   playerMaxHp: number
   gold: number
+  bonusStrength: number
+  bonusWisdom: number
+  bonusMaxMana: number
+  nextBattleEnemyStrengthBonus: number
   materials: MaterialBag
+  unlockedBlueprints?: string[]
+  blueprintMastery?: Record<string, number>
+  legacyWeaponDefId?: string | null
+  legacyWeaponEnchantments?: EnchantmentId[]
+  legacyEventSeen?: boolean
+  replicaEliteKills?: Record<string, number>
+  completedReplicaInheritanceBlueprints?: string[]
 }
 
 export interface RewardState {
@@ -310,7 +453,22 @@ export type EnemyType =
   | 'goblin_scout'
   | 'forest_wolf'
   | 'mushroom_creature'
+  | 'goblin_brute'
+  | 'goblin_shaman'
   | 'goblin_king'
   | 'goblin_minion'
   | 'shadow_assassin'
   | 'stone_gargoyle'
+  | 'thorn_vine'
+  | 'shadow_walker'
+  | 'berserker'
+  | 'lich'
+  | 'iron_golem'
+  | 'dark_witch'
+  | 'shadow_eye'
+  | 'void_messenger'
+  | 'soul_weaver'
+  | 'elemental_symbiote'
+  | 'abyss_knight'
+  | 'fate_weaver'
+  | 'abyss_lord'

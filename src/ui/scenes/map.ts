@@ -56,6 +56,12 @@ export function renderMap(
       ? '👑'
       : node.type === 'elite_battle'
         ? '⭐'
+        : node.type === 'trial'
+          ? '⚖️'
+          : node.type === 'temple'
+            ? '🏛️'
+            : node.type === 'treasure'
+              ? '💎'
         : node.type === 'campfire'
           ? '🔥'
           : node.type === 'shop'
@@ -71,6 +77,12 @@ export function renderMap(
       ? 'Boss'
       : node.type === 'elite_battle'
         ? '精英'
+        : node.type === 'trial'
+          ? '试炼'
+          : node.type === 'temple'
+            ? '圣殿'
+            : node.type === 'treasure'
+              ? '宝库'
         : node.type === 'campfire'
           ? '篝火'
           : node.type === 'shop'
@@ -97,6 +109,7 @@ export function renderMap(
   container.innerHTML = `
     <div class="scene-map">
       <div class="map-player-bar">
+        <span class="stat">第${state.act}幕</span>
         <span class="stat stat-hp">♥ ${state.playerHp}/${state.playerMaxHp}</span>
         <span class="stat">金币: ${state.gold}</span>
         <span class="stat">卡组: ${state.deck.length}张</span>

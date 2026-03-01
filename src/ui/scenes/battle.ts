@@ -1,7 +1,7 @@
-import type { BattleState } from '../../game/types'
+import type { BattleState, CardCategory, CardEffect } from '../../game/types'
 import type { GameCallbacks } from '../renderer'
 import { getEnemyDef } from '../../game/enemies'
-import { canPlayCard, canUseNormalAttack, cardNeedsTarget } from '../../game/combat'
+import { canPlayCard, canUseNormalAttack, cardNeedsTarget, resolveAbyssLordAction, resolveAbyssLordPhase } from '../../game/combat'
 import { getWeaponDef } from '../../game/weapons'
 import { getEffectiveCardDef } from '../../game/campfire'
 import { showDamageFloat, showTextFloat, shakeEnemy, screenShake, playerHitShake } from '../animations'
@@ -10,9 +10,182 @@ import type { MaterialId } from '../../game/types'
 
 let pendingCardUid: string | null = null
 let pendingNormalAttack = false
+let hoverCardUid: string | null = null
+
+const KEYWORD_TIPS: Record<string, string> = {
+  灼烧: '回合末受到层数伤害，随后层数-1',
+  冻结: '跳过下一次行动',
+  中毒: '回合开始受到层数伤害，不自然衰减',
+  易伤: '受到伤害+50%，每回合-1层',
+  虚弱: '造成伤害-25%，每回合-1层',
+  屏障: '回合开始最多保留对应点数护甲',
+  蓄能: '下个法术每层+10%伤害，用后清零',
+  力量: '提高战技与普攻伤害',
+  智慧: '提高法术伤害',
+  护甲: '先抵消等量伤害',
+}
+
+function decorateKeywords(text: string): string {
+  let out = text
+  for (const [kw, tip] of Object.entries(KEYWORD_TIPS)) {
+    out = out.replaceAll(kw, `<span class="card-keyword" title="${tip}">${kw}</span>`)
+  }
+  return out
+}
+
+function extractBaseDamage(effects: CardEffect[], target: BattleState['enemies'][number]): { damage: number; isMultiHit: boolean } {
+  let damage = 0
+  let isMultiHit = false
+  for (const effect of effects) {
+    if (effect.type === 'damage') damage += effect.value
+    if (effect.type === 'multi_damage') {
+      damage += effect.value * effect.hits
+      isMultiHit = true
+    }
+    if (effect.type === 'aoe_damage') damage += effect.value
+    if (effect.type === 'execute') {
+      const hpPercent = (target.hp / target.maxHp) * 100
+      damage += hpPercent <= effect.threshold ? effect.damage : effect.baseDamage
+    }
+    if (effect.type === 'burn_burst') damage += target.burn * effect.perStack
+    if (effect.type === 'poison_burst') damage += effect.base + (target.poison * effect.perPoison)
+    if (effect.type === 'conditional_damage_vs_vulnerable') {
+      damage += target.vulnerable > 0 ? effect.vulnerableDamage : effect.base
+    }
+  }
+  return { damage, isMultiHit }
+}
+
+function applyPreviewMods(
+  rawDamage: number,
+  state: BattleState,
+  target: BattleState['enemies'][number],
+  category: CardCategory,
+): { damage: number; armorPenetration: number } {
+  let damage = rawDamage
+  const isAttack = category === 'combat' || category === 'spell'
+  let armorPenetration = 0
+
+  if (category === 'combat') damage += state.player.strength
+  if (category === 'spell') damage += state.player.wisdom
+
+  if (isAttack && state.player.equippedEnchantments.includes('bless')) damage += 3
+  if (isAttack && state.player.equippedEnchantments.includes('void')) armorPenetration = 4
+  if (isAttack && state.player.equippedEnchantments.includes('flame') && state.player.equippedEnchantments.includes('bless') && target.burn > 0) {
+    damage = Math.floor(damage * 1.5)
+  }
+
+  if (category === 'combat') {
+    damage += state.turnTracking.combatDamageBonus
+    if (state.player.buffNextCombatDouble) damage *= 2
+    if (state.player.buffNextCombat > 0) damage = Math.floor(damage * (1 + state.player.buffNextCombat / 100))
+    if (state.player.equippedWeaponId === 'iron_bow' && !state.player.weaponPerTurnUsed) {
+      damage = Math.floor(damage * 1.3)
+    }
+  }
+  if (category === 'spell') {
+    if (state.player.equippedWeaponId === 'iron_staff') damage = Math.floor(damage * 1.2)
+    if (state.player.charge > 0) damage = Math.floor(damage * (1 + state.player.charge * 0.1))
+    if (state.player.buffNextSpellDamage > 0) damage += state.player.buffNextSpellDamage
+  }
+
+  if (state.player.weakened > 0) damage = Math.floor(damage * 0.75)
+  if (target.vulnerable > 0) damage = Math.floor(damage * 1.5)
+
+  return { damage, armorPenetration }
+}
+
+function estimateCardPreview(state: BattleState, cardUid: string, targetIndex: number): { armorDamage: number; hpDamage: number } | null {
+  const card = state.player.hand.find((c) => c.uid === cardUid)
+  if (!card) return null
+  const target = state.enemies[targetIndex]
+  if (!target || target.hp <= 0) return null
+  const def = getEffectiveCardDef(card)
+  const { damage: rawDamage, isMultiHit } = extractBaseDamage(def.effects, target)
+  if (rawDamage <= 0) return null
+  const { damage, armorPenetration } = applyPreviewMods(rawDamage, state, target, def.category)
+  if (target.defId === 'shadow_assassin' && !isMultiHit && damage <= 4) {
+    return { armorDamage: 0, hpDamage: 0 }
+  }
+  const effectiveArmor = Math.max(0, target.armor - armorPenetration)
+  const armorDamage = Math.min(effectiveArmor, damage)
+  const hpDamage = Math.max(0, damage - armorDamage)
+  return { armorDamage, hpDamage }
+}
+
+function estimateNormalAttackPreview(state: BattleState, targetIndex: number): { armorDamage: number; hpDamage: number } | null {
+  if (!state.player.equippedWeaponId) return null
+  const target = state.enemies[targetIndex]
+  if (!target || target.hp <= 0) return null
+  const attack = getWeaponDef(state.player.equippedWeaponId).normalAttack
+  const rawDamage = attack.damage * (attack.hits ?? 1)
+  const { damage, armorPenetration } = applyPreviewMods(rawDamage, state, target, 'combat')
+  const effectiveArmor = Math.max(0, target.armor - armorPenetration)
+  const armorDamage = Math.min(effectiveArmor, damage)
+  const hpDamage = Math.max(0, damage - armorDamage)
+  return { armorDamage, hpDamage }
+}
+
+function applyPreviewToDom(container: HTMLElement, state: BattleState, cardUid: string | null, forNormalAttack: boolean): void {
+  state.enemies.forEach((enemy, idx) => {
+    const holder = container.querySelector<HTMLElement>(`.enemy-preview[data-preview-idx=\"${idx}\"]`)
+    if (!holder) return
+    if (enemy.hp <= 0) {
+      holder.textContent = ''
+      return
+    }
+
+    const preview = forNormalAttack
+      ? estimateNormalAttackPreview(state, idx)
+      : (cardUid ? estimateCardPreview(state, cardUid, idx) : null)
+    if (!preview || (preview.armorDamage + preview.hpDamage) <= 0) {
+      holder.textContent = ''
+      return
+    }
+    holder.innerHTML = `<span style=\"color:#9e9e9e;\">${preview.armorDamage}</span><span style=\"color:#ff6b6b;\">/${preview.hpDamage}</span>`
+  })
+}
 
 export function resolveNormalAttackMode(livingEnemyCount: number): 'auto' | 'target' {
   return livingEnemyCount > 1 ? 'target' : 'auto'
+}
+
+export function resolveSummonIntentPreview(minionCount: number, summonCount: number, enemyStrength: number): {
+  intentText: string
+  intentHint: string
+  intentClass: string
+} {
+  if (minionCount >= 2) {
+    return {
+      intentText: `🗡️ ${16 + enemyStrength}`,
+      intentHint: '召唤位已满，将改为重击',
+      intentClass: 'intent-attack',
+    }
+  }
+  if (summonCount > 1) {
+    return {
+      intentText: '👥 召唤',
+      intentHint: `将尝试召唤 ${summonCount} 个单位`,
+      intentClass: 'intent-buff',
+    }
+  }
+  return {
+    intentText: '📢 召唤',
+    intentHint: '将召唤新的敌方单位',
+    intentClass: 'intent-buff',
+  }
+}
+
+export function resolveGoblinKingPhase2Preview(_intentIndex: number, enemyStrength: number): {
+  intentText: string
+  intentHint: string
+  intentClass: string
+} {
+  return {
+    intentText: `🗡️ ${20 + enemyStrength}`,
+    intentHint: '二阶段：不再召唤，发动狂怒重击',
+    intentClass: 'intent-attack',
+  }
 }
 
 function enterTargetMode(container: HTMLElement, uid: string) {
@@ -95,9 +268,9 @@ export function renderBattle(
     const intent = enemyDef.intents[enemy.intentIndex]
     const passiveText =
       enemy.defId === 'shadow_assassin'
-        ? '⚡闪避：单次≤5伤害无效'
+        ? '⚡闪避：单次≤4伤害无效'
         : enemy.defId === 'stone_gargoyle'
-          ? '🪨石化：每回合开始+8护甲'
+          ? '🪨石化：每回合开始+6护甲'
           : ''
     let intentText = ''
     let intentHint = ''
@@ -106,6 +279,51 @@ export function renderBattle(
       intentText = '🧊 冻结中'
       intentHint = '跳过本回合行动，随后获得短暂冻结免疫'
       intentClass = 'intent-freeze'
+    } else if (enemy.defId === 'abyss_lord') {
+      const phase = resolveAbyssLordPhase(enemy)
+      const action = resolveAbyssLordAction(enemy.intentIndex, phase)
+      if (action.type === 'attack') {
+        const dmg = action.value + enemy.strength
+        intentText = `🗡️ ${dmg}`
+        intentHint = `阶段${phase}：将造成 ${dmg} 点伤害`
+        intentClass = 'intent-attack'
+      } else if (action.type === 'gaze') {
+        intentText = '👁️ 凝视'
+        intentHint = `阶段${phase}：随机指定3种卡，本战斗费用+1`
+        intentClass = 'intent-poison'
+      } else if (action.type === 'fortify') {
+        intentText = `🛡️${action.armor} 💪+${action.strength}`
+        intentHint = `阶段${phase}：获得${action.armor}护甲并提升${action.strength}力量`
+        intentClass = 'intent-buff'
+      } else if (action.type === 'aoe_attack_burn') {
+        const dmg = action.value + enemy.strength
+        intentText = `🗡️${dmg} 🔥${action.burn}`
+        intentHint = `阶段${phase}：造成${dmg}伤害并附加灼烧伤害`
+        intentClass = 'intent-attack'
+      } else if (action.type === 'attack_heal') {
+        const dmg = action.value + enemy.strength
+        intentText = `🗡️${dmg} ❤️+${action.heal}`
+        intentHint = `阶段${phase}：造成${dmg}伤害并回复${action.heal}HP`
+        intentClass = 'intent-attack'
+      } else if (action.type === 'weaken_attack') {
+        const dmg = action.value + enemy.strength
+        intentText = `🗡️${dmg} 😵${action.weaken}`
+        intentHint = `阶段${phase}：造成${dmg}伤害并施加${action.weaken}层虚弱`
+        intentClass = 'intent-attack'
+      }
+    } else if (enemy.defId === 'goblin_king' && enemy.hp <= Math.floor(enemy.maxHp * 0.4)) {
+      const phase2Step = enemy.intentIndex % 2
+      if (phase2Step === 0) {
+        const preview = resolveGoblinKingPhase2Preview(enemy.intentIndex, enemy.strength)
+        intentText = preview.intentText
+        intentHint = preview.intentHint
+        intentClass = preview.intentClass
+      } else {
+        const dmg = 12 + enemy.strength
+        intentText = `🛡️10 🗡️${dmg}`
+        intentHint = `二阶段：先获得10护甲，再造成${dmg}伤害`
+        intentClass = 'intent-attack'
+      }
     } else if (intent.type === 'attack') {
       let dmg = intent.value + enemy.strength
       if (enemy.weakened > 0) dmg = Math.floor(dmg * 0.75)
@@ -128,14 +346,22 @@ export function renderBattle(
       intentText = `😵 ${intent.value}`
       intentHint = `将施加 ${intent.value} 层虚弱`
       intentClass = 'intent-poison'
+    } else if (intent.type === 'curse') {
+      intentText = `🕯️ 诅咒×${intent.count}`
+      intentHint = `将塞入 ${intent.count} 张诅咒牌`
+      intentClass = 'intent-poison'
     } else if (intent.type === 'summon') {
-      intentText = '📢 召唤'
-      intentHint = '将召唤新的敌方单位'
-      intentClass = 'intent-buff'
+      const minionCount = state.enemies.filter(e => e.defId === intent.enemyId && e.hp > 0).length
+      const preview = resolveSummonIntentPreview(minionCount, 1, enemy.strength)
+      intentText = preview.intentText
+      intentHint = preview.intentHint
+      intentClass = preview.intentClass
     } else if (intent.type === 'summon_multi') {
-      intentText = '👥 召唤'
-      intentHint = `将尝试召唤 ${intent.count} 个单位`
-      intentClass = 'intent-buff'
+      const minionCount = state.enemies.filter(e => e.defId === intent.enemyId && e.hp > 0).length
+      const preview = resolveSummonIntentPreview(minionCount, intent.count, enemy.strength)
+      intentText = preview.intentText
+      intentHint = preview.intentHint
+      intentClass = preview.intentClass
     } else if (intent.type === 'defend_attack') {
       let dmg = intent.attackValue + enemy.strength
       if (enemy.weakened > 0) dmg = Math.floor(dmg * 0.75)
@@ -166,6 +392,7 @@ export function renderBattle(
           HP ${enemy.hp}/${enemy.maxHp}
           ${enemy.armor > 0 ? ` 🛡️${enemy.armor}` : ''}
         </div>
+        <div class="enemy-preview" data-preview-idx="${idx}"></div>
         ${enemyStatus ? `<div class="status-row enemy-status-row">${enemyStatus}</div>` : ''}
       </div>
     `
@@ -193,7 +420,7 @@ export function renderBattle(
       <div class="card ${playable ? '' : 'disabled'} ${selectedClass}" data-uid="${card.uid}" tabindex="${playable ? '0' : '-1'}" role="button" aria-label="${def.name}">
         <div class="card-name">${def.name}</div>
         <div class="card-cost ${def.costType}">${costLabel}</div>
-        <div class="card-desc">${def.description}</div>
+        <div class="card-desc">${decorateKeywords(def.description)}</div>
       </div>
     `
   }).join('')
@@ -210,6 +437,13 @@ export function renderBattle(
         </button>
       `
     }).join('')
+  const trialText = state.trialModifier
+    ? state.trialModifier === 'flame'
+      ? '试炼: 烈焰（每回合全体+1灼烧）'
+      : state.trialModifier === 'speed'
+        ? `试炼: 速度（限时${state.trialTurnLimit ?? 5}回合）`
+        : '试炼: 耐久（敌方伤害x0.5）'
+    : ''
 
   container.innerHTML = `
     <div class="player-bar">
@@ -221,6 +455,7 @@ export function renderBattle(
       ${enchantText ? `<span class="stat" style="color:#7ad3ff;">${enchantText}</span>` : ''}
       ${enchantFeedback}
       ${playerStatus ? `<span class="stat status-row">${playerStatus}</span>` : ''}
+      ${trialText ? `<span class="stat" style="color:#f08c00;">${trialText}</span>` : ''}
       <span class="stat">回合 ${state.turn}</span>
       <span class="stat stat-help" id="btn-status-help">?</span>
     </div>
@@ -233,7 +468,7 @@ export function renderBattle(
         <div class="status-guide-row">🔵 屏障 — 回合开始保留最多N点护甲</div>
         <div class="status-guide-row">⚡蓄 蓄能 — 下个法术伤害+N×10%，用后清零</div>
         <div class="status-guide-row">🔥 灼烧 — 回合末受N伤害，每回合-1</div>
-        <div class="status-guide-row">🐍 中毒 — 回合末受N伤害，不自然消退</div>
+        <div class="status-guide-row">🐍 中毒 — 回合开始受N伤害，不自然消退</div>
         <div class="status-guide-row">🧊 冻结 — 跳过下次行动</div>
         <div class="status-guide-row">💀 易伤 — 受到伤害+50%，每回合-1</div>
         <div class="status-guide-row">😵 虚弱 — 造成伤害-25%，每回合-1</div>
@@ -270,6 +505,7 @@ export function renderBattle(
     e.preventDefault()
     if (pendingCardUid) {
       exitTargetMode(container)
+      applyPreviewToDom(container, state, hoverCardUid, false)
     }
   })
 
@@ -281,6 +517,7 @@ export function renderBattle(
       const idx = parseInt(el.dataset.enemyIdx!, 10)
       const uid = pendingCardUid
       exitTargetMode(container)
+      applyPreviewToDom(container, state, null, false)
       callbacks.onPlayCard(uid, idx)
     })
     el.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -290,11 +527,13 @@ export function renderBattle(
         if (pendingCardUid) {
           const uid = pendingCardUid
           exitTargetMode(container)
+          applyPreviewToDom(container, state, null, false)
           callbacks.onPlayCard(uid, idx)
           return
         }
         if (pendingNormalAttack) {
           exitTargetMode(container)
+          applyPreviewToDom(container, state, null, false)
           callbacks.onNormalAttack(idx)
         }
       }
@@ -305,6 +544,7 @@ export function renderBattle(
       e.stopPropagation()
       const idx = parseInt(el.dataset.enemyIdx!, 10)
       exitTargetMode(container)
+      applyPreviewToDom(container, state, null, false)
       callbacks.onNormalAttack(idx)
     })
   })
@@ -332,11 +572,24 @@ export function renderBattle(
       const livingEnemies = state.enemies.filter(en => en.hp > 0)
       if (cardNeedsTarget(def.effects) && livingEnemies.length > 1) {
         enterTargetMode(container, uid)
+        applyPreviewToDom(container, state, uid, false)
       } else if (cardNeedsTarget(def.effects) && livingEnemies.length === 1) {
         const targetIdx = state.enemies.findIndex(en => en.hp > 0)
         callbacks.onPlayCard(uid, targetIdx)
       } else {
         callbacks.onPlayCard(uid, 0)
+      }
+    })
+    el.addEventListener('mouseenter', () => {
+      hoverCardUid = el.dataset.uid ?? null
+      if (!pendingCardUid && !pendingNormalAttack) {
+        applyPreviewToDom(container, state, hoverCardUid, false)
+      }
+    })
+    el.addEventListener('mouseleave', () => {
+      hoverCardUid = null
+      if (!pendingCardUid && !pendingNormalAttack) {
+        applyPreviewToDom(container, state, null, false)
       }
     })
     el.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -359,6 +612,7 @@ export function renderBattle(
     const mode = resolveNormalAttackMode(livingEnemies.length)
     if (mode === 'target') {
       enterNormalAttackTargetMode(container)
+      applyPreviewToDom(container, state, null, true)
       return
     }
     const targetIdx = state.enemies.findIndex(en => en.hp > 0)
@@ -460,6 +714,17 @@ export function renderBattle(
     })
   }
 
+  // Initial preview state (for selected target mode persisted in same render cycle).
+  if (pendingCardUid) {
+    applyPreviewToDom(container, state, pendingCardUid, false)
+  } else if (pendingNormalAttack) {
+    applyPreviewToDom(container, state, null, true)
+  } else {
+    applyPreviewToDom(container, state, null, false)
+  }
+
   // Reset pendingCardUid on fresh render (new state from game logic)
   pendingCardUid = null
+  pendingNormalAttack = false
+  hoverCardUid = null
 }

@@ -369,15 +369,40 @@ body {
 .scene-result {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
   height: 600px;
-  gap: 24px;
+  gap: 12px;
+  padding: 16px;
+  overflow: auto;
 }
 
 .result-victory { color: #4caf50; font-size: 18px; }
 .result-defeat { color: #e94560; font-size: 18px; }
 .result-stats { font-size: 10px; color: #aaa; }
+.result-report {
+  font-size: 9px;
+  color: #c8d7e3;
+  line-height: 1.5;
+}
+.result-report h3 {
+  font-size: 10px;
+  color: #f0a500;
+  margin: 8px 0 4px;
+}
+.result-report ul {
+  margin: 0 0 6px 16px;
+  padding: 0;
+}
+.result-battle {
+  border: 1px solid #335173;
+  background: #15283d;
+  padding: 6px;
+  margin-bottom: 6px;
+}
+.result-battle summary {
+  cursor: pointer;
+}
 
 /* --- Map Scene --- */
 .scene-map {
@@ -393,13 +418,30 @@ body {
   background: #0a0a1a;
   border: 1px solid #0f3460;
   margin-bottom: 20px;
+  min-height: 0;
+}
+
+.map-scroll {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  cursor: grab;
+}
+
+.map-scroll.dragging {
+  cursor: grabbing;
+}
+
+.map-canvas {
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
 }
 
 .map-lines {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  left: 0;
+  top: 0;
   pointer-events: none;
 }
 
@@ -892,3 +934,41 @@ body {
 .enchant-name { font-size: 10px; color: #f6d58b; margin-bottom: 4px; }
 .enchant-desc { font-size: 8px; color: #9eb1c2; margin-bottom: 6px; }
 .enchant-replace-actions { display: flex; gap: 6px; }
+
+/* --- Event Scene --- */
+.scene-event {
+  max-width: 760px;
+  margin: 0 auto;
+  display: grid;
+  gap: 10px;
+}
+
+.event-panel h2 {
+  margin: 0 0 8px;
+}
+
+.event-desc {
+  font-size: 10px;
+  color: #d8e7f5;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.event-options {
+  display: grid;
+  gap: 8px;
+}
+
+.btn-event {
+  text-align: left;
+}
+
+.event-option-title {
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.event-option-desc {
+  font-size: 8px;
+  color: #9eb1c2;
+}

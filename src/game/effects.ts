@@ -245,6 +245,16 @@ export function applyCardEffects(
         }
         break
       }
+      case 'burn_burst': {
+        const enemy = s.enemies[targetIndex]
+        if (!enemy || enemy.hp <= 0) break
+        let dmg = enemy.burn * effect.perStack
+        if (dmg <= 0) break
+        let armorPenetration = 0
+        ;({ dmg, s, armorPenetration } = applyDmgMods(dmg, s, targetIndex, category))
+        s = dealDamageToEnemy(s, targetIndex, dmg, armorPenetration)
+        break
+      }
       case 'freeze': {
         const enemy = s.enemies[targetIndex]
         if (enemy && enemy.hp > 0 && !enemy.freezeImmune) {
@@ -263,6 +273,15 @@ export function applyCardEffects(
           )
           s = { ...s, enemies: newEnemies }
         }
+        break
+      }
+      case 'poison_burst': {
+        const enemy = s.enemies[targetIndex]
+        if (!enemy || enemy.hp <= 0) break
+        let dmg = effect.base + (enemy.poison * effect.perPoison)
+        let armorPenetration = 0
+        ;({ dmg, s, armorPenetration } = applyDmgMods(dmg, s, targetIndex, category))
+        s = dealDamageToEnemy(s, targetIndex, dmg, armorPenetration)
         break
       }
       case 'gain_strength':
@@ -442,6 +461,13 @@ export function applyCardEffects(
         s = { ...s, enemies: newEnemies }
         break
       }
+      case 'aoe_freeze': {
+        const newEnemies = s.enemies.map(e =>
+          e.hp > 0 && !e.freezeImmune ? { ...e, freeze: 1 } : e
+        )
+        s = { ...s, enemies: newEnemies }
+        break
+      }
       case 'lifesteal': {
         let dmg = effect.value
         if (s.player.buffNextSpellDamage > 0) {
@@ -484,6 +510,36 @@ export function applyCardEffects(
         break
       case 'gain_charge':
         s = { ...s, player: { ...s.player, charge: s.player.charge + effect.value } }
+        break
+      case 'set_next_turn_stamina_penalty':
+        s = {
+          ...s,
+          player: { ...s.player, nextTurnStaminaPenalty: s.player.nextTurnStaminaPenalty + effect.value },
+        }
+        break
+      case 'set_end_turn_self_damage':
+        s = {
+          ...s,
+          player: { ...s.player, pendingEndTurnSelfDamage: s.player.pendingEndTurnSelfDamage + effect.value },
+        }
+        break
+      case 'gain_thorns':
+        s = { ...s, player: { ...s.player, thorns: s.player.thorns + effect.value } }
+        break
+      case 'set_magic_absorb':
+        s = { ...s, player: { ...s.player, magicAbsorbBonusMana: effect.bonusMana } }
+        break
+      case 'global_cost_reduction':
+        s = { ...s, player: { ...s.player, tempCostReduction: s.player.tempCostReduction + effect.value } }
+        break
+      case 'hp_percent_for_strength': {
+        const loseHp = Math.max(1, Math.floor(s.player.maxHp * effect.hpPercent / 100))
+        const hp = Math.max(1, s.player.hp - loseHp)
+        s = { ...s, player: { ...s.player, hp, strength: s.player.strength + effect.strength } }
+        break
+      }
+      case 'draw_cards_if_affordable':
+        // handled in combat.ts after applyCardEffects
         break
     }
   }

@@ -48,7 +48,7 @@ function renderMenu(
   options.className = 'campfire-options'
   const healBtn = document.createElement('button')
   healBtn.className = 'btn'
-  healBtn.textContent = `回血 (${playerHp} / ${playerMaxHp})`
+  healBtn.textContent = `回血（本次篝火限1次） (${playerHp} / ${playerMaxHp})`
   if (playerHp >= playerMaxHp) {
     healBtn.disabled = true
   }
@@ -59,7 +59,7 @@ function renderMenu(
 
   const upgradeBtn = document.createElement('button')
   upgradeBtn.className = 'btn'
-  upgradeBtn.textContent = '升级卡牌'
+  upgradeBtn.textContent = '升级卡牌（本次篝火限1次）'
   upgradeBtn.addEventListener('click', () => {
     currentView = 'upgrade'
     rerender()

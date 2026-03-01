@@ -176,13 +176,17 @@ export function renderBattle(
     const def = getEffectiveCardDef(card)
     const playable = canPlayCard(state, card.uid)
     let costLabel = ''
+    const reducedCost = Math.max(0, def.cost - state.player.tempCostReduction)
     if (def.costType === 'free') {
       costLabel = '免费'
     } else if (def.costType === 'stamina') {
-      const actualCost = Math.max(0, def.cost - state.player.weaponDiscount)
+      const actualCost = Math.max(0, reducedCost - state.player.weaponDiscount)
       costLabel = actualCost < def.cost ? `⚡<s>${def.cost}</s>${actualCost}` : `⚡${def.cost}`
+    } else if (def.costType === 'hybrid') {
+      const staminaCost = Math.max(0, reducedCost - state.player.weaponDiscount)
+      costLabel = `⚡${staminaCost} + ✦${reducedCost}`
     } else {
-      costLabel = `✦${def.cost}`
+      costLabel = reducedCost < def.cost ? `✦<s>${def.cost}</s>${reducedCost}` : `✦${def.cost}`
     }
     const selectedClass = pendingCardUid === card.uid ? 'selected' : ''
     return `

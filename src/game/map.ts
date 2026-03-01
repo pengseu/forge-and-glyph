@@ -37,35 +37,38 @@ export function generateMap(): MapNode[] {
 
   function makeNormalEncounter(): string[] {
     normalCount++
-    return normalCount <= 3 ? pickEncounter(EARLY_ENCOUNTERS) : pickEncounter(MID_ENCOUNTERS)
+    return normalCount <= 4 ? pickEncounter(EARLY_ENCOUNTERS) : pickEncounter(MID_ENCOUNTERS)
   }
 
-  const nodes: MapNode[] = [
-    // Row 1
-    { id: 'n1', type: 'normal_battle', enemyIds: ['forest_wolf', 'forest_wolf'], completed: false, x: 0, y: 0, connections: ['n2', 'n4'] },
-    { id: 'n2', type: 'normal_battle', enemyIds: undefined, completed: false, x: 1, y: 0, connections: ['n3', 'campfire_1'] },
-    { id: 'n3', type: 'elite_battle', enemyIds: pickEliteEncounter(), completed: false, x: 2, y: 0, connections: ['n8'] },
+  return [
+    // Layer 1
+    { id: 'l1_start', type: 'normal_battle', enemyIds: makeNormalEncounter(), completed: false, x: 1, y: 0, connections: ['l2_left', 'l2_right'] },
 
-    // Row 2 (with campfire)
-    { id: 'n4', type: 'forge', completed: false, x: 0, y: 1, connections: ['campfire_1'] },
-    { id: 'campfire_1', type: 'campfire', completed: false, x: 1, y: 1, connections: ['n5', 'n6'] },
-    { id: 'n6', type: 'elite_battle', enemyIds: pickEliteEncounter(), completed: false, x: 2, y: 1, connections: ['n8'] },
+    // Layer 2
+    { id: 'l2_left', type: 'normal_battle', enemyIds: makeNormalEncounter(), completed: false, x: 0, y: 1, connections: ['l3_left', 'l3_mid'] },
+    { id: 'l2_right', type: 'normal_battle', enemyIds: makeNormalEncounter(), completed: false, x: 2, y: 1, connections: ['l3_mid', 'l3_right'] },
 
-    // Row 3
-    { id: 'n5', type: 'shop', completed: false, x: 0, y: 2, connections: ['n8'] },
-    { id: 'n8', type: 'enchant', completed: false, x: 1, y: 2, connections: ['n7'] },
+    // Layer 3
+    { id: 'l3_left', type: 'shop', completed: false, x: 0, y: 2, connections: ['l4_left'] },
+    { id: 'l3_mid', type: 'event', completed: false, x: 1, y: 2, connections: ['l4_left', 'l4_right'] },
+    { id: 'l3_right', type: 'elite_battle', enemyIds: pickEliteEncounter(), completed: false, x: 2, y: 2, connections: ['l4_right'] },
 
-    // Boss
-    { id: 'n7', type: 'boss_battle', enemyIds: ['goblin_king'], completed: false, x: 1.5, y: 3, connections: [] },
+    // Layer 4
+    { id: 'l4_left', type: 'normal_battle', enemyIds: makeNormalEncounter(), completed: false, x: 0.5, y: 3, connections: ['l5_left', 'l5_mid'] },
+    { id: 'l4_right', type: 'campfire', completed: false, x: 1.5, y: 3, connections: ['l5_mid', 'l5_right'] },
+
+    // Layer 5
+    { id: 'l5_left', type: 'forge', completed: false, x: 0, y: 4, connections: ['l6_left'] },
+    { id: 'l5_mid', type: 'elite_battle', enemyIds: pickEliteEncounter(), completed: false, x: 1, y: 4, connections: ['l6_left', 'l6_right'] },
+    { id: 'l5_right', type: 'enchant', completed: false, x: 2, y: 4, connections: ['l6_right'] },
+
+    // Layer 6
+    { id: 'l6_left', type: 'normal_battle', enemyIds: makeNormalEncounter(), completed: false, x: 0.5, y: 5, connections: ['l7_boss'] },
+    { id: 'l6_right', type: 'campfire', completed: false, x: 1.5, y: 5, connections: ['l7_boss'] },
+
+    // Layer 7
+    { id: 'l7_boss', type: 'boss_battle', enemyIds: ['goblin_king'], completed: false, x: 1, y: 6, connections: [] },
   ]
-
-  for (const node of nodes) {
-    if (node.type === 'normal_battle' && !node.enemyIds) {
-      node.enemyIds = makeNormalEncounter()
-    }
-  }
-
-  return nodes
 }
 
 export function getNodeById(nodes: MapNode[], id: string): MapNode | undefined {

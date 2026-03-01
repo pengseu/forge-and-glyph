@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { RunState, WeaponInstance } from '../types'
 import {
+  createRunState,
+  moveToNode,
+  completeNode,
   addBattleGoldReward,
   addMaterialReward,
   addCardToDeck,
@@ -17,6 +20,7 @@ import {
   upgradeEquippedWeapon,
 } from '../run'
 import { EMPTY_MATERIAL_BAG } from '../materials'
+import { getNodeById } from '../map'
 
 function makeRunState(overrides: Partial<RunState> = {}): RunState {
   return {
@@ -285,5 +289,29 @@ describe('enchantments', () => {
     const replaced = enchantWeapon(state, 'thunder', 1)
     expect(replaced.equippedWeapon?.enchantments).toEqual(['flame', 'thunder'])
     expect(replaced.materials.elemental_essence).toBe(1)
+  })
+})
+
+describe('act1 flow smoke', () => {
+  it('should traverse a valid route from start to boss without blockers', () => {
+    let run = createRunState()
+    const route = [
+      'l2_left',   // layer2 normal
+      'l3_mid',    // layer3 event
+      'l4_left',   // layer4 normal
+      'l5_mid',    // layer5 elite
+      'l6_right',  // layer6 campfire
+      'l7_boss',   // boss
+    ]
+
+    for (const nodeId of route) {
+      expect(canAccessNode(run, nodeId)).toBe(true)
+      run = moveToNode(run, nodeId)
+      run = completeNode(run, nodeId)
+    }
+
+    const boss = getNodeById(run.mapNodes, run.currentNodeId)
+    expect(boss?.type).toBe('boss_battle')
+    expect(isBossNode(run)).toBe(true)
   })
 })

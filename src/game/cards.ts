@@ -58,10 +58,10 @@ export const ALL_CARDS: CardDef[] = [
     effects: [{ type: 'execute', threshold: 30, damage: 18, baseDamage: 6 }],
   },
   {
-    id: 'bloodthirst', name: '嗜血', cost: 1, costType: 'stamina',
-    category: 'combat', rarity: 'common',
-    description: '造成4伤害；本回合已伤害该敌人则额外+6',
-    effects: [{ type: 'conditional_damage', base: 4, value: 6, condition: 'enemy_damaged' }],
+    id: 'bone_poison', name: '蚀骨毒', cost: 2, costType: 'stamina',
+    category: 'combat', rarity: 'rare',
+    description: '造成3伤害+目标中毒层数伤害',
+    effects: [{ type: 'poison_burst', base: 3, perPoison: 1 }],
   },
   {
     id: 'charge_up', name: '蓄力', cost: 1, costType: 'stamina',
@@ -70,28 +70,28 @@ export const ALL_CARDS: CardDef[] = [
     effects: [{ type: 'buff_next_combat_double' }],
   },
   {
-    id: 'arcane_amplify', name: '奥术增幅', cost: 1, costType: 'mana',
-    category: 'technique', rarity: 'common',
-    description: '下一张法术+5伤害，+1魔力',
-    effects: [{ type: 'buff_next_spell', bonusDamage: 5, bonusMana: 1 }],
-  },
-  {
-    id: 'sacrifice', name: '献祭', cost: 0, costType: 'free',
-    category: 'technique', rarity: 'common',
-    description: '消耗5HP获得3魔力',
-    effects: [{ type: 'self_damage_gain_mana', damage: 5, mana: 3 }],
-  },
-  {
-    id: 'sword_dance', name: '剑舞', cost: 2, costType: 'stamina',
-    category: 'combat', rarity: 'common',
-    description: '造成3×3伤害',
-    effects: [{ type: 'multi_damage', value: 3, hits: 3 }],
-  },
-  {
-    id: 'chain_lightning', name: '连锁闪电', cost: 2, costType: 'mana',
+    id: 'vulnerability_hex', name: '易伤诅咒', cost: 1, costType: 'mana',
     category: 'spell', rarity: 'common',
-    description: '造成4伤害，弹射3次',
-    effects: [{ type: 'chain_damage', value: 4, bounces: 3 }],
+    description: '施加2层易伤',
+    effects: [{ type: 'vulnerable', value: 2 }],
+  },
+  {
+    id: 'overdraft', name: '透支', cost: 0, costType: 'free',
+    category: 'technique', rarity: 'common',
+    description: '获得2体力，下回合-1体力',
+    effects: [{ type: 'gain_stamina', value: 2 }, { type: 'set_next_turn_stamina_penalty', value: 1 }],
+  },
+  {
+    id: 'mana_surge', name: '魔力涌流', cost: 0, costType: 'free',
+    category: 'technique', rarity: 'rare',
+    description: '获得3魔力，回合末受5伤',
+    effects: [{ type: 'gain_mana', value: 3 }, { type: 'set_end_turn_self_damage', value: 5 }],
+  },
+  {
+    id: 'thorn_armor', name: '荆棘甲', cost: 1, costType: 'stamina',
+    category: 'combat', rarity: 'common',
+    description: '获得4护甲，受攻击反弹3伤害',
+    effects: [{ type: 'armor', value: 4 }, { type: 'gain_thorns', value: 3 }],
   },
   {
     id: 'envenom', name: '淬毒', cost: 1, costType: 'stamina',
@@ -106,16 +106,16 @@ export const ALL_CARDS: CardDef[] = [
     effects: [{ type: 'gain_strength', value: 2 }],
   },
   {
-    id: 'attack_defend', name: '以攻代守', cost: 1, costType: 'stamina',
-    category: 'combat', rarity: 'common',
-    description: '造成5伤害，获得5护甲',
-    effects: [{ type: 'damage_gain_armor', damage: 5, armor: 5 }],
+    id: 'magic_absorb', name: '魔法吸收', cost: 1, costType: 'mana',
+    category: 'spell', rarity: 'rare',
+    description: '获得6护甲，若回合末护甲未破，下回合+1魔力',
+    effects: [{ type: 'armor', value: 6 }, { type: 'set_magic_absorb', bonusMana: 1 }],
   },
   {
-    id: 'magic_shield', name: '魔法盾', cost: 1, costType: 'mana',
-    category: 'spell', rarity: 'common',
-    description: '获得8护甲；本回合受过伤则额外+6',
-    effects: [{ type: 'conditional_armor', value: 6, condition: 'damage_taken' }, { type: 'armor', value: 8 }],
+    id: 'blade_arcane_unity', name: '剑魔合一', cost: 1, costType: 'hybrid',
+    category: 'technique', rarity: 'epic',
+    description: '本回合所有卡费-1',
+    effects: [{ type: 'global_cost_reduction', value: 1 }],
   },
   // New common cards
   {
@@ -123,6 +123,12 @@ export const ALL_CARDS: CardDef[] = [
     category: 'combat', rarity: 'common',
     description: '对所有敌人造成5伤害',
     effects: [{ type: 'aoe_damage', value: 5 }],
+  },
+  {
+    id: 'quick_attack', name: '快攻', cost: 0, costType: 'stamina',
+    category: 'combat', rarity: 'common',
+    description: '造成2伤害',
+    effects: [{ type: 'damage', value: 2 }],
   },
   {
     id: 'light_stab', name: '轻刺', cost: 0, costType: 'stamina',
@@ -147,6 +153,18 @@ export const ALL_CARDS: CardDef[] = [
     category: 'spell', rarity: 'common',
     description: '获得3层蓄能（每层增加下一个法术10%伤害，使用后清零）',
     effects: [{ type: 'gain_charge', value: 3 }],
+  },
+  {
+    id: 'ignite', name: '引燃', cost: 1, costType: 'mana',
+    category: 'spell', rarity: 'common',
+    description: '每层灼烧造成3伤害',
+    effects: [{ type: 'burn_burst', perStack: 3 }],
+  },
+  {
+    id: 'balance', name: '平衡', cost: 1, costType: 'stamina',
+    category: 'technique', rarity: 'common',
+    description: '获得1魔力',
+    effects: [{ type: 'gain_mana', value: 1 }],
   },
   // === RARE ===
   {
@@ -186,6 +204,18 @@ export const ALL_CARDS: CardDef[] = [
     effects: [{ type: 'armor', value: 8 }, { type: 'gain_barrier', value: 3 }],
   },
   {
+    id: 'double_strike', name: '双重打击', cost: 2, costType: 'stamina',
+    category: 'combat', rarity: 'rare',
+    description: '造成5伤害×2',
+    effects: [{ type: 'multi_damage', value: 5, hits: 2 }],
+  },
+  {
+    id: 'frost_nova', name: '寒霜新星', cost: 2, costType: 'mana',
+    category: 'spell', rarity: 'rare',
+    description: '冻结所有敌人',
+    effects: [{ type: 'aoe_freeze', value: 1 }],
+  },
+  {
     id: 'weakness_curse', name: '虚弱诅咒', cost: 1, costType: 'mana',
     category: 'spell', rarity: 'rare',
     description: '施加2层虚弱（造成伤害-25%）',
@@ -211,10 +241,10 @@ export const ALL_CARDS: CardDef[] = [
     effects: [{ type: 'convert_mana_to_stamina', value: 1 }, { type: 'gain_strength', value: 2 }],
   },
   {
-    id: 'temp_forge', name: '临时锻造', cost: 1, costType: 'mana',
+    id: 'blood_frenzy', name: '血之狂怒', cost: 0, costType: 'free',
     category: 'technique', rarity: 'epic',
-    description: '获得8护甲，抽1张牌',
-    effects: [{ type: 'armor', value: 8 }, { type: 'draw_cards', value: 1 }],
+    description: '失去30%最大HP，获得5力量',
+    effects: [{ type: 'hp_percent_for_strength', hpPercent: 30, strength: 5 }],
   },
 ]
 

@@ -212,6 +212,45 @@ describe('effects', () => {
     expect(state.enemies[0].vulnerable).toBe(2)
   })
 
+  it('burn_burst should deal damage based on current burn stacks', () => {
+    state = { ...state, enemies: state.enemies.map((e, i) => (i === 0 ? { ...e, burn: 4 } : e)) }
+    const hpBefore = state.enemies[0].hp
+    state = applyCardEffects(state, [{ type: 'burn_burst', perStack: 3 }], 0, 'spell')
+    expect(state.enemies[0].hp).toBe(hpBefore - 12)
+    expect(state.enemies[0].burn).toBe(4)
+  })
+
+  it('aoe_freeze should freeze all alive non-immune enemies', () => {
+    state = createBattleState(['goblin_scout', 'forest_wolf'])
+    state = {
+      ...state,
+      enemies: state.enemies.map((e, i) => (i === 1 ? { ...e, freezeImmune: true } : e)),
+    }
+    state = applyCardEffects(state, [{ type: 'aoe_freeze', value: 1 }], 0, 'spell')
+    expect(state.enemies[0].freeze).toBe(1)
+    expect(state.enemies[1].freeze).toBe(0)
+  })
+
+  it('poison_burst should deal base + poison stacks damage', () => {
+    state = { ...state, enemies: state.enemies.map((e, i) => (i === 0 ? { ...e, poison: 4 } : e)) }
+    const hpBefore = state.enemies[0].hp
+    state = applyCardEffects(state, [{ type: 'poison_burst', base: 3, perPoison: 1 }], 0, 'combat')
+    expect(state.enemies[0].hp).toBe(hpBefore - 7)
+  })
+
+  it('global_cost_reduction should accumulate this turn', () => {
+    state = applyCardEffects(state, [{ type: 'global_cost_reduction', value: 1 }], 0)
+    state = applyCardEffects(state, [{ type: 'global_cost_reduction', value: 1 }], 0)
+    expect(state.player.tempCostReduction).toBe(2)
+  })
+
+  it('set_next_turn_stamina_penalty and set_end_turn_self_damage should set pending values', () => {
+    state = applyCardEffects(state, [{ type: 'set_next_turn_stamina_penalty', value: 1 }], 0)
+    state = applyCardEffects(state, [{ type: 'set_end_turn_self_damage', value: 5 }], 0)
+    expect(state.player.nextTurnStaminaPenalty).toBe(1)
+    expect(state.player.pendingEndTurnSelfDamage).toBe(5)
+  })
+
   describe('elite passives', () => {
     it('shadow assassin should evade single-hit damage <= 5', () => {
       state = createBattleState(['shadow_assassin'])

@@ -42,34 +42,34 @@ export const UPGRADE_TABLE: Record<string, (def: CardDef) => CardDef> = {
     ...def, name: '处决+', description: '造成8伤害；敌人HP≤30%时造成24伤害',
     effects: [{ type: 'execute', threshold: 30, damage: 24, baseDamage: 8 }],
   }),
-  bloodthirst: (def) => ({
-    ...def, name: '嗜血+', description: '造成5伤害；本回合已伤害该敌人则改为12',
-    effects: [{ type: 'conditional_damage', base: 5, value: 7, condition: 'enemy_damaged' }],
+  bone_poison: (def) => ({
+    ...def, name: '蚀骨毒+', description: '造成5伤害+目标中毒层数伤害',
+    effects: [{ type: 'poison_burst', base: 5, perPoison: 1 }],
   }),
   charge_up: (def) => ({
     ...def, name: '蓄力+', cost: 0,
     description: '下一张战技卡伤害翻倍',
     effects: [{ type: 'buff_next_combat_double' }],
   }),
-  arcane_amplify: (def) => ({
-    ...def, name: '奥术增幅+',
-    description: '下一张法术+8伤害，+1魔力',
-    effects: [{ type: 'buff_next_spell', bonusDamage: 8, bonusMana: 1 }],
+  vulnerability_hex: (def) => ({
+    ...def, name: '易伤诅咒+',
+    description: '施加3层易伤',
+    effects: [{ type: 'vulnerable', value: 3 }],
   }),
-  sacrifice: (def) => ({
-    ...def, name: '献祭+',
-    description: '失去3HP，获得3魔力',
-    effects: [{ type: 'self_damage_gain_mana', damage: 3, mana: 3 }],
+  overdraft: (def) => ({
+    ...def, name: '透支+',
+    description: '获得2体力，下回合-1体力并获得3护甲',
+    effects: [{ type: 'gain_stamina', value: 2 }, { type: 'armor', value: 3 }, { type: 'set_next_turn_stamina_penalty', value: 1 }],
   }),
-  sword_dance: (def) => ({
-    ...def, name: '剑舞+',
-    description: '造成4×3伤害',
-    effects: [{ type: 'multi_damage', value: 4, hits: 3 }],
+  mana_surge: (def) => ({
+    ...def, name: '魔力涌流+',
+    description: '获得3魔力，回合末受3伤',
+    effects: [{ type: 'gain_mana', value: 3 }, { type: 'set_end_turn_self_damage', value: 3 }],
   }),
-  chain_lightning: (def) => ({
-    ...def, name: '连锁闪电+',
-    description: '造成5伤害，弹射4次',
-    effects: [{ type: 'chain_damage', value: 5, bounces: 4 }],
+  thorn_armor: (def) => ({
+    ...def, name: '荆棘甲+',
+    description: '获得6护甲，受攻击反弹5伤害',
+    effects: [{ type: 'armor', value: 6 }, { type: 'gain_thorns', value: 5 }],
   }),
   envenom: (def) => ({
     ...def, name: '淬毒+',
@@ -81,15 +81,15 @@ export const UPGRADE_TABLE: Record<string, (def: CardDef) => CardDef> = {
     description: '获得3力量',
     effects: [{ type: 'gain_strength', value: 3 }],
   }),
-  attack_defend: (def) => ({
-    ...def, name: '以攻代守+',
-    description: '造成7伤害，获得7护甲',
-    effects: [{ type: 'damage_gain_armor', damage: 7, armor: 7 }],
+  magic_absorb: (def) => ({
+    ...def, name: '魔法吸收+',
+    description: '获得9护甲，若回合末护甲未破，下回合+1魔力',
+    effects: [{ type: 'armor', value: 9 }, { type: 'set_magic_absorb', bonusMana: 1 }],
   }),
-  magic_shield: (def) => ({
-    ...def, name: '魔法盾+',
-    description: '获得11护甲；本回合受过伤额外+6',
-    effects: [{ type: 'conditional_armor', value: 6, condition: 'damage_taken' }, { type: 'armor', value: 11 }],
+  blade_arcane_unity: (def) => ({
+    ...def, name: '剑魔合一+',
+    description: '本回合所有卡费-1，抽2张牌',
+    effects: [{ type: 'global_cost_reduction', value: 1 }, { type: 'draw_cards_if_affordable', value: 2 }],
   }),
   frozen_arrow: (def) => ({
     ...def, name: '冻结箭+',
@@ -131,16 +131,21 @@ export const UPGRADE_TABLE: Record<string, (def: CardDef) => CardDef> = {
     description: '消耗所有魔力转为体力，获得3力量',
     effects: [{ type: 'convert_mana_to_stamina', value: 1 }, { type: 'gain_strength', value: 3 }],
   }),
-  temp_forge: (def) => ({
-    ...def, name: '临时锻造+',
-    description: '获得11护甲，抽2张牌',
-    effects: [{ type: 'armor', value: 11 }, { type: 'draw_cards', value: 2 }],
+  blood_frenzy: (def) => ({
+    ...def, name: '血之狂怒+',
+    description: '失去25%最大HP，获得6力量',
+    effects: [{ type: 'hp_percent_for_strength', hpPercent: 25, strength: 6 }],
   }),
   // New card upgrades
   whirlwind: (def) => ({
     ...def, name: '旋风斩+',
     description: '对所有敌人造成8伤害',
     effects: [{ type: 'aoe_damage', value: 8 }],
+  }),
+  quick_attack: (def) => ({
+    ...def, name: '快攻+',
+    description: '造成4伤害',
+    effects: [{ type: 'damage', value: 4 }],
   }),
   light_stab: (def) => ({
     ...def, name: '轻刺+',
@@ -167,10 +172,30 @@ export const UPGRADE_TABLE: Record<string, (def: CardDef) => CardDef> = {
     description: '获得4层蓄能，抽1张牌',
     effects: [{ type: 'gain_charge', value: 4 }, { type: 'draw_cards', value: 1 }],
   }),
+  ignite: (def) => ({
+    ...def, name: '引燃+',
+    description: '每层灼烧造成5伤害',
+    effects: [{ type: 'burn_burst', perStack: 5 }],
+  }),
+  balance: (def) => ({
+    ...def, name: '平衡+', cost: 0,
+    description: '获得1魔力',
+    effects: [{ type: 'gain_mana', value: 1 }],
+  }),
   fortify: (def) => ({
     ...def, name: '坚守+',
     description: '获得10护甲，获得5层屏障',
     effects: [{ type: 'armor', value: 10 }, { type: 'gain_barrier', value: 5 }],
+  }),
+  double_strike: (def) => ({
+    ...def, name: '双重打击+',
+    description: '造成7伤害×2',
+    effects: [{ type: 'multi_damage', value: 7, hits: 2 }],
+  }),
+  frost_nova: (def) => ({
+    ...def, name: '寒霜新星+',
+    description: '冻结所有敌人并造成4伤害',
+    effects: [{ type: 'aoe_freeze', value: 1 }, { type: 'aoe_damage', value: 4 }],
   }),
 }
 

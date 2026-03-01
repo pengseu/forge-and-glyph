@@ -36,12 +36,12 @@ export const ENEMIES: Record<string, EnemyDef> = {
   shadow_assassin: {
     id: 'shadow_assassin',
     name: '暗影刺客',
-    maxHp: 55,
+    maxHp: 62,
     intents: [
       { type: 'defend', value: 8 },
-      { type: 'attack', value: 22 },
+      { type: 'attack', value: 24 },
       { type: 'poison', value: 4 },
-      { type: 'attack', value: 12 },
+      { type: 'attack', value: 14 },
     ],
   },
   stone_gargoyle: {
@@ -58,12 +58,12 @@ export const ENEMIES: Record<string, EnemyDef> = {
   goblin_king: {
     id: 'goblin_king',
     name: '地精王',
-    maxHp: 140,
+    maxHp: 180,
     intents: [
       { type: 'summon_multi', enemyId: 'goblin_minion', count: 2 },
-      { type: 'attack', value: 14 },
+      { type: 'attack', value: 16 },
       { type: 'buff', buffType: 'strength', value: 3 },
-      { type: 'defend_attack', defendValue: 20, attackValue: 10 },
+      { type: 'defend_attack', defendValue: 24, attackValue: 12 },
     ],
   },
   goblin_minion: {
@@ -71,9 +71,9 @@ export const ENEMIES: Record<string, EnemyDef> = {
     name: '地精小兵',
     maxHp: 22,
     intents: [
-      { type: 'attack', value: 6 },
-      { type: 'attack', value: 6 },
-      { type: 'defend_attack', defendValue: 5, attackValue: 6 },
+      { type: 'attack', value: 7 },
+      { type: 'attack', value: 7 },
+      { type: 'defend_attack', defendValue: 6, attackValue: 7 },
     ],
   },
 }

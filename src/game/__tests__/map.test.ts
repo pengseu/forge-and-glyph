@@ -2,36 +2,43 @@ import { describe, it, expect } from 'vitest'
 import { generateMap, getNodeById } from '../map'
 
 describe('map', () => {
-  it('should generate 9 nodes', () => {
+  it('should generate 14 nodes across 7 layers', () => {
     const map = generateMap()
-    expect(map).toHaveLength(9)
+    expect(map).toHaveLength(14)
+    const layers = new Set(map.map(n => n.y))
+    expect(layers.size).toBe(7)
   })
 
-  it('should have 1 boss node', () => {
+  it('should have exactly one start normal node on layer 1', () => {
     const map = generateMap()
-    const bossNode = map.find(n => n.type === 'boss_battle')
-    expect(bossNode).toBeDefined()
+    const layer1 = map.filter(n => n.y === 0)
+    expect(layer1).toHaveLength(1)
+    expect(layer1[0].type).toBe('normal_battle')
   })
 
-  it('should have 2 normal, 2 elite, 1 shop, 1 forge, 1 enchant nodes', () => {
+  it('should have 1 boss node on layer 7', () => {
     const map = generateMap()
-    const normal = map.filter(n => n.type === 'normal_battle').length
-    const elite = map.filter(n => n.type === 'elite_battle').length
-    const shop = map.filter(n => n.type === 'shop').length
-    const forge = map.filter(n => n.type === 'forge').length
-    const enchant = map.filter(n => n.type === 'enchant').length
-    expect(normal).toBe(2)
-    expect(elite).toBe(2)
-    expect(shop).toBe(1)
-    expect(forge).toBe(1)
-    expect(enchant).toBe(1)
+    const bosses = map.filter(n => n.type === 'boss_battle')
+    expect(bosses).toHaveLength(1)
+    expect(bosses[0].y).toBe(6)
   })
 
-  it('elite nodes should use phase-3 elite enemies', () => {
+  it('should include required node types for full act1 route', () => {
+    const map = generateMap()
+    expect(map.filter(n => n.type === 'elite_battle')).toHaveLength(2)
+    expect(map.filter(n => n.type === 'campfire')).toHaveLength(2)
+    expect(map.filter(n => n.type === 'event')).toHaveLength(1)
+    expect(map.filter(n => n.type === 'shop')).toHaveLength(1)
+    expect(map.filter(n => n.type === 'forge')).toHaveLength(1)
+    expect(map.filter(n => n.type === 'enchant')).toHaveLength(1)
+  })
+
+  it('elite nodes should appear in mid/late layers and use phase-3 elites', () => {
     const map = generateMap()
     const elites = map.filter(n => n.type === 'elite_battle')
     expect(elites).toHaveLength(2)
     for (const node of elites) {
+      expect([2, 4]).toContain(node.y)
       expect(node.enemyIds).toBeDefined()
       expect(node.enemyIds).toHaveLength(1)
       expect(['shadow_assassin', 'stone_gargoyle']).toContain(node.enemyIds![0])
@@ -46,24 +53,10 @@ describe('map', () => {
     expect(predecessors.some(n => n.type === 'elite_battle')).toBe(false)
   })
 
-  it('should have 1 campfire node without enemyId', () => {
+  it('all battle nodes should have enemyIds', () => {
     const map = generateMap()
-    const campfire = map.filter(n => n.type === 'campfire')
-    expect(campfire).toHaveLength(1)
-    expect(campfire[0].enemyIds).toBeUndefined()
-  })
-
-  it('campfire node should connect to subsequent nodes', () => {
-    const map = generateMap()
-    const campfire = map.find(n => n.type === 'campfire')!
-    expect(campfire.connections.length).toBeGreaterThan(0)
-  })
-
-  it('should have nodes connecting to campfire', () => {
-    const map = generateMap()
-    const campfire = map.find(n => n.type === 'campfire')!
-    const nodesConnectingToCampfire = map.filter(n => n.connections.includes(campfire.id))
-    expect(nodesConnectingToCampfire.length).toBeGreaterThan(0)
+    const battles = map.filter(n => ['normal_battle', 'elite_battle', 'boss_battle'].includes(n.type))
+    expect(battles.every(n => (n.enemyIds?.length ?? 0) > 0)).toBe(true)
   })
 
   it('should find node by id', () => {

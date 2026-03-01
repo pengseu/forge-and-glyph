@@ -9,6 +9,7 @@ import { renderShop } from './scenes/shop'
 import { renderInventory } from './scenes/inventory'
 import { renderForge } from './scenes/forge'
 import { renderEnchant } from './scenes/enchant'
+import { renderEvent } from './scenes/event'
 
 export interface GameCallbacks {
   onStartGame: () => void
@@ -37,6 +38,7 @@ export interface GameCallbacks {
   onForgeLeave: () => void
   onEnchantApply: (enchantmentId: EnchantmentId, replaceIndex?: number) => void
   onEnchantLeave: () => void
+  onEventChoose: (optionId: import('../game/types').EventOptionId) => void
 }
 
 export function render(
@@ -99,6 +101,11 @@ export function render(
     case 'enchant':
       if (state.run) {
         renderEnchant(container, state.run, callbacks)
+      }
+      break
+    case 'event':
+      if (state.currentEvent) {
+        renderEvent(container, state.currentEvent, callbacks.onEventChoose)
       }
       break
   }

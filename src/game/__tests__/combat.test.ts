@@ -365,7 +365,7 @@ describe('combat', () => {
       state = startTurn(state)
       state = { ...state, enemies: [{ ...state.enemies[0], intentIndex: 3 }] }
       state = endPlayerTurn(state)
-      expect(state.enemies[0].armor).toBe(20)
+      expect(state.enemies[0].armor).toBe(24)
     })
   })
 
@@ -422,6 +422,84 @@ describe('combat', () => {
       expect(state.player.guardArmorPerTurn).toBe(3)
       state = endPlayerTurn(state)
       expect(state.player.armor).toBeGreaterThanOrEqual(3)
+    })
+  })
+
+  describe('step6 card mechanics', () => {
+    it('overdraft should grant stamina now and reduce next turn stamina by 1', () => {
+      const deck = [{ uid: 'c1', defId: 'overdraft' }]
+      let state = createBattleState(['goblin_scout'], deck)
+      state = {
+        ...state,
+        player: { ...state.player, stamina: 1, hand: [...deck], drawPile: [] },
+      }
+      state = playCard(state, 'c1', 0)
+      expect(state.player.stamina).toBe(3)
+      state = endPlayerTurn(state)
+      expect(state.player.stamina).toBe(2)
+    })
+
+    it('mana_surge should deal self damage at end of turn', () => {
+      const deck = [{ uid: 'c1', defId: 'mana_surge' }]
+      let state = createBattleState(['goblin_scout'], deck)
+      state = {
+        ...state,
+        player: { ...state.player, hp: 40, hand: [...deck], drawPile: [] },
+      }
+      state = playCard(state, 'c1', 0)
+      state = endPlayerTurn(state)
+      expect(state.player.hp).toBeLessThanOrEqual(35)
+    })
+
+    it('thorn_armor should retaliate when enemy attacks', () => {
+      const deck = [{ uid: 'c1', defId: 'thorn_armor' }]
+      let state = createBattleState(['goblin_scout'], deck)
+      state = {
+        ...state,
+        player: { ...state.player, hand: [...deck], drawPile: [], stamina: 3 },
+      }
+      const enemyHp = state.enemies[0].hp
+      state = playCard(state, 'c1', 0)
+      state = endPlayerTurn(state)
+      expect(state.enemies[0].hp).toBeLessThan(enemyHp)
+    })
+
+    it('magic_absorb should grant bonus mana next turn if armor survives', () => {
+      const deck = [{ uid: 'c1', defId: 'magic_absorb' }]
+      let state = createBattleState(['forest_wolf'], deck)
+      state = {
+        ...state,
+        player: { ...state.player, hand: [...deck], drawPile: [], mana: 2 },
+      }
+      state = playCard(state, 'c1', 0)
+      state = endPlayerTurn(state)
+      expect(state.player.mana).toBeGreaterThanOrEqual(3)
+    })
+
+    it('blade_arcane_unity should reduce hybrid card costs this turn', () => {
+      const deck = [
+        { uid: 'c1', defId: 'blade_arcane_unity' },
+        { uid: 'c2', defId: 'frost_nova' },
+      ]
+      let state = createBattleState(['goblin_scout'], deck)
+      state = {
+        ...state,
+        player: { ...state.player, hand: [...deck], drawPile: [], stamina: 1, mana: 2 },
+      }
+      state = playCard(state, 'c1', 0)
+      expect(canPlayCard(state, 'c2')).toBe(true)
+    })
+
+    it('blood_frenzy should lose percent hp and gain strength', () => {
+      const deck = [{ uid: 'c1', defId: 'blood_frenzy' }]
+      let state = createBattleState(['goblin_scout'], deck)
+      state = {
+        ...state,
+        player: { ...state.player, hp: 50, hand: [...deck], drawPile: [] },
+      }
+      state = playCard(state, 'c1', 0)
+      expect(state.player.hp).toBe(35)
+      expect(state.player.strength).toBe(5)
     })
   })
 

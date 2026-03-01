@@ -32,8 +32,18 @@ export type CardEffect =
   | { type: 'gain_wisdom'; value: number }
   | { type: 'gain_barrier'; value: number }
   | { type: 'gain_charge'; value: number }
+  | { type: 'burn_burst'; perStack: number }
+  | { type: 'aoe_freeze'; value: number }
+  | { type: 'poison_burst'; base: number; perPoison: number }
+  | { type: 'set_next_turn_stamina_penalty'; value: number }
+  | { type: 'set_end_turn_self_damage'; value: number }
+  | { type: 'gain_thorns'; value: number }
+  | { type: 'set_magic_absorb'; bonusMana: number }
+  | { type: 'global_cost_reduction'; value: number }
+  | { type: 'hp_percent_for_strength'; hpPercent: number; strength: number }
+  | { type: 'draw_cards_if_affordable'; value: number }
 
-export type CostType = 'stamina' | 'mana' | 'free'
+export type CostType = 'stamina' | 'mana' | 'free' | 'hybrid'
 export type CardCategory = 'combat' | 'spell' | 'technique'
 export type Rarity = 'basic' | 'common' | 'rare' | 'epic'
 
@@ -97,6 +107,11 @@ export interface PlayerState {
   charge: number
   weakened: number
   guardArmorPerTurn: number
+  tempCostReduction: number
+  nextTurnStaminaPenalty: number
+  pendingEndTurnSelfDamage: number
+  thorns: number
+  magicAbsorbBonusMana: number
   weaponPerTurnUsed: boolean
   normalAttackUsedThisTurn: boolean
   equippedEnchantments: EnchantmentId[]
@@ -175,22 +190,92 @@ export type MaterialId =
 export type MaterialBag = Record<MaterialId, number>
 
 // --- Scene ---
-export type Scene = 'title' | 'map' | 'battle' | 'reward' | 'result' | 'campfire' | 'shop' | 'inventory' | 'forge' | 'enchant'
+export type Scene = 'title' | 'map' | 'battle' | 'reward' | 'result' | 'campfire' | 'shop' | 'inventory' | 'forge' | 'enchant' | 'event'
+
+export type EventOptionId =
+  | 'leave'
+  | 'trade_hp_for_rare'
+  | 'search_camp'
+  | 'altar_blood'
+  | 'altar_gold'
+  | 'take_traveler_gift'
+  | 'upgrade_random_card'
+
+export interface EventOptionDef {
+  id: EventOptionId
+  label: string
+  description: string
+}
+
+export interface EventDef {
+  id: 'mysterious_merchant' | 'abandoned_camp' | 'altar' | 'traveler' | 'forge_spirit'
+  title: string
+  description: string
+  options: EventOptionDef[]
+}
+
+export interface PathEntry {
+  nodeId: string
+  nodeType: NodeType
+  at: number
+}
+
+export interface BattleLogEntry {
+  at: number
+  turn: number
+  actor: 'player' | 'enemy' | 'system'
+  message: string
+}
+
+export interface BattleReport {
+  nodeId: string
+  nodeType: NodeType
+  enemyIds: string[]
+  startedAt: number
+  endedAt?: number
+  turns: number
+  result?: 'victory' | 'defeat'
+  logs: BattleLogEntry[]
+}
+
+export interface FinalSnapshot {
+  gold: number
+  playerHp: number
+  playerMaxHp: number
+  deckSize: number
+  materials: MaterialBag
+  weapons: Array<{ defId: string; enchantments: EnchantmentId[] }>
+}
+
+export interface RunReport {
+  startedAt: number
+  endedAt?: number
+  durationSec?: number
+  path: PathEntry[]
+  battles: BattleReport[]
+  logs: string[]
+}
 
 export interface GameState {
   scene: Scene
   run: RunState | null
   battle: BattleState | null
+  currentEvent: EventDef | null
   rewardCards: CardDef[]
   rewardMaterials: Partial<MaterialBag>
   shopOffers: ShopOffer[]
   droppedWeaponId: string | null
   lastResult: 'victory' | 'defeat' | null
-  stats: { turns: number; remainingHp: number }
+  stats: {
+    turns: number
+    remainingHp: number
+    runReport: RunReport | null
+    finalSnapshot: FinalSnapshot | null
+  }
 }
 
 // --- Map System ---
-export type NodeType = 'normal_battle' | 'elite_battle' | 'boss_battle' | 'campfire' | 'shop' | 'forge' | 'enchant'
+export type NodeType = 'normal_battle' | 'elite_battle' | 'boss_battle' | 'campfire' | 'shop' | 'forge' | 'enchant' | 'event'
 
 export interface MapNode {
   id: string

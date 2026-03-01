@@ -4,6 +4,21 @@ import { getCardDef } from '../cards'
 import type { RunState, CardInstance } from '../types'
 
 const dummyRun = {} as RunState
+const STEP6_ADDED_CARD_IDS = [
+  'quick_attack',
+  'double_strike',
+  'ignite',
+  'frost_nova',
+  'bone_poison',
+  'vulnerability_hex',
+  'overdraft',
+  'mana_surge',
+  'balance',
+  'thorn_armor',
+  'magic_absorb',
+  'blade_arcane_unity',
+  'blood_frenzy',
+]
 
 describe('campfire', () => {
   describe('restoreHp', () => {
@@ -84,6 +99,15 @@ describe('campfire', () => {
       expect(exec).toBeDefined()
       if (exec && exec.type === 'execute') {
         expect(exec.damage).toBe(24)
+      }
+    })
+
+    it('should have upgrade mappings for newly added step6 cards', () => {
+      for (const id of STEP6_ADDED_CARD_IDS) {
+        const base = getCardDef(id)
+        expect(canUpgrade(base)).toBe(true)
+        const upgraded = upgradeCard(base)
+        expect(upgraded.name.endsWith('+')).toBe(true)
       }
     })
   })

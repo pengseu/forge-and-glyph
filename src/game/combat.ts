@@ -93,6 +93,11 @@ export function createBattleState(
       charge: 0,
       weakened: 0,
       guardArmorPerTurn: 0,
+      tempCostReduction: 0,
+      nextTurnStaminaPenalty: 0,
+      pendingEndTurnSelfDamage: 0,
+      thorns: 0,
+      magicAbsorbBonusMana: 0,
       weaponPerTurnUsed: false,
       normalAttackUsedThisTurn: false,
       equippedEnchantments: [...weaponEnchantments],
@@ -134,12 +139,15 @@ export function startTurn(state: BattleState): BattleState {
 
   // Refresh resources (+ bonus mana from previous turn)
   const bonusMana = s.turnTracking.bonusManaNextTurn
+  const staminaPenalty = s.player.nextTurnStaminaPenalty
   s = {
     ...s,
     player: {
       ...s.player,
-      stamina: s.player.maxStamina,
+      stamina: Math.max(0, s.player.maxStamina - staminaPenalty),
       mana: s.player.maxMana + bonusMana,
+      tempCostReduction: 0,
+      nextTurnStaminaPenalty: 0,
       weaponPerTurnUsed: false,
       normalAttackUsedThisTurn: false,
     },
@@ -227,11 +235,15 @@ export function canPlayCard(state: BattleState, cardUid: string): boolean {
   if (!card) return false
 
   const def = getEffectiveCardDef(card)
+  const reducedCost = Math.max(0, def.cost - state.player.tempCostReduction)
   if (def.costType === 'stamina') {
-    const actualCost = Math.max(0, def.cost - state.player.weaponDiscount)
+    const actualCost = Math.max(0, reducedCost - state.player.weaponDiscount)
     return state.player.stamina >= actualCost
   } else if (def.costType === 'mana') {
-    return state.player.mana >= def.cost
+    return state.player.mana >= reducedCost
+  } else if (def.costType === 'hybrid') {
+    const staminaCost = Math.max(0, reducedCost - state.player.weaponDiscount)
+    return state.player.stamina >= staminaCost && state.player.mana >= reducedCost
   }
   return true
 }
@@ -276,7 +288,7 @@ export function useNormalAttack(state: BattleState, targetIndex: number = 0): Ba
 export function cardNeedsTarget(effects: import('./types').CardEffect[]): boolean {
   const singleTargetTypes = ['damage', 'multi_damage', 'chain_damage', 'execute',
     'conditional_damage', 'scaling_damage', 'damage_gain_armor', 'lifesteal',
-    'burn', 'freeze', 'poison', 'weaken_enemy', 'vulnerable']
+    'burn', 'freeze', 'poison', 'weaken_enemy', 'vulnerable', 'burn_burst', 'poison_burst']
   const hasAoe = effects.some(e => e.type === 'aoe_damage' || e.type === 'aoe_burn')
   if (hasAoe) return false
   return effects.some(e => singleTargetTypes.includes(e.type))
@@ -299,13 +311,26 @@ export function playCard(state: BattleState, cardUid: string, targetIndex: numbe
     enemies: state.enemies.map(e => ({ ...e, evadedThisAction: false })),
   }
   let spentStaminaCost = 0
+  const reducedCost = Math.max(0, def.cost - s.player.tempCostReduction)
   if (def.costType === 'stamina') {
-    const actualCost = Math.max(0, def.cost - s.player.weaponDiscount)
+    const actualCost = Math.max(0, reducedCost - s.player.weaponDiscount)
     spentStaminaCost = actualCost
     const newDiscount = s.player.weaponDiscount > 0 ? 0 : s.player.weaponDiscount
     s = { ...s, player: { ...s.player, stamina: s.player.stamina - actualCost, weaponDiscount: newDiscount } }
   } else if (def.costType === 'mana') {
-    s = { ...s, player: { ...s.player, mana: s.player.mana - def.cost } }
+    s = { ...s, player: { ...s.player, mana: s.player.mana - reducedCost } }
+  } else if (def.costType === 'hybrid') {
+    spentStaminaCost = reducedCost
+    const newDiscount = s.player.weaponDiscount > 0 ? 0 : s.player.weaponDiscount
+    s = {
+      ...s,
+      player: {
+        ...s.player,
+        stamina: s.player.stamina - Math.max(0, reducedCost - s.player.weaponDiscount),
+        mana: s.player.mana - reducedCost,
+        weaponDiscount: newDiscount,
+      },
+    }
   }
 
   // Apply effects
@@ -314,6 +339,9 @@ export function playCard(state: BattleState, cardUid: string, targetIndex: numbe
   // Handle draw_cards effect
   for (const eff of def.effects) {
     if (eff.type === 'draw_cards') {
+      s = drawCards(s, eff.value)
+    }
+    if (eff.type === 'draw_cards_if_affordable') {
       s = drawCards(s, eff.value)
     }
   }
@@ -414,6 +442,23 @@ export function endPlayerTurn(state: BattleState): BattleState {
     } else {
       const enemyDef = getEnemyDef(enemy.defId)
       const intent = enemyDef.intents[enemy.intentIndex]
+      const retaliateToEnemy = (index: number): void => {
+        const targetEnemy = s.enemies[index]
+        if (!targetEnemy || targetEnemy.hp <= 0 || s.player.thorns <= 0) return
+        let remaining = s.player.thorns
+        let armor = targetEnemy.armor
+        let hp = targetEnemy.hp
+        if (armor > 0) {
+          const absorbed = Math.min(armor, remaining)
+          armor -= absorbed
+          remaining -= absorbed
+        }
+        hp = Math.max(0, hp - remaining)
+        s = {
+          ...s,
+          enemies: s.enemies.map((e, i) => (i === index ? { ...e, armor, hp } : e)),
+        }
+      }
 
       if (intent.type === 'attack') {
         let damage = intent.value + enemy.strength
@@ -431,6 +476,7 @@ export function endPlayerTurn(state: BattleState): BattleState {
         hp = Math.max(0, hp - remaining)
         s = { ...s, player: { ...s.player, armor, hp } }
         s = { ...s, turnTracking: { ...s.turnTracking, damageTakenThisTurn: s.turnTracking.damageTakenThisTurn + remaining } }
+        retaliateToEnemy(ei)
       } else if (intent.type === 'buff') {
         if (intent.buffType === 'strength') {
           const newEnemies = s.enemies.map((e, i) =>
@@ -458,6 +504,7 @@ export function endPlayerTurn(state: BattleState): BattleState {
           hp = Math.max(0, hp - remaining)
           s = { ...s, player: { ...s.player, armor, hp } }
           s = { ...s, turnTracking: { ...s.turnTracking, damageTakenThisTurn: s.turnTracking.damageTakenThisTurn + remaining } }
+          retaliateToEnemy(ei)
         } else {
           s = { ...s, enemies: [...s.enemies, createEnemyState(intent.enemyId)] }
         }
@@ -473,6 +520,7 @@ export function endPlayerTurn(state: BattleState): BattleState {
           hp = Math.max(0, hp - remaining)
           s = { ...s, player: { ...s.player, armor, hp } }
           s = { ...s, turnTracking: { ...s.turnTracking, damageTakenThisTurn: s.turnTracking.damageTakenThisTurn + remaining } }
+          retaliateToEnemy(ei)
         } else {
           const toSummon = Math.min(intent.count, 4 - minionCount)
           for (let si = 0; si < toSummon; si++) {
@@ -497,6 +545,7 @@ export function endPlayerTurn(state: BattleState): BattleState {
         hp = Math.max(0, hp - remaining)
         s = { ...s, player: { ...s.player, armor, hp } }
         s = { ...s, turnTracking: { ...s.turnTracking, damageTakenThisTurn: s.turnTracking.damageTakenThisTurn + remaining } }
+        retaliateToEnemy(ei)
       }
 
       // Advance intent index + clear freezeImmune (enemy acted normally)
@@ -565,6 +614,29 @@ export function endPlayerTurn(state: BattleState): BattleState {
   // Victory check after settlement
   if (allEnemiesDead(s)) {
     return { ...s, phase: 'victory' }
+  }
+
+  if (s.player.magicAbsorbBonusMana > 0 && s.player.armor > 0) {
+    s = {
+      ...s,
+      turnTracking: {
+        ...s.turnTracking,
+        bonusManaNextTurn: s.turnTracking.bonusManaNextTurn + s.player.magicAbsorbBonusMana,
+      },
+    }
+  }
+
+  if (s.player.pendingEndTurnSelfDamage > 0) {
+    const nextHp = Math.max(0, s.player.hp - s.player.pendingEndTurnSelfDamage)
+    s = {
+      ...s,
+      player: { ...s.player, hp: nextHp, pendingEndTurnSelfDamage: 0, magicAbsorbBonusMana: 0 },
+    }
+    if (nextHp <= 0) {
+      return { ...s, phase: 'defeat' }
+    }
+  } else {
+    s = { ...s, player: { ...s.player, magicAbsorbBonusMana: 0 } }
   }
 
   // Discard all hand cards

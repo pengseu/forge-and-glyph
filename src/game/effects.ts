@@ -44,6 +44,31 @@ function drawCardsForEffect(state: BattleState, count: number): BattleState {
   }
 }
 
+function dealDamageToPlayerWithArmor(state: BattleState, damage: number): BattleState {
+  if (damage <= 0 || state.player.hp <= 0) return state
+  let remaining = damage
+  let armor = state.player.armor
+  let hp = state.player.hp
+
+  if (armor > 0) {
+    const absorbed = Math.min(armor, remaining)
+    armor -= absorbed
+    remaining -= absorbed
+  }
+  hp = Math.max(0, hp - remaining)
+
+  const nextState: BattleState = {
+    ...state,
+    player: { ...state.player, armor, hp },
+    turnTracking: {
+      ...state.turnTracking,
+      damageTakenThisTurn: state.turnTracking.damageTakenThisTurn + remaining,
+    },
+  }
+  if (hp <= 0) return { ...nextState, phase: 'defeat' }
+  return nextState
+}
+
 function dealDamageToEnemy(
   state: BattleState,
   targetIndex: number,
@@ -97,14 +122,7 @@ function dealDamageToEnemy(
   }
 
   if (updatedTarget.defId === 'thorn_vine' && dealt > 0) {
-    nextState = {
-      ...nextState,
-      player: { ...nextState.player, hp: Math.max(0, nextState.player.hp - 3) },
-      turnTracking: {
-        ...nextState.turnTracking,
-        damageTakenThisTurn: nextState.turnTracking.damageTakenThisTurn + 3,
-      },
-    }
+    nextState = dealDamageToPlayerWithArmor(nextState, 3)
   }
 
   const wasKilled = enemy.hp > 0 && updatedTarget.hp <= 0
@@ -883,6 +901,9 @@ export function applyCardEffects(
       case 'purge_curse_in_hand_draw':
         // handled in combat.ts after applyCardEffects
         break
+    }
+    if (s.player.hp <= 0 || s.phase === 'defeat') {
+      return { ...s, phase: 'defeat' }
     }
   }
   return s

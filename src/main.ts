@@ -459,7 +459,9 @@ function update() {
       }
       const newBattle = playCard(gameState.battle, cardUid, targetIndex ?? 0)
       logBattleDiff(gameState.battle, newBattle)
-      if (newBattle.phase === 'victory') {
+      if (newBattle.phase === 'defeat' || newBattle.player.hp <= 0) {
+        handleBattleDefeat(newBattle)
+      } else if (newBattle.phase === 'victory') {
         handleBattleVictory(newBattle)
       } else {
         gameState = { ...gameState, battle: newBattle, run: { ...gameState.run!, materials: { ...newBattle.availableMaterials } } }
@@ -472,7 +474,9 @@ function update() {
       pushBattleLog('player', gameState.battle.turn, `使用普攻，目标#${targetIndex ?? 0}`)
       const newBattle = useNormalAttack(gameState.battle, targetIndex ?? 0)
       logBattleDiff(gameState.battle, newBattle)
-      if (newBattle.phase === 'victory') {
+      if (newBattle.phase === 'defeat' || newBattle.player.hp <= 0) {
+        handleBattleDefeat(newBattle)
+      } else if (newBattle.phase === 'victory') {
         handleBattleVictory(newBattle)
       } else {
         gameState = { ...gameState, battle: newBattle, run: { ...gameState.run!, materials: { ...newBattle.availableMaterials } } }

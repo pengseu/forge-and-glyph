@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createBattleState, startTurn, playCard, endPlayerTurn, canPlayCard, useBattleMaterial, canUseNormalAttack, useNormalAttack, drawCards } from '../combat'
+import { createBattleState, startTurn, playCard, endPlayerTurn, canPlayCard, useBattleMaterial, canUseNormalAttack, useNormalAttack, drawCards, cardNeedsTarget } from '../combat'
 import { EMPTY_MATERIAL_BAG } from '../materials'
 import { getCardDef } from '../cards'
 
@@ -130,6 +130,12 @@ describe('combat', () => {
     expect(state.turnTracking.combatCardsPlayedThisTurn).toBe(1)
     state = playCard(state, 'c2', 0)
     expect(state.turnTracking.combatCardsPlayedThisTurn).toBe(2)
+  })
+
+  it('conditional_damage_vs_vulnerable effects should require explicit target selection', () => {
+    expect(
+      cardNeedsTarget([{ type: 'conditional_damage_vs_vulnerable', base: 4, vulnerableDamage: 9 }]),
+    ).toBe(true)
   })
 
   describe('weapon effects', () => {

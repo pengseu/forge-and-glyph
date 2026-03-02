@@ -4,6 +4,11 @@ import { getCardDef } from '../../game/cards'
 import { formatMaterial } from '../../game/materials'
 import { getShopServicePricingByAct } from '../../game/shop'
 
+export function buildShopHpInfo(playerHp: number, playerMaxHp: number, healPercent: number): string {
+  const healValue = Math.min(playerMaxHp - playerHp, Math.floor(playerMaxHp * healPercent))
+  return `生命：${playerHp}/${playerMaxHp}（本次治疗 +${Math.max(0, healValue)}）`
+}
+
 export function renderShop(
   container: HTMLElement,
   run: RunState,
@@ -12,6 +17,8 @@ export function renderShop(
   callbacks: GameCallbacks,
 ): void {
   const servicePricing = getShopServicePricingByAct(run.act)
+  const healValue = Math.min(run.playerMaxHp - run.playerHp, Math.floor(run.playerMaxHp * servicePricing.healPercent))
+  const hpInfo = buildShopHpInfo(run.playerHp, run.playerMaxHp, servicePricing.healPercent)
   const cardsHtml = offers.map((offer, index) => {
     const card = getCardDef(offer.cardId)
     const affordable = run.gold >= offer.price
@@ -59,11 +66,12 @@ export function renderShop(
     <div class="scene-shop">
       <h2>🏪 商店</h2>
       <div class="shop-gold">金币：${run.gold}</div>
+      <div class="shop-hp">${hpInfo}</div>
       <div class="shop-cards">${cardsHtml}</div>
       <div class="shop-materials">${materialHtml}</div>
       <div class="shop-services">
         <button class="btn" id="btn-shop-heal" ${run.playerHp >= run.playerMaxHp || run.gold < servicePricing.healPrice ? 'disabled' : ''}>
-          回复${Math.floor(servicePricing.healPercent * 100)}%HP (${servicePricing.healPrice}金币)
+          回复${Math.floor(servicePricing.healPercent * 100)}%HP（预计+${Math.max(0, healValue)}）(${servicePricing.healPrice}金币)
         </button>
         <div class="shop-remove">
           <div class="shop-remove-title">移除卡牌 (${servicePricing.removePrice}金币)</div>

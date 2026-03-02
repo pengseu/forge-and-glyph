@@ -159,6 +159,32 @@ export function resolveNormalAttackMode(livingEnemyCount: number): 'auto' | 'tar
   return livingEnemyCount > 1 ? 'target' : 'auto'
 }
 
+export function resolveSupportIntentPreview(intent: { type: 'heal_ally_lowest' | 'buff_ally_highest_hp'; value: number }): {
+  intentText: string
+  intentHint: string
+  intentClass: string
+} {
+  if (intent.type === 'heal_ally_lowest') {
+    return {
+      intentText: `❤️+${intent.value}`,
+      intentHint: `将治疗当前生命最低的友军 ${intent.value} 点`,
+      intentClass: 'intent-defend',
+    }
+  }
+  return {
+    intentText: `💪 全队+${intent.value}`,
+    intentHint: `将强化当前生命最高的友军，提升 ${intent.value} 点力量`,
+    intentClass: 'intent-buff',
+  }
+}
+
+export function resolveEnemyPassiveText(enemyDefId: string): string {
+  if (enemyDefId === 'shadow_assassin') return '⚡闪避：单次≤4伤害无效'
+  if (enemyDefId === 'stone_gargoyle') return '🪨石化：每回合开始+6护甲'
+  if (enemyDefId === 'thorn_vine') return '🌵反伤3：受到攻击时反伤（可被护甲抵消）'
+  return ''
+}
+
 export function resolveSummonIntentPreview(minionCount: number, summonCount: number, enemyStrength: number): {
   intentText: string
   intentHint: string
@@ -275,12 +301,7 @@ export function renderBattle(
     const hpPercent = (enemy.hp / enemy.maxHp) * 100
 
     const intent = enemyDef.intents[enemy.intentIndex]
-    const passiveText =
-      enemy.defId === 'shadow_assassin'
-        ? '⚡闪避：单次≤4伤害无效'
-        : enemy.defId === 'stone_gargoyle'
-          ? '🪨石化：每回合开始+6护甲'
-          : ''
+    const passiveText = resolveEnemyPassiveText(enemy.defId)
     let intentText = ''
     let intentHint = ''
     let intentClass = ''
@@ -359,6 +380,11 @@ export function renderBattle(
       intentText = `🕯️ 诅咒×${intent.count}`
       intentHint = `将塞入 ${intent.count} 张诅咒牌`
       intentClass = 'intent-poison'
+    } else if (intent.type === 'heal_ally_lowest' || intent.type === 'buff_ally_highest_hp') {
+      const preview = resolveSupportIntentPreview(intent)
+      intentText = preview.intentText
+      intentHint = preview.intentHint
+      intentClass = preview.intentClass
     } else if (intent.type === 'summon') {
       const minionCount = state.enemies.filter(e => e.defId === intent.enemyId && e.hp > 0).length
       const preview = resolveSummonIntentPreview(minionCount, 1, enemy.strength)

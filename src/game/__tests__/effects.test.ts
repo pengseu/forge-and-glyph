@@ -124,6 +124,22 @@ describe('effects', () => {
     expect(state.enemies[0].hp).toBe(hpBefore - 4)
   })
 
+  it('thorn vine retaliation should be mitigated by player armor', () => {
+    state = createBattleState(['thorn_vine'])
+    state = { ...state, player: { ...state.player, hp: 40, armor: 3 } }
+    state = applyCardEffects(state, [{ type: 'damage', value: 6 }], 0, 'combat')
+    expect(state.player.armor).toBe(0)
+    expect(state.player.hp).toBe(40)
+  })
+
+  it('thorn vine retaliation should set phase to defeat when player hp reaches 0', () => {
+    state = createBattleState(['thorn_vine'])
+    state = { ...state, player: { ...state.player, hp: 2, armor: 0 } }
+    state = applyCardEffects(state, [{ type: 'damage', value: 6 }], 0, 'combat')
+    expect(state.player.hp).toBe(0)
+    expect(state.phase).toBe('defeat')
+  })
+
   it('strength should boost combat damage', () => {
     state = { ...state, player: { ...state.player, strength: 3 } }
     const hpBefore = state.enemies[0].hp

@@ -3,6 +3,10 @@ import type { GameCallbacks } from '../renderer'
 import { describeWeaponEffect, getWeaponDef } from '../../game/weapons'
 import { formatMaterial } from '../../game/materials'
 
+export function buildRewardSkipLabel(compensationGold: number = 25): string {
+  return `跳过（+${compensationGold}金币）`
+}
+
 export function renderReward(
   container: HTMLElement,
   candidateCards: CardDef[],
@@ -57,7 +61,7 @@ export function renderReward(
       <div class="reward-cards">${cardsHtml}</div>
       ${materialHtml}
       ${weaponHtml}
-      <button class="btn" id="btn-skip">跳过</button>
+      <button class="btn" id="btn-skip">${buildRewardSkipLabel()}</button>
     </div>
   `
 

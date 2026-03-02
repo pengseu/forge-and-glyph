@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { resolveGoblinKingPhase2Preview, resolveNormalAttackMode, resolveSummonIntentPreview } from '../battle'
+import {
+  resolveEnemyPassiveText,
+  resolveGoblinKingPhase2Preview,
+  resolveNormalAttackMode,
+  resolveSummonIntentPreview,
+  resolveSupportIntentPreview,
+} from '../battle'
 
 describe('battle targeting helpers', () => {
   it('normal attack should require target selection when multiple enemies alive', () => {
@@ -26,5 +32,21 @@ describe('battle targeting helpers', () => {
     const preview = resolveGoblinKingPhase2Preview(1, 0)
     expect(preview.intentText).toBe('🗡️ 20')
     expect(preview.intentClass).toBe('intent-attack')
+  })
+
+  it('support intent should render heal ally preview', () => {
+    const preview = resolveSupportIntentPreview({ type: 'heal_ally_lowest', value: 10 })
+    expect(preview.intentText).toBe('❤️+10')
+    expect(preview.intentClass).toBe('intent-defend')
+  })
+
+  it('support intent should render buff ally preview', () => {
+    const preview = resolveSupportIntentPreview({ type: 'buff_ally_highest_hp', value: 2 })
+    expect(preview.intentText).toBe('💪 全队+2')
+    expect(preview.intentClass).toBe('intent-buff')
+  })
+
+  it('thorn vine should expose passive retaliation reminder', () => {
+    expect(resolveEnemyPassiveText('thorn_vine')).toContain('反伤3')
   })
 })

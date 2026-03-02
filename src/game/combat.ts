@@ -459,6 +459,9 @@ export function useNormalAttack(state: BattleState, targetIndex: number = 0): Ba
   }
   s = applyCardEffects(s, effects, actualTarget, category)
   s = { ...s, player: { ...s.player, normalAttackUsedThisTurn: true } }
+  if (s.player.hp <= 0 || s.phase === 'defeat') {
+    return { ...s, phase: 'defeat' }
+  }
   if (allEnemiesDead(s)) {
     s = { ...s, phase: 'victory' }
   }
@@ -469,7 +472,7 @@ export function useNormalAttack(state: BattleState, targetIndex: number = 0): Ba
 export function cardNeedsTarget(effects: import('./types').CardEffect[]): boolean {
   const singleTargetTypes = ['damage', 'multi_damage', 'chain_damage', 'execute',
     'conditional_damage', 'scaling_damage', 'damage_gain_armor', 'damage_shred_armor', 'lifesteal',
-    'burn', 'freeze', 'poison', 'weaken_enemy', 'vulnerable', 'burn_burst', 'poison_burst']
+    'burn', 'freeze', 'poison', 'weaken_enemy', 'vulnerable', 'burn_burst', 'poison_burst', 'conditional_damage_vs_vulnerable']
   const hasAoe = effects.some(e => e.type === 'aoe_damage' || e.type === 'aoe_burn')
   if (hasAoe) return false
   return effects.some(e => singleTargetTypes.includes(e.type))
@@ -598,6 +601,10 @@ export function playCard(state: BattleState, cardUid: string, targetIndex: numbe
         drawCards,
       })
     }
+  }
+
+  if (s.player.hp <= 0 || s.phase === 'defeat') {
+    return { ...s, phase: 'defeat' }
   }
 
   // Check victory

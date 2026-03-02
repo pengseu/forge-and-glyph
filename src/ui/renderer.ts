@@ -1,4 +1,4 @@
-import type { EnchantmentId, GameState, MaterialId, NodeType } from '../game/types'
+import type { EnchantmentId, GameState, MaterialId, NodeType, StyleLabPreviewMode } from '../game/types'
 import { renderTitle } from './scenes/title'
 import { renderWeaponSelect } from './scenes/weapon-select'
 import { renderMap } from './scenes/map'
@@ -14,6 +14,7 @@ import { renderEvent } from './scenes/event'
 import { getNodeById } from '../game/map'
 import { renderActTransition } from './scenes/act-transition'
 import type { IntermissionChoiceId } from '../game/act'
+import { renderStyleLab } from './scenes/style-lab'
 
 export function resolveBossAutoDropHint(nodeType: NodeType | null | undefined, act: 1 | 2 | 3): string | null {
   if (nodeType !== 'boss_battle') return null
@@ -23,6 +24,9 @@ export function resolveBossAutoDropHint(nodeType: NodeType | null | undefined, a
 
 export interface GameCallbacks {
   onStartGame: () => void
+  onOpenStyleLab: () => void
+  onCloseStyleLab: () => void
+  onSetStyleLabMode: (mode: StyleLabPreviewMode) => void
   onSelectStartingWeapon: (weaponDefId: 'iron_longsword' | 'iron_staff') => void
   onSelectNode: (nodeId: string) => void
   onPlayCard: (cardUid: string, targetIndex?: number) => void
@@ -69,7 +73,10 @@ export function render(
 ): void {
   switch (state.scene) {
     case 'title':
-      renderTitle(container, callbacks.onStartGame)
+      renderTitle(container, callbacks.onStartGame, callbacks.onOpenStyleLab)
+      break
+    case 'style_lab':
+      renderStyleLab(container, state.styleLabMode ?? 'battle', callbacks)
       break
     case 'weapon_select':
       renderWeaponSelect(container, callbacks.onSelectStartingWeapon)

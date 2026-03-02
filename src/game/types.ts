@@ -251,7 +251,23 @@ export type MaterialId =
 export type MaterialBag = Record<MaterialId, number>
 
 // --- Scene ---
-export type Scene = 'title' | 'weapon_select' | 'map' | 'battle' | 'reward' | 'result' | 'campfire' | 'shop' | 'inventory' | 'forge' | 'enchant' | 'event' | 'act_transition'
+export type Scene =
+  | 'title'
+  | 'weapon_select'
+  | 'map'
+  | 'battle'
+  | 'reward'
+  | 'result'
+  | 'campfire'
+  | 'shop'
+  | 'inventory'
+  | 'forge'
+  | 'enchant'
+  | 'event'
+  | 'act_transition'
+  | 'style_lab'
+
+export type StyleLabPreviewMode = 'battle' | 'map' | 'shop' | 'reward' | 'event' | 'weapon_select' | 'inventory' | 'card_layout'
 
 export type EventOptionId =
   | 'leave'
@@ -374,6 +390,7 @@ export interface RunReport {
 
 export interface GameState {
   scene: Scene
+  styleLabMode?: StyleLabPreviewMode
   run: RunState | null
   battle: BattleState | null
   currentEvent: EventDef | null

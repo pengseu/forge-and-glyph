@@ -499,7 +499,11 @@ export function renderBattle(
   }).join('')
 
   // Build hand cards HTML
-  const cardsHtml = state.player.hand.map(card => {
+  const totalCards = state.player.hand.length
+  const centerIndex = (totalCards - 1) / 2
+  const angleStep = totalCards <= 5 ? 7 : totalCards <= 8 ? 5 : 4
+
+  const cardsHtml = state.player.hand.map((card, index) => {
     const def = getEffectiveCardDef(card)
     const playable = canPlayCard(state, card.uid)
     let costLabel = ''
@@ -516,8 +520,18 @@ export function renderBattle(
       costLabel = reducedCost < def.cost ? `✦<s>${def.cost}</s>${reducedCost}` : `✦${def.cost}`
     }
     const selectedClass = pendingCardUid === card.uid ? 'selected' : ''
+    const fanOffset = index - centerIndex
+    const fanAngle = Math.round(fanOffset * angleStep * 10) / 10
+    const fanLift = Math.round(Math.abs(fanOffset) * 3)
     return `
-      <div class="card ${playable ? '' : 'disabled'} ${selectedClass}" data-uid="${card.uid}" tabindex="${playable ? '0' : '-1'}" role="button" aria-label="${def.name}">
+      <div
+        class="card ${playable ? '' : 'disabled'} ${selectedClass}"
+        data-uid="${card.uid}"
+        tabindex="${playable ? '0' : '-1'}"
+        role="button"
+        aria-label="${def.name}"
+        style="--card-angle:${fanAngle};--card-lift:${fanLift};--card-z:${index + 1};"
+      >
         <div class="card-name">${def.name}</div>
         <div class="card-cost ${def.costType}">${costLabel}</div>
         <div class="card-desc">${decorateKeywords(def.description)}</div>

@@ -1,5 +1,5 @@
 import './style.css'
-import type { GameState, BattleState } from './game/types'
+import type { GameState, BattleState, StyleLabPreviewMode } from './game/types'
 import { createBattleState, startTurn, playCard, endPlayerTurn, useBattleMaterial, useNormalAttack } from './game/combat'
 import {
   createRunState,
@@ -51,6 +51,7 @@ let metaProfile = loadMetaProfile()
 
 let gameState: GameState = {
   scene: 'title',
+  styleLabMode: 'battle',
   run: null,
   battle: null,
   currentEvent: null,
@@ -327,6 +328,18 @@ function update() {
         stats: { turns: 0, remainingHp: 0, runReport: initRunReport(), finalSnapshot: null },
       }
       pushGlobalLog('开始新的一局冒险')
+      update()
+    },
+    onOpenStyleLab: () => {
+      gameState = { ...gameState, scene: 'style_lab', styleLabMode: gameState.styleLabMode ?? 'battle' }
+      update()
+    },
+    onCloseStyleLab: () => {
+      gameState = { ...gameState, scene: 'title' }
+      update()
+    },
+    onSetStyleLabMode: (mode: StyleLabPreviewMode) => {
+      gameState = { ...gameState, styleLabMode: mode }
       update()
     },
     onSelectStartingWeapon: (weaponDefId) => {

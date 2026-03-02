@@ -218,14 +218,6 @@ function handleBattleVictory(newBattle: BattleState): void {
   if (currentNode.type === 'boss_battle') {
     newRun = addMaterialReward(newRun, rollMaterialRewardByAct('boss_battle', newRun.act, runtimeRng.next))
     droppedWeaponId = getBossLegendaryWeaponByAct(newRun.act)
-    if (!(newRun.unlockedBlueprints ?? []).includes(droppedWeaponId)) {
-      newRun = { ...newRun, unlockedBlueprints: [...(newRun.unlockedBlueprints ?? []), droppedWeaponId] }
-    }
-  } else {
-    const hasLongsword = newRun.weaponInventory.some(w => w.defId === 'iron_longsword' || w.defId === 'steel_longsword')
-    if (!hasLongsword && runtimeRng.chance(0.3)) {
-      droppedWeaponId = 'iron_longsword'
-    }
   }
 
   closeBattleReport('victory', newBattle.turn)
@@ -406,11 +398,21 @@ function update() {
         return
       }
       if (node.type === 'treasure') {
-        pushGlobalLog('发现隐藏宝库：获得金币与稀有材料')
-        let rewardedRun = { ...newRun, gold: newRun.gold + 60 }
-        rewardedRun = addMaterialReward(rewardedRun, { steel_ingot: 1, elemental_essence: 1 })
-        rewardedRun = completeNode(rewardedRun, rewardedRun.currentNodeId)
-        gameState = { ...gameState, run: rewardedRun, scene: 'map' }
+        const epicChoices = pickIntermissionCardsByRarity(3, 'epic', 3)
+        const essencePool = ['elemental_essence', 'war_essence', 'guard_essence'] as const
+        const pickedEssence = essencePool[Math.floor(runtimeRng.next() * essencePool.length)]
+        const treasureMaterials = { [pickedEssence]: 1 }
+        pushGlobalLog(`发现隐藏宝库：史诗三选一 + ${pickedEssence}×1`)
+        gameState = {
+          ...gameState,
+          run: newRun,
+          scene: 'reward',
+          rewardCards: epicChoices,
+          rewardMaterials: treasureMaterials,
+          droppedWeaponId: null,
+          currentEvent: null,
+          activeTrialModifier: null,
+        }
         update()
         return
       }
@@ -685,6 +687,13 @@ function update() {
       let newRun = addWeaponToInventory(gameState.run, weaponDefId)
       const newWeapon = newRun.weaponInventory[newRun.weaponInventory.length - 1]
       newRun = equipWeapon(newRun, newWeapon.uid)
+      if (
+        gameState.droppedWeaponId === weaponDefId
+        && isBossNode(newRun)
+        && !(newRun.unlockedBlueprints ?? []).includes(weaponDefId)
+      ) {
+        newRun = { ...newRun, unlockedBlueprints: [...(newRun.unlockedBlueprints ?? []), weaponDefId] }
+      }
       gameState = { ...gameState, run: newRun, droppedWeaponId: null }
       update()
     },

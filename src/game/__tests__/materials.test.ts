@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rollMaterialRewardByAct } from '../materials'
+import { isBattleUsableMaterial, rollMaterialRewardByAct } from '../materials'
 
 describe('material drops by act', () => {
   it('act1 elite should drop elemental essence only', () => {
@@ -13,3 +13,16 @@ describe('material drops by act', () => {
   })
 })
 
+describe('battle material availability', () => {
+  it('should mark boss key materials as non-battle-usable', () => {
+    expect(isBattleUsableMaterial('goblin_crown_fragment')).toBe(false)
+    expect(isBattleUsableMaterial('shadow_crystal')).toBe(false)
+    expect(isBattleUsableMaterial('abyss_heart')).toBe(false)
+  })
+
+  it('should keep combat utility materials battle-usable', () => {
+    expect(isBattleUsableMaterial('iron_ingot')).toBe(true)
+    expect(isBattleUsableMaterial('elemental_essence')).toBe(true)
+    expect(isBattleUsableMaterial('meteor_iron_ingot')).toBe(true)
+  })
+})

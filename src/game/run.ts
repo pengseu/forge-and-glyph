@@ -1,7 +1,7 @@
 import type { RunState, CardInstance, WeaponInstance, NodeType, EnchantmentId } from './types'
 import { generateMap } from './map'
 import { createStarterDeck } from './cards'
-import { getCardDef, getRewardPoolByAct } from './cards'
+import { ALL_CARDS, getCardDef } from './cards'
 import { EMPTY_MATERIAL_BAG, addMaterial } from './materials'
 import { canPayMaterials, FORGE_RECIPES, isRecipeUnlocked, resolveRecipeCost } from './forge'
 import { getShopServicePricingByAct } from './shop'
@@ -161,10 +161,8 @@ export function transformCardInShop(state: RunState, cardUid: string, rng: () =>
   if (!transformPrice || state.gold < transformPrice) return state
   const index = state.deck.findIndex(card => card.uid === cardUid)
   if (index === -1) return state
-  const target = state.deck[index]
-  const targetDef = getCardDef(target.defId)
-  const pool = getRewardPoolByAct(state.act)
-    .filter(card => card.rarity === targetDef.rarity && card.id !== target.defId)
+  const target = state.deck[index]!
+  const pool = getTransformCardPool(target)
   if (pool.length === 0) return state
   const picked = pool[Math.floor(rng() * pool.length)]
   if (!picked) return state
@@ -175,6 +173,25 @@ export function transformCardInShop(state: RunState, cardUid: string, rng: () =>
       i === index ? { ...card, defId: picked.id, upgraded: false } : card
     ),
   }
+}
+
+function getTransformCardPool(targetCard: CardInstance) {
+  const targetDef = getCardDef(targetCard.defId)
+  return ALL_CARDS.filter((card) => (
+    card.rarity === targetDef.rarity
+    && card.id !== targetCard.defId
+    && !card.id.startsWith('curse_')
+    && !card.unplayable
+  ))
+}
+
+export function canTransformCardInShop(state: RunState, cardUid: string): boolean {
+  const pricing = getShopServicePricingByAct(state.act)
+  const transformPrice = pricing.transformPrice
+  if (!transformPrice || state.gold < transformPrice) return false
+  const target = state.deck.find(card => card.uid === cardUid)
+  if (!target) return false
+  return getTransformCardPool(target).length > 0
 }
 
 export function addWeaponToInventory(state: RunState, weaponDefId: string): RunState {

@@ -3,7 +3,7 @@ import { createStarterDeck } from './cards'
 import { getEnemyDef } from './enemies'
 import { applyCardEffects } from './effects'
 import { getEffectiveCardDef } from './campfire'
-import { EMPTY_MATERIAL_BAG } from './materials'
+import { EMPTY_MATERIAL_BAG, isBattleUsableMaterial } from './materials'
 import { getWeaponDef } from './weapons'
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -365,6 +365,7 @@ export function useBattleMaterial(state: BattleState, materialId: keyof BattleSt
   if (state.phase !== 'player_turn') return state
   if (state.usedMaterials[materialId]) return state
   if (state.availableMaterials[materialId] <= 0) return state
+  if (!isBattleUsableMaterial(materialId)) return state
 
   let s = state
   const availableMaterials = { ...s.availableMaterials, [materialId]: s.availableMaterials[materialId] - 1 }
@@ -456,6 +457,7 @@ export function useNormalAttack(state: BattleState, targetIndex: number = 0): Ba
   let s: BattleState = {
     ...state,
     enemies: state.enemies.map(e => ({ ...e, evadedThisAction: false })),
+    turnTracking: { ...state.turnTracking, enchantEvents: [] },
   }
   s = applyCardEffects(s, effects, actualTarget, category)
   s = { ...s, player: { ...s.player, normalAttackUsedThisTurn: true } }
@@ -493,6 +495,7 @@ export function playCard(state: BattleState, cardUid: string, targetIndex: numbe
   let s: BattleState = {
     ...state,
     enemies: state.enemies.map(e => ({ ...e, evadedThisAction: false })),
+    turnTracking: { ...state.turnTracking, enchantEvents: [] },
   }
   let spentStaminaCost = 0
   const gazeCostIncrease = s.player.costIncreasedCardDefIds.includes(def.id) ? 1 : 0
@@ -788,7 +791,8 @@ export function endPlayerTurn(state: BattleState): BattleState {
             enemies: s.enemies.map((e, i) => (i === ei ? { ...e, strength: e.strength + 3 } : e)),
             player: {
               ...s.player,
-              discardPile: [...s.player.discardPile, createGeneratedCard('curse_pain'), createGeneratedCard('curse_pain')],
+              // Inject curses into draw pile so this ritual has visible combat impact next turns.
+              drawPile: [...s.player.drawPile, createGeneratedCard('curse_pain'), createGeneratedCard('curse_pain')],
             },
           }
         } else if (action.type === 'shadow_arrow') {

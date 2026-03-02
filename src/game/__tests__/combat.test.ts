@@ -475,6 +475,18 @@ describe('combat', () => {
       expect(curseCards.length).toBeGreaterThan(0)
     })
 
+    it('dark witch ritual should add strength and inject curse pain into draw pile', () => {
+      let state = createBattleState(['dark_witch'])
+      state = startTurn(state)
+      state = {
+        ...state,
+        enemies: [{ ...state.enemies[0], intentIndex: 0, strength: 0 }],
+      }
+      state = endPlayerTurn(state)
+      expect(state.enemies[0].strength).toBe(3)
+      expect(state.player.hp).toBe(56)
+    })
+
     it('abyss lord should gain phase2 passive armor and execute first action pattern', () => {
       let state = createBattleState(['abyss_lord'])
       state = startTurn(state)
@@ -567,6 +579,16 @@ describe('combat', () => {
       expect(state.player.guardArmorPerTurn).toBe(5)
       state = endPlayerTurn(state)
       expect(state.player.armor).toBeGreaterThanOrEqual(3)
+    })
+
+    it('boss-only materials should not be consumed as battle materials', () => {
+      let state = createBattleState(['goblin_scout'])
+      state = {
+        ...state,
+        availableMaterials: { ...state.availableMaterials, goblin_crown_fragment: 1 },
+      }
+      const next = useBattleMaterial(state, 'goblin_crown_fragment')
+      expect(next).toEqual(state)
     })
   })
 

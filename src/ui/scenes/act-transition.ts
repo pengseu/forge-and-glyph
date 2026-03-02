@@ -1,6 +1,23 @@
 import { getIntermissionChoices } from '../../game/act'
 import type { IntermissionChoiceId } from '../../game/act'
 import type { CardDef, RunState } from '../../game/types'
+import type { CardInstance } from '../../game/types'
+import { getCardDef } from '../../game/cards'
+
+export function resolveIntermissionRemoveCardView(card: CardInstance, canRemove: boolean): { name: string; description: string } {
+  try {
+    const def = getCardDef(card.defId)
+    return {
+      name: `${def.name}${card.upgraded ? ' +' : ''}`,
+      description: canRemove ? def.description : '卡组至少需保留 1 张',
+    }
+  } catch {
+    return {
+      name: `${card.defId}${card.upgraded ? ' +' : ''}`,
+      description: canRemove ? '点击移除' : '卡组至少需保留 1 张',
+    }
+  }
+}
 
 export function renderActTransition(
   container: HTMLElement,
@@ -78,12 +95,15 @@ export function renderActTransition(
   const desc = mode === 'knowledge_remove'
     ? '必须移除 1 张卡后进入下一幕。'
     : '可提前完成净化并进入下一幕。'
-  const cardsHtml = run.deck.map((card) => `
-    <button class="btn btn-intermission" data-card-uid="${card.uid}" ${canRemove ? '' : 'disabled'}>
-      <div class="intermission-choice-name">${card.defId}${card.upgraded ? ' +' : ''}</div>
-      <div class="intermission-choice-desc">${canRemove ? '点击移除' : '卡组至少需保留 1 张'}</div>
-    </button>
-  `).join('')
+  const cardsHtml = run.deck.map((card) => {
+    const view = resolveIntermissionRemoveCardView(card, canRemove)
+    return `
+      <button class="btn btn-intermission" data-card-uid="${card.uid}" ${canRemove ? '' : 'disabled'}>
+        <div class="intermission-choice-name">${view.name}</div>
+        <div class="intermission-choice-desc">${view.description}</div>
+      </button>
+    `
+  }).join('')
   const confirmHtml = mode === 'deep_purify'
     ? `<button class="btn" id="btn-intermission-confirm">完成净化并进入第 ${nextAct} 幕</button>`
     : ''

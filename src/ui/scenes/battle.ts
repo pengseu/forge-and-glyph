@@ -1,11 +1,19 @@
 import type { BattleState, CardCategory, CardEffect } from '../../game/types'
 import type { GameCallbacks } from '../renderer'
 import { getEnemyDef } from '../../game/enemies'
-import { canPlayCard, canUseNormalAttack, cardNeedsTarget, resolveAbyssLordAction, resolveAbyssLordPhase } from '../../game/combat'
+import {
+  canPlayCard,
+  canUseNormalAttack,
+  cardNeedsTarget,
+  resolveAbyssLordAction,
+  resolveAbyssLordPhase,
+  resolveDarkWitchAction,
+  resolveDarkWitchPhase,
+} from '../../game/combat'
 import { getWeaponDef } from '../../game/weapons'
 import { getEffectiveCardDef } from '../../game/campfire'
 import { showDamageFloat, showTextFloat, shakeEnemy, screenShake, playerHitShake } from '../animations'
-import { formatMaterial, getBattleMaterialEffectText } from '../../game/materials'
+import { formatMaterial, getBattleMaterialEffectText, isBattleUsableMaterial } from '../../game/materials'
 import type { MaterialId } from '../../game/types'
 
 let pendingCardUid: string | null = null
@@ -159,6 +167,10 @@ export function resolveNormalAttackMode(livingEnemyCount: number): 'auto' | 'tar
   return livingEnemyCount > 1 ? 'target' : 'auto'
 }
 
+export function buildEnchantFeedbackText(events: string[]): string {
+  return [...new Set(events)].join(' · ')
+}
+
 export function resolveSupportIntentPreview(intent: { type: 'heal_ally_lowest' | 'buff_ally_highest_hp'; value: number }): {
   intentText: string
   intentHint: string
@@ -183,6 +195,52 @@ export function resolveEnemyPassiveText(enemyDefId: string): string {
   if (enemyDefId === 'stone_gargoyle') return '🪨石化：每回合开始+6护甲'
   if (enemyDefId === 'thorn_vine') return '🌵反伤3：受到攻击时反伤（可被护甲抵消）'
   return ''
+}
+
+export function resolveDarkWitchIntentPreview(intentIndex: number, phase: 1 | 2, enemyStrength: number): {
+  intentText: string
+  intentHint: string
+  intentClass: string
+} {
+  const action = resolveDarkWitchAction(intentIndex, phase)
+  if (action.type === 'ritual') {
+    return {
+      intentText: '🕯️×2 💪+3',
+      intentHint: '暗影仪式：提升自身力量并注入2张灵魂侵蚀',
+      intentClass: 'intent-buff',
+    }
+  }
+  if (action.type === 'shadow_arrow') {
+    const dmg = action.damage + enemyStrength
+    return {
+      intentText: action.burn > 0 ? `🗡️${dmg} 🔥${action.burn}` : `🗡️${dmg}`,
+      intentHint: action.burn > 0
+        ? `将造成${dmg}伤害并施加${action.burn}层灼烧`
+        : `将造成${dmg}伤害`,
+      intentClass: 'intent-attack',
+    }
+  }
+  if (action.type === 'life_drain') {
+    const dmg = action.damage + enemyStrength
+    return {
+      intentText: `🗡️${dmg} ❤️+${action.heal}`,
+      intentHint: `将造成${dmg}伤害并回复${action.heal}HP`,
+      intentClass: 'intent-attack',
+    }
+  }
+  if (action.type === 'storm') {
+    const dmg = action.damage + enemyStrength
+    return {
+      intentText: `🗡️${dmg} 👁️+${action.eyeHeal}`,
+      intentHint: `将造成${dmg}伤害并治疗暗影之眼${action.eyeHeal}HP`,
+      intentClass: 'intent-attack',
+    }
+  }
+  return {
+    intentText: `👁️吞噬 ❤️+${action.heal}`,
+    intentHint: '优先吞噬暗影之眼获得强化回复；无暗影之眼时改为高伤攻击',
+    intentClass: 'intent-buff',
+  }
 }
 
 export function resolveSummonIntentPreview(minionCount: number, summonCount: number, enemyStrength: number): {
@@ -275,8 +333,9 @@ export function renderBattle(
   const enchantText = state.player.equippedEnchantments.length > 0
     ? `🔮 ${state.player.equippedEnchantments.join(' / ')}`
     : ''
+  const enchantFeedbackText = buildEnchantFeedbackText(state.turnTracking.enchantEvents)
   const enchantFeedback = state.turnTracking.enchantEvents.length > 0
-    ? `<span class="stat" style="color:#7ad3ff;">${state.turnTracking.enchantEvents.join(' · ')}</span>`
+    ? `<span class="stat" style="color:#7ad3ff;">${enchantFeedbackText}</span>`
     : ''
 
   // Player status effects
@@ -341,6 +400,12 @@ export function renderBattle(
         intentHint = `阶段${phase}：造成${dmg}伤害并施加${action.weaken}层虚弱`
         intentClass = 'intent-attack'
       }
+    } else if (enemy.defId === 'dark_witch') {
+      const phase = resolveDarkWitchPhase(enemy)
+      const preview = resolveDarkWitchIntentPreview(enemy.intentIndex, phase, enemy.strength)
+      intentText = preview.intentText
+      intentHint = preview.intentHint
+      intentClass = preview.intentClass
     } else if (enemy.defId === 'goblin_king' && enemy.hp <= Math.floor(enemy.maxHp * 0.4)) {
       const phase2Step = enemy.intentIndex % 2
       if (phase2Step === 0) {
@@ -462,7 +527,7 @@ export function renderBattle(
 
   const targetModeClass = pendingCardUid ? 'target-mode' : ''
   const battleMaterials = (Object.keys(state.availableMaterials) as MaterialId[])
-    .filter((id) => state.availableMaterials[id] > 0)
+    .filter((id) => state.availableMaterials[id] > 0 && isBattleUsableMaterial(id))
     .map((id) => {
       const used = !!state.usedMaterials[id]
       return `

@@ -3,6 +3,7 @@ import type { GameCallbacks } from '../renderer'
 import { getCardDef } from '../../game/cards'
 import { formatMaterial } from '../../game/materials'
 import { getShopServicePricingByAct } from '../../game/shop'
+import { canTransformCardInShop } from '../../game/run'
 
 export function buildShopHpInfo(playerHp: number, playerMaxHp: number, healPercent: number): string {
   const healValue = Math.min(playerMaxHp - playerHp, Math.floor(playerMaxHp * healPercent))
@@ -38,7 +39,8 @@ export function renderShop(
     const def = getCardDef(card.defId)
     return `
       <button class="shop-remove-card" data-card-uid="${card.uid}">
-        ${def.name}
+        <div>${def.name}</div>
+        <div class="card-desc">${def.description}</div>
       </button>
     `
   }).join('')
@@ -55,9 +57,11 @@ export function renderShop(
 
   const transformCards = run.deck.map(card => {
     const def = getCardDef(card.defId)
+    const canTransform = canTransformCardInShop(run, card.uid)
     return `
-      <button class="shop-transform-card" data-card-uid="${card.uid}">
-        ${def.name}
+      <button class="shop-transform-card" data-card-uid="${card.uid}" ${canTransform ? '' : 'disabled'}>
+        <div>${def.name}</div>
+        <div class="card-desc">${def.description}</div>
       </button>
     `
   }).join('')

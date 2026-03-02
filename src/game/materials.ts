@@ -39,6 +39,16 @@ export const EMPTY_MATERIAL_BAG: MaterialBag = {
   abyss_heart: 0,
 }
 
+const BATTLE_USABLE_MATERIAL_SET = new Set<MaterialId>([
+  'iron_ingot',
+  'steel_ingot',
+  'mythril_ingot',
+  'meteor_iron_ingot',
+  'elemental_essence',
+  'war_essence',
+  'guard_essence',
+])
+
 const ESSENCE_IDS: MaterialId[] = ['elemental_essence', 'war_essence', 'guard_essence']
 
 function essenceTotal(bag: MaterialBag): number {
@@ -70,6 +80,10 @@ export function addMaterial(
 export function formatMaterial(materialId: MaterialId): string {
   const def = MATERIAL_DEFS[materialId]
   return `${def.icon} ${def.name}`
+}
+
+export function isBattleUsableMaterial(materialId: MaterialId): boolean {
+  return BATTLE_USABLE_MATERIAL_SET.has(materialId)
 }
 
 export function getBattleMaterialEffectText(materialId: MaterialId): string {

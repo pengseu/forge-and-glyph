@@ -15,6 +15,7 @@ import {
   healInShop,
   isBossNode,
   removeCardFromDeck,
+  transformCardInShop,
   craftWeapon,
   enchantWeapon,
   upgradeEquippedWeapon,
@@ -282,6 +283,17 @@ describe('shop services', () => {
     expect(next.deck.length).toBe(1)
     expect(next.deck[0].defId).toBe('soul_siphon')
     expect(next.gold).toBe(45)
+  })
+
+  it('transformCardInShop should still transform starter/basic cards in act3', () => {
+    const state = makeRunState({
+      act: 3,
+      gold: 100,
+      deck: [{ uid: 'c1', defId: 'slash' }],
+    })
+    const next = transformCardInShop(state, 'c1', () => 0)
+    expect(next.gold).toBe(65)
+    expect(next.deck[0].defId).not.toBe('slash')
   })
 })
 

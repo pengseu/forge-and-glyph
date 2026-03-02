@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
+  buildEnchantFeedbackText,
   resolveEnemyPassiveText,
+  resolveDarkWitchIntentPreview,
   resolveGoblinKingPhase2Preview,
   resolveNormalAttackMode,
   resolveSummonIntentPreview,
@@ -48,5 +50,15 @@ describe('battle targeting helpers', () => {
 
   it('thorn vine should expose passive retaliation reminder', () => {
     expect(resolveEnemyPassiveText('thorn_vine')).toContain('反伤3')
+  })
+
+  it('dark witch first intent should preview ritual effect', () => {
+    const preview = resolveDarkWitchIntentPreview(0, 1, 0)
+    expect(preview.intentText).toBe('🕯️×2 💪+3')
+    expect(preview.intentClass).toBe('intent-buff')
+  })
+
+  it('enchant feedback text should de-duplicate repeated triggers', () => {
+    expect(buildEnchantFeedbackText(['祝福触发', '祝福触发', '烈焰触发'])).toBe('祝福触发 · 烈焰触发')
   })
 })

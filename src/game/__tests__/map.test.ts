@@ -54,6 +54,7 @@ describe('map', () => {
       const l6 = map.filter(n => n.y === 5)
 
       expect(l2.filter(n => n.type === 'normal_battle').length).toBeGreaterThanOrEqual(1)
+      expect(l3.some(n => n.type === 'forge')).toBe(true)
       expect(l3.filter(n => n.type !== 'normal_battle' && n.type !== 'elite_battle').length).toBeGreaterThanOrEqual(1)
       expect(l3.filter(n => n.type === 'elite_battle').length).toBeLessThanOrEqual(1)
       expect(l4.filter(n => n.type === 'campfire').length).toBeLessThanOrEqual(1)

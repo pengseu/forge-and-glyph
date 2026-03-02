@@ -18,6 +18,7 @@ import {
   craftWeapon,
   enchantWeapon,
   upgradeEquippedWeapon,
+  applySkipRewardCompensation,
 } from '../run'
 import { EMPTY_MATERIAL_BAG } from '../materials'
 import { getNodeById } from '../map'
@@ -223,6 +224,12 @@ describe('gold rewards', () => {
     const state = makeRunState({ gold: 10 })
     const next = addBattleGoldReward(state, 22)
     expect(next.gold).toBe(32)
+  })
+
+  it('skip reward compensation should grant +25 gold', () => {
+    const state = makeRunState({ gold: 10 })
+    const next = applySkipRewardCompensation(state)
+    expect(next.gold).toBe(35)
   })
 })
 

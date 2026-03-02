@@ -288,6 +288,26 @@ describe('combat', () => {
       expect(state.enemies[0].hp).toBe(15)
     })
 
+    it('steel_bow: first combat card each turn gains 30% and +3 when undamaged this turn', () => {
+      let state = makeWeaponState('steel_bow')
+      state = playCard(state, 'c1', 0)
+      expect(state.enemies[0].hp).toBe(18)
+    })
+
+    it('iron_bow: killing target should draw 1 card', () => {
+      let state = makeWeaponState('iron_bow')
+      state = {
+        ...state,
+        enemies: [{ ...state.enemies[0], hp: 6 }],
+        player: {
+          ...state.player,
+          drawPile: [{ uid: 'draw1', defId: 'block' }],
+        },
+      }
+      state = playCard(state, 'c1', 0)
+      expect(state.player.hand).toHaveLength(5)
+    })
+
     it('iron_staff: spell damage increased and gains charge on cast', () => {
       const deck = [{ uid: 'c1', defId: 'meteor_spell' }]
       let state = createBattleState(['goblin_scout'], deck, 'iron_staff')

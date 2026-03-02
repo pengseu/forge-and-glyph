@@ -83,10 +83,10 @@ describe('cards', () => {
     }
   })
 
-  it('act1 reward pool should contain 20 cards and include meditate/light_stab', () => {
+  it('act1 reward pool should exclude starter cards meditate/light_stab', () => {
     const act1Pool = getRewardPoolByAct(1)
-    expect(act1Pool).toHaveLength(20)
-    expect(act1Pool.some(c => c.id === 'meditate')).toBe(true)
-    expect(act1Pool.some(c => c.id === 'light_stab')).toBe(true)
+    expect(act1Pool).toHaveLength(18)
+    expect(act1Pool.some(c => c.id === 'meditate')).toBe(false)
+    expect(act1Pool.some(c => c.id === 'light_stab')).toBe(false)
   })
 })

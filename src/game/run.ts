@@ -102,6 +102,11 @@ export function addBattleGoldReward(state: RunState, goldReward: number): RunSta
   return { ...state, gold: state.gold + goldReward }
 }
 
+export function applySkipRewardCompensation(state: RunState): RunState {
+  // New in v2.0: skipping reward grants +25 gold compensation.
+  return { ...state, gold: state.gold + 25 }
+}
+
 export function addMaterialReward(
   state: RunState,
   rewards: Partial<RunState['materials']>,

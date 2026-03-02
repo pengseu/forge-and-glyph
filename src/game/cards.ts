@@ -275,8 +275,8 @@ export const ALL_CARDS: CardDef[] = [
   {
     id: 'soul_sacrifice', name: '灵魂献祭', cost: 0, costType: 'free',
     category: 'technique', rarity: 'legendary',
-    description: '失去20HP，本回合所有伤害值和护甲值翻倍',
-    effects: [{ type: 'self_damage', value: 20 }, { type: 'set_double_damage_armor_this_turn' }],
+    description: '失去20HP，本回合所有伤害值和护甲值+75%',
+    effects: [{ type: 'self_damage', value: 20 }, { type: 'set_damage_armor_multiplier_this_turn', value: 1.75 }],
   },
   {
     id: 'destiny_rewrite', name: '命运改写', cost: 1, costType: 'hybrid',
@@ -304,10 +304,8 @@ export const STARTER_DECK_RECIPE: { cardId: string; count: number }[] = [
 export const ACT1_REWARD_CARD_IDS: string[] = [
   'heavy_slash',
   'ice_arrow',
-  'meditate',
   'war_cry',
   'quick_attack',
-  'light_stab',
   'execute',
   'vulnerability_hex',
   'thorn_armor',

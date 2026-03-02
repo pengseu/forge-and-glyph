@@ -216,6 +216,7 @@ export function createBattleState(
       thorns: 0,
       magicAbsorbBonusMana: 0,
       damageTakenMultiplier: 1,
+      damageArmorMultiplierThisTurn: 1,
       doubleDamageArmorThisTurn: false,
       attackDamageMultiplierThisTurn: 1,
       firstSpellDiscountUsed: false,
@@ -289,6 +290,7 @@ export function startTurn(state: BattleState): BattleState {
       tempCostReduction: 0,
       nextTurnStaminaPenalty: 0,
       damageTakenMultiplier: 1,
+      damageArmorMultiplierThisTurn: 1,
       doubleDamageArmorThisTurn: false,
       attackDamageMultiplierThisTurn: 1,
       firstSpellDiscountUsed: false,
@@ -884,7 +886,22 @@ export function endPlayerTurn(state: BattleState): BattleState {
           s = { ...s, enemies: newEnemies }
         }
       } else if (intent.type === 'poison') {
-        s = { ...s, player: { ...s.player, poison: s.player.poison + intent.value } }
+        // New in v2.0: poison stacks cap at 20; overflow converts to immediate damage.
+        const nextPoison = s.player.poison + intent.value
+        const overflow = Math.max(0, nextPoison - 20)
+        const cappedPoison = Math.min(20, nextPoison)
+        s = {
+          ...s,
+          player: {
+            ...s.player,
+            poison: cappedPoison,
+            hp: Math.max(0, s.player.hp - overflow),
+          },
+          turnTracking: {
+            ...s.turnTracking,
+            damageTakenThisTurn: s.turnTracking.damageTakenThisTurn + overflow,
+          },
+        }
       } else if (intent.type === 'weaken') {
         s = { ...s, player: { ...s.player, weakened: s.player.weakened + intent.value } }
       } else if (intent.type === 'curse') {

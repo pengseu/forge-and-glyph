@@ -2,6 +2,8 @@ import type { BattleState, CardCategory, CardEffect } from './types'
 import { hasResonance } from './enchantments'
 import { getEffectiveCardDef } from './campfire'
 
+const POISON_CAP = 20
+
 function shuffleArray<T>(arr: T[]): T[] {
   const result = [...arr]
   for (let i = result.length - 1; i > 0; i--) {
@@ -123,14 +125,40 @@ function dealDamageToEnemy(
   return nextState
 }
 
+function resolveDamageArmorMultiplier(state: BattleState): number {
+  const legacyMultiplier = state.player.doubleDamageArmorThisTurn ? 2 : 1
+  return Math.max(legacyMultiplier, state.player.damageArmorMultiplierThisTurn ?? 1)
+}
+
+function scaleDamageOrArmor(value: number, state: BattleState): number {
+  return Math.floor(value * resolveDamageArmorMultiplier(state))
+}
+
+function applyPoisonToEnemyState(state: BattleState, targetIndex: number, addValue: number): BattleState {
+  if (addValue <= 0) return state
+  const enemy = state.enemies[targetIndex]
+  if (!enemy || enemy.hp <= 0 || enemy.defId === 'elemental_symbiote') return state
+
+  const nextPoison = enemy.poison + addValue
+  const overflow = Math.max(0, nextPoison - POISON_CAP)
+  const cappedPoison = Math.min(POISON_CAP, nextPoison)
+  const nextHp = Math.max(0, enemy.hp - overflow)
+  const dealtByOverflow = Math.max(0, enemy.hp - nextHp)
+
+  return {
+    ...state,
+    enemies: state.enemies.map((e, i) =>
+      i === targetIndex ? { ...e, poison: cappedPoison, hp: nextHp, damagedThisTurn: dealtByOverflow > 0 || e.damagedThisTurn } : e
+    ),
+    turnTracking: dealtByOverflow > 0
+      ? { ...state.turnTracking, damageDealtThisTurn: state.turnTracking.damageDealtThisTurn + dealtByOverflow }
+      : state.turnTracking,
+  }
+}
+
 function applyPoisonOnAttack(state: BattleState, targetIndex: number, category: CardCategory): BattleState {
   if (category === 'combat' && state.player.poisonOnAttack > 0) {
-    const enemy = state.enemies[targetIndex]
-    if (!enemy || enemy.hp <= 0) return state
-    const newEnemies = state.enemies.map((e, i) =>
-      i === targetIndex ? { ...e, poison: e.poison + state.player.poisonOnAttack } : e
-    )
-    return { ...state, enemies: newEnemies }
+    return applyPoisonToEnemyState(state, targetIndex, state.player.poisonOnAttack)
   }
   return state
 }
@@ -144,6 +172,10 @@ function applyDmgMods(
 ): { dmg: number; s: BattleState; armorPenetration: number } {
   let armorPenetration = 0
   const isAttackCategory = category === 'combat' || category === 'spell'
+  const damageArmorMultiplier = resolveDamageArmorMultiplier(s)
+  if (isAttackCategory && damageArmorMultiplier !== 1) {
+    dmg = Math.floor(dmg * damageArmorMultiplier)
+  }
   if (isAttackCategory && s.player.attackDamageMultiplierThisTurn !== 1) {
     dmg = Math.floor(dmg * s.player.attackDamageMultiplierThisTurn)
   }
@@ -189,7 +221,7 @@ function applyDmgMods(
   if (isAttackCategory && (s.player.equippedWeaponId === 'iron_bow' || s.player.equippedWeaponId === 'steel_bow') && !s.player.weaponPerTurnUsed) {
     dmg = Math.floor(dmg * 1.3)
     if (s.player.equippedWeaponId === 'steel_bow' && s.turnTracking.damageTakenThisTurn === 0) {
-      dmg += 2
+      dmg += 3
     }
     s = { ...s, player: { ...s.player, weaponPerTurnUsed: true } }
   }
@@ -277,6 +309,10 @@ function applyAttackHitEnchantments(
     }
   }
 
+  if (killed && (s.player.equippedWeaponId === 'iron_bow' || s.player.equippedWeaponId === 'steel_bow')) {
+    s = drawCardsForEffect(s, 1)
+  }
+
   if (s.player.equippedEnchantments.includes('flame') && target.hp > 0) {
     s = {
       ...s,
@@ -356,9 +392,6 @@ export function applyCardEffects(
     switch (effect.type) {
       case 'damage': {
         let dmg = effect.value
-        if (s.player.doubleDamageArmorThisTurn) {
-          dmg *= 2
-        }
         dmg = applyCombatDmgBonus(dmg, s)
         if (s.player.buffNextCombatDouble) {
           dmg = dmg * 2
@@ -388,9 +421,6 @@ export function applyCardEffects(
       }
       case 'damage_shred_armor': {
         let dmg = effect.damage
-        if (s.player.doubleDamageArmorThisTurn) {
-          dmg *= 2
-        }
         dmg = applyCombatDmgBonus(dmg, s)
         let armorPenetration = effect.shred
         ;({ dmg, s, armorPenetration } = applyDmgMods(dmg, s, targetIndex, category))
@@ -408,9 +438,6 @@ export function applyCardEffects(
       case 'multi_damage': {
         for (let i = 0; i < effect.hits; i++) {
           let dmg = effect.value
-          if (s.player.doubleDamageArmorThisTurn) {
-            dmg *= 2
-          }
           dmg = applyCombatDmgBonus(dmg, s)
           if (s.player.buffNextCombatDouble) {
             dmg = dmg * 2
@@ -435,7 +462,7 @@ export function applyCardEffects(
           ...s,
           player: {
             ...s.player,
-            armor: s.player.armor + (s.player.doubleDamageArmorThisTurn ? effect.value * 2 : effect.value),
+            armor: s.player.armor + scaleDamageOrArmor(effect.value, s),
           },
         }
         break
@@ -490,14 +517,7 @@ export function applyCardEffects(
         break
       }
       case 'poison': {
-        const enemy = s.enemies[targetIndex]
-        if (enemy && enemy.hp > 0) {
-          if (enemy.defId === 'elemental_symbiote') break
-          const newEnemies = s.enemies.map((e, i) =>
-            i === targetIndex ? { ...e, poison: e.poison + effect.value } : e
-          )
-          s = { ...s, enemies: newEnemies }
-        }
+        s = applyPoisonToEnemyState(s, targetIndex, effect.value)
         break
       }
       case 'poison_burst': {
@@ -655,9 +675,6 @@ export function applyCardEffects(
         break
       case 'damage_gain_armor': {
         let dmg = effect.damage
-        if (s.player.doubleDamageArmorThisTurn) {
-          dmg *= 2
-        }
         dmg = applyCombatDmgBonus(dmg, s)
         if (s.player.buffNextCombatDouble) {
           dmg = dmg * 2
@@ -671,7 +688,7 @@ export function applyCardEffects(
           ...s,
           player: {
             ...s.player,
-            armor: s.player.armor + (s.player.doubleDamageArmorThisTurn ? effect.armor * 2 : effect.armor),
+            armor: s.player.armor + scaleDamageOrArmor(effect.armor, s),
           },
         }
         s = applyPoisonOnAttack(s, targetIndex, category)
@@ -685,7 +702,7 @@ export function applyCardEffects(
       }
       case 'conditional_armor': {
         if (effect.condition === 'damage_taken' && s.turnTracking.damageTakenThisTurn > 0) {
-          s = { ...s, player: { ...s.player, armor: s.player.armor + effect.value } }
+          s = { ...s, player: { ...s.player, armor: s.player.armor + scaleDamageOrArmor(effect.value, s) } }
         }
         break
       }
@@ -696,9 +713,6 @@ export function applyCardEffects(
         for (let i = 0; i < s.enemies.length; i++) {
           if (s.enemies[i].hp <= 0) continue
           let dmg = effect.value
-          if (s.player.doubleDamageArmorThisTurn) {
-            dmg *= 2
-          }
           dmg = applyCombatDmgBonus(dmg, s)
           if (s.player.buffNextCombatDouble) {
             dmg = dmg * 2
@@ -734,9 +748,6 @@ export function applyCardEffects(
       }
       case 'lifesteal': {
         let dmg = effect.value
-        if (s.player.doubleDamageArmorThisTurn) {
-          dmg *= 2
-        }
         if (s.player.buffNextSpellDamage > 0) {
           dmg += s.player.buffNextSpellDamage
           const bonusMana = s.player.buffNextSpellMana
@@ -803,8 +814,25 @@ export function applyCardEffects(
       case 'set_damage_taken_multiplier':
         s = { ...s, player: { ...s.player, damageTakenMultiplier: Math.max(0.1, Math.min(1, effect.value)) } }
         break
+      case 'set_damage_armor_multiplier_this_turn':
+        s = {
+          ...s,
+          player: {
+            ...s.player,
+            damageArmorMultiplierThisTurn: Math.max(s.player.damageArmorMultiplierThisTurn, effect.value),
+            doubleDamageArmorThisTurn: s.player.doubleDamageArmorThisTurn || effect.value >= 2,
+          },
+        }
+        break
       case 'set_double_damage_armor_this_turn':
-        s = { ...s, player: { ...s.player, doubleDamageArmorThisTurn: true } }
+        s = {
+          ...s,
+          player: {
+            ...s.player,
+            doubleDamageArmorThisTurn: true,
+            damageArmorMultiplierThisTurn: Math.max(s.player.damageArmorMultiplierThisTurn, 2),
+          },
+        }
         break
       case 'hp_percent_for_strength': {
         const loseHp = Math.max(1, Math.floor(s.player.maxHp * effect.hpPercent / 100))

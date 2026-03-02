@@ -129,12 +129,14 @@ function withAct3Enemies(type: NodeType, stage: 'early' | 'mid' | 'late', rng: (
 
 function generateAct1Map(rng: () => number): MapNode[] {
   const l2Pool: NodeType[] = ['event', 'normal_battle', 'normal_battle']
-  const l3Pool: NodeType[] = ['campfire', 'forge', 'elite_battle', 'normal_battle']
+  const l3OptionalPool: NodeType[] = ['campfire', 'elite_battle', 'normal_battle']
   const l4Pool: NodeType[] = ['normal_battle', 'normal_battle', 'campfire']
   const l6Pool: NodeType[] = ['normal_battle', 'normal_battle', 'event']
 
   const [l2aType, l2bType] = drawWithoutReplacement(l2Pool, 2, rng)
-  const [l3aType, l3bType, l3cType] = drawWithoutReplacement(l3Pool, 3, rng)
+  // New in v2.0: Act1 L3 must always contain forge.
+  const l3Forced = ['forge', ...drawWithoutReplacement(l3OptionalPool, 2, rng)] as NodeType[]
+  const [l3aType, l3bType, l3cType] = drawWithoutReplacement(l3Forced, 3, rng)
   const [l4aType, l4bType] = drawWithoutReplacement(l4Pool, 2, rng)
   const [l6aType, l6bType] = drawWithoutReplacement(l6Pool, 2, rng)
 

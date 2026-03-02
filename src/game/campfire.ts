@@ -171,8 +171,8 @@ export const UPGRADE_TABLE: Record<string, (def: CardDef) => CardDef> = {
     effects: [{ type: 'redraw_hand', value: 5 }],
   }),
   soul_sacrifice: (def) => ({
-    ...def, name: '灵魂献祭+', description: '失去15HP，本回合所有伤害值和护甲值翻倍',
-    effects: [{ type: 'self_damage', value: 15 }, { type: 'set_double_damage_armor_this_turn' }],
+    ...def, name: '灵魂献祭+', description: '失去15HP，本回合所有伤害值和护甲值+100%',
+    effects: [{ type: 'self_damage', value: 15 }, { type: 'set_damage_armor_multiplier_this_turn', value: 2 }],
   }),
   destiny_rewrite: (def) => ({
     ...def,

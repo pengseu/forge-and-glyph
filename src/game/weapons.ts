@@ -78,7 +78,7 @@ export const ALL_WEAPONS: WeaponDef[] = [
   },
   {
     id: 'iron_bow', name: '铁制弓', rarity: 'basic',
-    effect: { type: 'first_combat_damage_bonus_percent', percent: 30 },
+    effect: { type: 'custom', text: '每回合首个攻击伤害+30%；若首个攻击击杀目标，抽1张牌' },
     normalAttack: { damage: 5 },
   },
 
@@ -148,7 +148,7 @@ export const ALL_WEAPONS: WeaponDef[] = [
   },
   {
     id: 'steel_bow', name: '精钢弓', rarity: 'upgraded',
-    effect: { type: 'custom', text: '每回合首个攻击+30%；若本回合未受伤额外+2伤' },
+    effect: { type: 'custom', text: '每回合首个攻击+30%；若首个攻击击杀目标，抽1；未受伤回合额外+3伤' },
     normalAttack: { damage: 7 },
   },
 

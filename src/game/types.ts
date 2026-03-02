@@ -44,6 +44,7 @@ export type CardEffect =
   | { type: 'set_magic_absorb'; bonusMana: number }
   | { type: 'global_cost_reduction'; value: number }
   | { type: 'set_damage_taken_multiplier'; value: number }
+  | { type: 'set_damage_armor_multiplier_this_turn'; value: number }
   | { type: 'set_double_damage_armor_this_turn' }
   | { type: 'hp_percent_for_strength'; hpPercent: number; strength: number }
   | { type: 'current_hp_percent_for_strength'; hpPercent: number; strength: number }
@@ -129,6 +130,7 @@ export interface PlayerState {
   thorns: number
   magicAbsorbBonusMana: number
   damageTakenMultiplier: number
+  damageArmorMultiplierThisTurn: number
   doubleDamageArmorThisTurn: boolean
   attackDamageMultiplierThisTurn: number
   firstSpellDiscountUsed: boolean

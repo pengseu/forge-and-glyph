@@ -14,6 +14,7 @@ import {
   applyBattleVictoryRewards,
   generateBattleGold,
   addBattleGoldReward,
+  applySkipRewardCompensation,
   healInShop,
   removeCardFromDeck,
   transformCardInShop,
@@ -569,6 +570,7 @@ function update() {
       if (!gameState.run) return
       pushGlobalLog('跳过奖励')
       let newRun = completeNode(gameState.run, gameState.run.currentNodeId)
+      newRun = applySkipRewardCompensation(newRun)
       if (isBossNode(newRun)) {
         if (newRun.act < 3) {
           pushGlobalLog(`第 ${newRun.act} 幕完成，进入幕间`)

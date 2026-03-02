@@ -65,6 +65,13 @@ function applyPreviewMods(
   let damage = rawDamage
   const isAttack = category === 'combat' || category === 'spell'
   let armorPenetration = 0
+  const damageArmorMultiplier = Math.max(
+    state.player.doubleDamageArmorThisTurn ? 2 : 1,
+    state.player.damageArmorMultiplierThisTurn ?? 1,
+  )
+
+  if (category === 'combat') damage += state.turnTracking.combatDamageBonus
+  if (isAttack && damageArmorMultiplier !== 1) damage = Math.floor(damage * damageArmorMultiplier)
 
   if (category === 'combat') damage += state.player.strength
   if (category === 'spell') damage += state.player.wisdom
@@ -76,11 +83,13 @@ function applyPreviewMods(
   }
 
   if (category === 'combat') {
-    damage += state.turnTracking.combatDamageBonus
     if (state.player.buffNextCombatDouble) damage *= 2
     if (state.player.buffNextCombat > 0) damage = Math.floor(damage * (1 + state.player.buffNextCombat / 100))
-    if (state.player.equippedWeaponId === 'iron_bow' && !state.player.weaponPerTurnUsed) {
+    if ((state.player.equippedWeaponId === 'iron_bow' || state.player.equippedWeaponId === 'steel_bow') && !state.player.weaponPerTurnUsed) {
       damage = Math.floor(damage * 1.3)
+      if (state.player.equippedWeaponId === 'steel_bow' && state.turnTracking.damageTakenThisTurn === 0) {
+        damage += 3
+      }
     }
   }
   if (category === 'spell') {

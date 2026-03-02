@@ -113,6 +113,17 @@ describe('effects', () => {
     expect(state.enemies[0].poison).toBe(0)
   })
 
+  it('poison should cap at 20 and overflow should convert to immediate damage', () => {
+    const hpBefore = state.enemies[0].hp
+    state = {
+      ...state,
+      enemies: state.enemies.map((e, i) => (i === 0 ? { ...e, poison: 19 } : e)),
+    }
+    state = applyCardEffects(state, [{ type: 'poison', value: 5 }], 0)
+    expect(state.enemies[0].poison).toBe(20)
+    expect(state.enemies[0].hp).toBe(hpBefore - 4)
+  })
+
   it('strength should boost combat damage', () => {
     state = { ...state, player: { ...state.player, strength: 3 } }
     const hpBefore = state.enemies[0].hp
@@ -264,6 +275,15 @@ describe('effects', () => {
     state = applyCardEffects(state, [{ type: 'armor', value: 5 }], 0)
     expect(state.enemies[0].hp).toBe(hpBefore - 12)
     expect(state.player.armor).toBe(10)
+  })
+
+  it('set_damage_armor_multiplier_this_turn should scale damage/armor by multiplier', () => {
+    const hpBefore = state.enemies[0].hp
+    state = applyCardEffects(state, [{ type: 'set_damage_armor_multiplier_this_turn', value: 1.75 }], 0)
+    state = applyCardEffects(state, [{ type: 'damage', value: 6 }], 0)
+    state = applyCardEffects(state, [{ type: 'armor', value: 5 }], 0)
+    expect(state.enemies[0].hp).toBe(hpBefore - 10)
+    expect(state.player.armor).toBe(8)
   })
 
   it('set_damage_taken_multiplier should set player damage multiplier', () => {

@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .worktrees/
+
+# Local asset backups
+_asset_backups/

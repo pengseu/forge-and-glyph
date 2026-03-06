@@ -1,0 +1,76 @@
+.panel {
+  background: var(--paper-cream);
+  border: 3px solid #ffffff;
+  border-radius: 3px;
+  box-shadow: var(--shadow-l);
+  padding: var(--space-4);
+  position: relative;
+}
+
+.panel::before,
+.panel::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  width: 40px;
+  height: 16px;
+  background-image: url('/assets/decorations/tape-green.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 2px;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.panel::before {
+  left: 18px;
+  transform: rotate(-15deg);
+}
+
+.panel::after {
+  right: 18px;
+  transform: rotate(12deg);
+  filter: hue-rotate(24deg) saturate(0.9);
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--ink-primary);
+  padding-bottom: var(--space-2);
+  border-bottom: 2px dashed var(--ink-tertiary);
+  margin-bottom: var(--space-3);
+}
+
+.panel-body {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(58, 46, 30, 0.4);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay .panel {
+  box-shadow: var(--shadow-xl);
+  animation: panel-modal-enter 300ms var(--ease-smooth);
+}
+
+@keyframes panel-modal-enter {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

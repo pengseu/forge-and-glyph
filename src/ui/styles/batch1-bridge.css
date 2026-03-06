@@ -1,0 +1,105 @@
+/* Bridge existing scene classes to Batch 1 tokenized visual language. */
+
+#app {
+  background-color: var(--paper-warm);
+  background-image: url('/assets/textures/tex-kraft-base.png');
+  background-size: 512px 512px;
+  background-repeat: repeat;
+  background-blend-mode: multiply;
+  border: 3px solid #fff;
+  box-shadow: var(--shadow-xl);
+}
+
+.scene-title h1 {
+  color: var(--ink-primary);
+  text-shadow: var(--shadow-s);
+}
+
+.scene-title .subtitle {
+  color: var(--ink-secondary);
+  font-family: var(--font-display-en) !important;
+}
+
+.player-bar,
+.map-player-bar,
+.hand-area,
+.map-container,
+.status-guide-inner,
+.result-battle,
+.shop-remove,
+.inventory-item,
+.inventory-weapon,
+.forge-recipe,
+.enchant-item,
+.reward-material,
+.event-panel,
+.act-transition-panel {
+  background: var(--paper-cream);
+  border-color: #fff;
+  color: var(--ink-primary);
+}
+
+.card,
+.reward-card,
+.shop-card,
+.campfire-card,
+.map-node,
+.weapon-drop {
+  background: var(--paper-cream);
+  border-color: #fff;
+  color: var(--ink-primary);
+}
+
+.map-scroll,
+.map-canvas,
+.scene-map,
+.scene-shop,
+.scene-forge,
+.scene-enchant,
+.scene-event,
+.scene-act-transition,
+.scene-result {
+  background: transparent;
+}
+
+.enemy-name,
+.card-name,
+.scene-reward h2,
+.scene-campfire h2,
+.scene-shop h2,
+.status-guide-title {
+  color: var(--ink-primary);
+}
+
+.enemy-intent-hint,
+.enemy-passive,
+.card-desc,
+.result-stats,
+.reward-rule-hint,
+.event-option-desc,
+.intermission-choice-desc {
+  color: var(--ink-secondary);
+}
+
+.hp-bar-container {
+  background: var(--paper-aged);
+  border-color: var(--ink-tertiary);
+}
+
+.hp-bar-fill {
+  background: var(--color-hp);
+}
+
+.map-line {
+  stroke: var(--ink-tertiary);
+}
+
+.map-line.active {
+  stroke: var(--color-gold);
+}
+
+.btn-small {
+  height: 28px;
+  padding: 4px 16px;
+  font-size: 13px;
+}

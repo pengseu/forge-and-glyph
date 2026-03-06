@@ -6,11 +6,11 @@ export function showDamageFloat(
   type: 'damage' | 'heal' | 'armor' | 'poison' = 'damage',
 ): void {
   const el = document.createElement('div')
-  el.className = `damage-float damage-float-${type}`
+  el.className = `damage-number damage-number--${type}`
   const offsetX = (Math.random() - 0.5) * 30
   if (type === 'damage') {
     el.textContent = `-${value}`
-    if (value >= 10) el.classList.add('big-damage')
+    if (value >= 10) el.classList.add('damage-number--big')
   } else if (type === 'heal') {
     el.textContent = `+${value}`
   } else if (type === 'poison') {
@@ -32,7 +32,7 @@ export function showTextFloat(
   type: 'damage' | 'heal' | 'armor' | 'poison' = 'damage',
 ): void {
   const el = document.createElement('div')
-  el.className = `damage-float damage-float-${type}`
+  el.className = `damage-number damage-number--${type}`
   const offsetX = (Math.random() - 0.5) * 30
   el.textContent = text
   el.style.left = `${x + offsetX}px`
@@ -57,7 +57,7 @@ export function screenShake(container: HTMLElement): void {
 
 export function enemyDeathFade(enemyEl: HTMLElement): Promise<void> {
   return new Promise(resolve => {
-    enemyEl.classList.add('enemy-death')
+    enemyEl.classList.add('enemy-slot--dying')
     enemyEl.addEventListener('animationend', () => {
       resolve()
     }, { once: true })

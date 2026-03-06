@@ -1,5 +1,6 @@
 import type { EnchantmentId, GameState, MaterialId, NodeType } from '../game/types'
 import { renderTitle } from './scenes/title'
+import { renderStyleLab } from './scenes/style-lab'
 import { renderWeaponSelect } from './scenes/weapon-select'
 import { renderMap } from './scenes/map'
 import { renderBattle } from './scenes/battle'
@@ -15,6 +16,8 @@ import { getNodeById } from '../game/map'
 import { renderActTransition } from './scenes/act-transition'
 import type { IntermissionChoiceId } from '../game/act'
 
+let lastRenderedScene: GameState['scene'] | null = null
+
 export function resolveBossAutoDropHint(nodeType: NodeType | null | undefined, act: 1 | 2 | 3): string | null {
   if (nodeType !== 'boss_battle') return null
   if (act === 1) return '已自动获得：👑 地精王冠碎片 ×1'
@@ -23,6 +26,17 @@ export function resolveBossAutoDropHint(nodeType: NodeType | null | undefined, a
 
 export interface GameCallbacks {
   onStartGame: () => void
+  onContinueGame: () => void
+  onOpenStyleLab: () => void
+  onCloseStyleLab: () => void
+  onLoadSlot: (slot: 1 | 2 | 3) => void
+  onSaveSlot: (slot: 1 | 2 | 3) => void
+  onToggleChallengeMode: () => void
+  onToggleSkipTutorial: () => void
+  onToggleMute: () => void
+  onSetAudioVolume: (channel: 'master' | 'sfx' | 'bgm', value: number) => void
+  onResetGuides: () => void
+  onDismissGuide: () => void
   onSelectStartingWeapon: (weaponDefId: 'iron_longsword' | 'iron_staff') => void
   onSelectNode: (nodeId: string) => void
   onPlayCard: (cardUid: string, targetIndex?: number) => void
@@ -67,21 +81,60 @@ export function render(
   callbacks: GameCallbacks,
   prevBattle?: import('../game/types').BattleState | null,
 ): void {
+  const sceneChanged = lastRenderedScene !== null && lastRenderedScene !== state.scene
+  const previousSceneClone = sceneChanged && container.firstElementChild
+    ? (container.firstElementChild.cloneNode(true) as HTMLElement)
+    : null
+
   switch (state.scene) {
     case 'title':
-      renderTitle(container, callbacks.onStartGame)
+      renderTitle(
+        container,
+        callbacks.onStartGame,
+        callbacks.onContinueGame,
+        callbacks.onOpenStyleLab,
+        callbacks.onLoadSlot,
+        callbacks.onToggleChallengeMode,
+        callbacks.onToggleSkipTutorial,
+        callbacks.onToggleMute,
+        callbacks.onSetAudioVolume,
+        callbacks.onResetGuides,
+        state.hasAutoSave,
+        state.saveSlots.map((slot) => ({
+          slot: slot.slot,
+          savedAt: slot.savedAt,
+          act: slot.act,
+          hp: slot.hp,
+          gold: slot.gold,
+        })),
+        state.challengeUnlocked,
+        state.challengeModeEnabled,
+        state.skipTutorial,
+        state.audio.muted,
+        state.audio.master,
+        state.audio.sfx,
+        state.audio.bgm,
+      )
+      break
+    case 'style_lab':
+      renderStyleLab(container, callbacks.onCloseStyleLab)
       break
     case 'weapon_select':
       renderWeaponSelect(container, callbacks.onSelectStartingWeapon)
       break
     case 'map':
       if (state.run) {
-        renderMap(container, state.run, callbacks)
+        renderMap(
+          container,
+          state.run,
+          state.saveSlots.map((slot) => ({ slot: slot.slot, savedAt: slot.savedAt })),
+          callbacks,
+        )
       }
       break
     case 'battle':
       if (state.battle) {
-        renderBattle(container, state.battle, callbacks, prevBattle ?? undefined)
+        renderBattle(container, state.battle, callbacks, prevBattle ?? undefined, state.run?.act ?? 1)
       }
       break
     case 'reward':
@@ -159,4 +212,21 @@ export function render(
       }
       break
   }
+
+  const currentSceneEl = container.firstElementChild as HTMLElement | null
+  if (sceneChanged && currentSceneEl) {
+    currentSceneEl.classList.add('scene-transition-in')
+    currentSceneEl.addEventListener('animationend', () => {
+      currentSceneEl.classList.remove('scene-transition-in')
+    }, { once: true })
+  }
+  if (sceneChanged && previousSceneClone) {
+    previousSceneClone.classList.add('scene-transition-layer', 'scene-transition-out')
+    previousSceneClone.setAttribute('aria-hidden', 'true')
+    container.appendChild(previousSceneClone)
+    previousSceneClone.addEventListener('animationend', () => {
+      previousSceneClone.remove()
+    }, { once: true })
+  }
+  lastRenderedScene = state.scene
 }

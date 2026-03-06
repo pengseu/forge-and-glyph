@@ -1,4 +1,25 @@
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@font-face {
+  font-family: 'Uranus Pixel 11Px';
+  src:
+    local('Uranus Pixel 11Px'),
+    local('Uranus_Pixel_11Px'),
+    url('./Uranus_Pixel_11Px.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'WenQuanYi Bitmap Song 12px';
+  src:
+    local('WenQuanYi Bitmap Song 12px'),
+    local('WenQuanYi.Bitmap.Song.12px'),
+    url('./WenQuanYi.Bitmap.Song.12px.ttf') format('truetype');
+  font-display: swap;
+}
+
+:root {
+  --font-title: 'Uranus Pixel 11Px', monospace;
+  --font-body: 'WenQuanYi Bitmap Song 12px', monospace;
+}
 
 * {
   margin: 0;
@@ -7,7 +28,7 @@
 }
 
 body {
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--font-body);
   background: #1a1a2e;
   color: #e0e0e0;
   min-height: 100vh;
@@ -18,6 +39,20 @@ body {
   image-rendering: pixelated;
 }
 
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-body);
+}
+
+h1,
+h2,
+h3,
+.subtitle {
+  font-family: var(--font-title) !important;
+}
+
 #app {
   width: 800px;
   min-height: 600px;
@@ -26,6 +61,11 @@ body {
   border-radius: 4px;
   position: relative;
   overflow: hidden;
+  font-family: var(--font-body);
+}
+
+#app * {
+  font-family: inherit;
 }
 
 /* --- Title Scene --- */
@@ -51,7 +91,7 @@ body {
 
 /* --- Buttons --- */
 .btn {
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--font-body);
   font-size: 12px;
   padding: 12px 24px;
   background: #e94560;
@@ -130,6 +170,34 @@ body {
   min-height: 180px;
   justify-content: center;
   transition: border-color 0.2s, transform 0.2s;
+}
+
+.enemy-sprite {
+  width: 100%;
+  height: 84px;
+}
+
+.enemy-sprite img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  mix-blend-mode: multiply;
+}
+
+/* 图片加载失败的占位 */
+.enemy-sprite--fallback {
+  width: 100%;
+  height: 100%;
+  background: var(--paper-aged);
+  border: 2px dashed var(--ink-tertiary);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink-tertiary);
 }
 
 .target-mode .enemy-unit {
@@ -249,7 +317,7 @@ body {
 /* --- Damage Float (pixel style) --- */
 .damage-float {
   position: absolute;
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--font-body);
   font-size: 14px;
   font-weight: bold;
   animation: float-up 0.8s steps(8) forwards;
@@ -507,8 +575,7 @@ body {
   border-color: #4caf50;
 }
 
-.node-icon { font-size: 24px; }
-.node-label { font-size: 8px; margin-top: 4px; }
+.node-label { font-size: 9px; margin-top: 0; }
 
 .deck-info {
   font-size: 10px;
@@ -841,7 +908,7 @@ body {
   color: #d9e7f2;
   border: 1px solid #496b8f;
   padding: 6px 8px;
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--font-body);
   font-size: 8px;
   cursor: pointer;
 }

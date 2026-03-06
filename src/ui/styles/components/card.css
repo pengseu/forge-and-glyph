@@ -1,0 +1,151 @@
+.card {
+  position: relative;
+  width: 100px;
+  height: 140px;
+  border: 2.5px solid #ffffff;
+  border-radius: 4px 3px 5px 3px;
+  box-shadow:
+    2px 3px 4px rgba(58, 46, 30, 0.18),
+    0 0 0 1px rgba(58, 46, 30, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background-color: #f0e6d3;
+  background-image: url('/assets/textures/tex-washi.png');
+  background-size: 256px 256px;
+  background-blend-mode: soft-light;
+}
+
+.card--hand {
+  width: 100px;
+  height: 140px;
+}
+
+.card--showcase {
+  width: 140px;
+  height: 196px;
+}
+
+.card--preview {
+  width: 180px;
+  height: 252px;
+}
+
+.card-cost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  background: var(--color-mana);
+  color: #ffffff;
+  font-family: var(--font-number);
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-top: 3px;
+  padding-left: 5px;
+  z-index: 2;
+  box-shadow: 1px 1px 2px rgba(58, 46, 30, 0.3);
+  font-weight: 700;
+}
+
+.card-art {
+  height: 45%;
+  overflow: hidden;
+  border: 1px solid var(--ink-tertiary);
+  margin: 4px;
+  margin-top: 6px;
+}
+
+.card-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.card-divider {
+  border: none;
+  border-top: 1.5px dashed #b8a88a;
+  margin: 4px 6px;
+}
+
+.card-name {
+  font-family: var(--font-display);
+  font-size: 14px;
+  text-align: center;
+  color: var(--ink-primary);
+  line-height: 1.2;
+  padding: 0 6px;
+}
+
+.card-type {
+  font-size: 10px;
+  color: var(--ink-secondary);
+  text-align: center;
+  margin-top: 2px;
+}
+
+.card-desc {
+  font-family: var(--font-body);
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.4;
+  padding: 0 6px;
+  color: var(--ink-primary);
+  margin-top: 4px;
+}
+
+.card-value {
+  color: var(--color-gold);
+  font-family: var(--font-number);
+}
+
+.card-upgraded {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  color: var(--color-gold);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.card--attack {
+  background-color: #edd5c0;
+  border-left: 4px solid #a85a3e;
+}
+
+.card--defend {
+  background-color: #dfead0;
+  border-left: 4px solid #6b7d3e;
+}
+
+.card--skill {
+  background-color: #d5dee8;
+  border-left: 4px solid #3e5a7c;
+}
+
+.card--power {
+  background-color: #e8e0cf;
+  border-left: 4px solid #8c7a3e;
+}
+
+.card--curse {
+  background-color: #e8dce8;
+  border-left: 4px solid #6b3a6b;
+}
+
+.hand-area .card {
+  transform: rotate(var(--card-tilt, 0deg));
+}
+
+.hand-area .card:hover {
+  transform: translateY(-40px) scale(1.5) rotate(0deg);
+  z-index: 100;
+  box-shadow: 4px 6px 12px rgba(58, 46, 30, 0.25);
+  transition: 200ms var(--ease-smooth);
+}

@@ -11,6 +11,7 @@ import type { MaterialId } from '../../game/types'
 let pendingCardUid: string | null = null
 let pendingNormalAttack = false
 let hoverCardUid: string | null = null
+let cardFlightAnimating = false
 
 const KEYWORD_TIPS: Record<string, string> = {
   灼烧: '回合末受到层数伤害，随后层数-1',
@@ -188,6 +189,167 @@ export function resolveGoblinKingPhase2Preview(_intentIndex: number, enemyStreng
   }
 }
 
+export type HudStatusItem = {
+  key: string
+  html: string
+  danger: boolean
+}
+
+export function partitionHudStatuses(items: HudStatusItem[]): {
+  main: HudStatusItem[]
+  sub: HudStatusItem[]
+} {
+  return {
+    main: items.filter((item) => item.danger),
+    sub: items.filter((item) => !item.danger),
+  }
+}
+
+export type BattleHudSectionsInput = {
+  hpBarHtml: string
+  armorHtml: string
+  staminaHtml: string
+  manaHtml: string
+  enemyCountHtml: string
+  weaponHtml: string
+  turnHtml: string
+  dangerStatusHtml: string
+  trialHtml: string
+  enchantHtml: string
+  enchantFeedbackHtml: string
+  subStatusHtml: string
+  helpHtml: string
+}
+
+export function buildBattleHudSections(input: BattleHudSectionsInput): string {
+  return `
+    <div class="hud-main">
+      <div class="hud-group hud-group--vitals">${input.hpBarHtml}${input.armorHtml}</div>
+      <div class="hud-group hud-group--resources">${input.staminaHtml}${input.manaHtml}</div>
+      <div class="hud-group hud-group--combat">${input.enemyCountHtml}${input.weaponHtml}${input.turnHtml}${input.dangerStatusHtml}</div>
+    </div>
+    <div class="hud-sub">
+      <div class="hud-group hud-group--meta">${input.trialHtml}${input.enchantHtml}${input.enchantFeedbackHtml}</div>
+      <div class="hud-group hud-group--statuses">${input.subStatusHtml}</div>
+      <div class="hud-group hud-group--help">${input.helpHtml}</div>
+    </div>
+  `
+}
+
+export function resolveHandFanStyle(index: number, cardCount: number): {
+  rotateDeg: number
+  offsetY: number
+  marginLeft: number
+} {
+  if (cardCount <= 1) {
+    return { rotateDeg: 0, offsetY: 0, marginLeft: 0 }
+  }
+  const totalSpread = Math.min(cardCount * 8, 60)
+  const step = totalSpread / Math.max(cardCount - 1, 1)
+  const centerIndex = (cardCount - 1) / 2
+  const rotateDeg = Number(((index - centerIndex) * step).toFixed(2))
+  const offsetY = Math.round(Math.abs(index - centerIndex) * 6)
+  const marginLeft = index === 0 ? 0 : -20
+  return { rotateDeg, offsetY, marginLeft }
+}
+
+export function buildHandCardStyleVars(index: number, fan: { rotateDeg: number; offsetY: number; marginLeft: number }): string {
+  return `--fan-rotate:${fan.rotateDeg}deg;--fan-offset-y:${fan.offsetY}px;--fan-margin-left:${fan.marginLeft}px;--fan-z:${100 + index};`
+}
+
+function resolveCardFlightTarget(
+  container: HTMLElement,
+  category: CardCategory,
+  targetIndex: number,
+): HTMLElement | null {
+  if (category === 'combat' || category === 'spell') {
+    return (
+      container.querySelector<HTMLElement>(`.enemy-unit[data-enemy-idx="${targetIndex}"]`) ??
+      container.querySelector<HTMLElement>('.enemy-area .enemy-unit') ??
+      container.querySelector<HTMLElement>('.enemy-area')
+    )
+  }
+  return (
+    container.querySelector<HTMLElement>('.player-sprite') ??
+    container.querySelector<HTMLElement>('.player-area')
+  )
+}
+
+function animateCardFlight(
+  sourceCardEl: HTMLElement,
+  targetEl: HTMLElement,
+  done: () => void,
+): void {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    done()
+    return
+  }
+
+  const sourceRect = sourceCardEl.getBoundingClientRect()
+  const targetRect = targetEl.getBoundingClientRect()
+  const centerDx = (targetRect.left + targetRect.width / 2) - (sourceRect.left + sourceRect.width / 2)
+  const centerDy = (targetRect.top + targetRect.height / 2) - (sourceRect.top + sourceRect.height / 2)
+
+  const ghost = sourceCardEl.cloneNode(true) as HTMLElement
+  ghost.classList.add('card-flight-ghost')
+  ghost.removeAttribute('style')
+  ghost.style.left = `${sourceRect.left}px`
+  ghost.style.top = `${sourceRect.top}px`
+  ghost.style.width = `${sourceRect.width}px`
+  ghost.style.height = `${sourceRect.height}px`
+  ghost.style.transform = 'translate(0, 0) scale(1)'
+  ghost.style.opacity = '1'
+  document.body.appendChild(ghost)
+
+  sourceCardEl.classList.add('is-flying')
+
+  window.requestAnimationFrame(() => {
+    ghost.style.transform = `translate(${centerDx}px, ${centerDy}px) scale(0.8)`
+  })
+
+  window.setTimeout(() => {
+    ghost.style.transform = `translate(${centerDx}px, ${centerDy}px) scale(0)`
+    ghost.style.opacity = '0'
+  }, 220)
+
+  window.setTimeout(() => {
+    ghost.remove()
+    sourceCardEl.classList.remove('is-flying')
+    done()
+  }, 420)
+}
+
+function playCardWithAnimation(
+  container: HTMLElement,
+  state: BattleState,
+  callbacks: GameCallbacks,
+  uid: string,
+  targetIndex: number,
+): void {
+  if (cardFlightAnimating) return
+
+  const card = state.player.hand.find((c) => c.uid === uid)
+  if (!card) {
+    callbacks.onPlayCard(uid, targetIndex)
+    return
+  }
+
+  const cardDef = getEffectiveCardDef(card)
+  const sourceCardEl = container.querySelector<HTMLElement>(`.card[data-uid="${uid}"]`)
+  const targetEl = resolveCardFlightTarget(container, cardDef.category, targetIndex)
+
+  if (!sourceCardEl || !targetEl) {
+    callbacks.onPlayCard(uid, targetIndex)
+    return
+  }
+
+  cardFlightAnimating = true
+  animateCardFlight(sourceCardEl, targetEl, () => {
+    cardFlightAnimating = false
+    callbacks.onPlayCard(uid, targetIndex)
+  })
+}
+
 function enterTargetMode(container: HTMLElement, uid: string) {
   pendingCardUid = uid
   container.querySelector('.enemy-area')?.classList.add('target-mode')
@@ -230,7 +392,16 @@ export function renderBattle(
   state: BattleState,
   callbacks: GameCallbacks,
   prevState?: BattleState,
+  act: 1 | 2 | 3 = 1,
 ): void {
+  const sceneTheme = act === 1 ? 'forest' : 'dungeon'
+  const stagePlatformSrc = act === 1
+    ? '/assets/scenes/stage-forest-platform.png'
+    : '/assets/scenes/stage-dungeon-platform.png'
+  const stageContactSrc = '/assets/scenes/stage-contact-shadow.png'
+  const actClass = `scene-battle--act${act}`
+  const eldritchClass = state.enemies.some((enemy) => enemy.defId === 'abyss_lord') ? 'scene-battle--eldritch' : ''
+
   // Weapon display
   let weaponText = ''
   if (state.player.equippedWeaponId) {
@@ -240,30 +411,66 @@ export function renderBattle(
   const enchantText = state.player.equippedEnchantments.length > 0
     ? `🔮 ${state.player.equippedEnchantments.join(' / ')}`
     : ''
-  const enchantFeedback = state.turnTracking.enchantEvents.length > 0
-    ? `<span class="stat" style="color:#7ad3ff;">${state.turnTracking.enchantEvents.join(' · ')}</span>`
+  const enchantFeedbackText = state.turnTracking.enchantEvents.length > 0
+    ? state.turnTracking.enchantEvents.join(' · ')
     : ''
 
   // Player status effects
-  const playerStatusBadges: string[] = []
-  if (state.player.strength > 0) playerStatusBadges.push(`<span class="status-badge">💪${state.player.strength}</span>`)
-  if (state.player.wisdom > 0) playerStatusBadges.push(`<span class="status-badge">📖${state.player.wisdom}</span>`)
-  if (state.player.barrier > 0) playerStatusBadges.push(`<span class="status-badge">🔵${state.player.barrier}</span>`)
-  if (state.player.charge > 0) playerStatusBadges.push(`<span class="status-badge">⚡蓄${state.player.charge}</span>`)
-  if (state.player.poisonOnAttack > 0) playerStatusBadges.push(`<span class="status-badge">🐍+${state.player.poisonOnAttack}</span>`)
-  if (state.player.poison > 0) playerStatusBadges.push(`<span class="status-badge status-debuff">☠️${state.player.poison}</span>`)
-  if (state.player.weakened > 0) playerStatusBadges.push(`<span class="status-badge status-debuff">😵${state.player.weakened}</span>`)
-  if (state.turnTracking.combatDamageBonus > 0) playerStatusBadges.push(`<span class="status-badge">🗡️+${state.turnTracking.combatDamageBonus}</span>`)
-  if (state.player.buffNextCombat > 0) playerStatusBadges.push(`<span class="status-badge">✨+${state.player.buffNextCombat}%</span>`)
-  if (state.player.buffNextCombatDouble) playerStatusBadges.push('<span class="status-badge">⚡x2</span>')
-  if (state.player.buffNextSpellDamage > 0) playerStatusBadges.push(`<span class="status-badge">🔮+${state.player.buffNextSpellDamage}</span>`)
-  const playerStatus = playerStatusBadges.join('')
+  const playerStatusItems: HudStatusItem[] = []
+  if (state.player.strength > 0) {
+    playerStatusItems.push({ key: 'strength', html: `<span class="status-badge">💪${state.player.strength}</span>`, danger: false })
+  }
+  if (state.player.wisdom > 0) {
+    playerStatusItems.push({ key: 'wisdom', html: `<span class="status-badge">📖${state.player.wisdom}</span>`, danger: false })
+  }
+  if (state.player.barrier > 0) {
+    playerStatusItems.push({ key: 'barrier', html: `<span class="status-badge">🔵${state.player.barrier}</span>`, danger: false })
+  }
+  if (state.player.charge > 0) {
+    playerStatusItems.push({ key: 'charge', html: `<span class="status-badge">⚡蓄${state.player.charge}</span>`, danger: false })
+  }
+  if (state.player.poisonOnAttack > 0) {
+    playerStatusItems.push({ key: 'poisonOnAttack', html: `<span class="status-badge">🐍+${state.player.poisonOnAttack}</span>`, danger: false })
+  }
+  if (state.player.poison > 0) {
+    playerStatusItems.push({ key: 'poison', html: `<span class="status-badge status-debuff">☠️${state.player.poison}</span>`, danger: true })
+  }
+  if (state.player.weakened > 0) {
+    playerStatusItems.push({ key: 'weakened', html: `<span class="status-badge status-debuff">😵${state.player.weakened}</span>`, danger: true })
+  }
+  if (state.turnTracking.combatDamageBonus > 0) {
+    playerStatusItems.push({
+      key: 'combatDamageBonus',
+      html: `<span class="status-badge">🗡️+${state.turnTracking.combatDamageBonus}</span>`,
+      danger: false,
+    })
+  }
+  if (state.player.buffNextCombat > 0) {
+    playerStatusItems.push({ key: 'buffNextCombat', html: `<span class="status-badge">✨+${state.player.buffNextCombat}%</span>`, danger: false })
+  }
+  if (state.player.buffNextCombatDouble) {
+    playerStatusItems.push({ key: 'buffNextCombatDouble', html: '<span class="status-badge">⚡x2</span>', danger: false })
+  }
+  if (state.player.buffNextSpellDamage > 0) {
+    playerStatusItems.push({
+      key: 'buffNextSpellDamage',
+      html: `<span class="status-badge">🔮+${state.player.buffNextSpellDamage}</span>`,
+      danger: false,
+    })
+  }
+  const playerStatus = playerStatusItems.map((item) => item.html).join('')
+  const partitionedStatus = partitionHudStatuses(playerStatusItems)
+  const dangerStatusHtml = partitionedStatus.main.map((item) => item.html).join('')
+  const subStatusHtml = partitionedStatus.sub.map((item) => item.html).join('')
 
   // Build enemies HTML
   const enemiesHtml = state.enemies.map((enemy, idx) => {
-    if (enemy.hp <= 0) return ''
+    const wasAlive = (prevState?.enemies[idx]?.hp ?? 0) > 0
+    const justDied = enemy.hp <= 0 && wasAlive
+    if (enemy.hp <= 0 && !justDied) return ''
+
     const enemyDef = getEnemyDef(enemy.defId)
-    const hpPercent = (enemy.hp / enemy.maxHp) * 100
+    const hpPercent = Math.max(0, (enemy.hp / enemy.maxHp) * 100)
 
     const intent = enemyDef.intents[enemy.intentIndex]
     const passiveText =
@@ -275,10 +482,17 @@ export function renderBattle(
     let intentText = ''
     let intentHint = ''
     let intentClass = ''
-    if (enemy.freeze > 0) {
+    let intentToneClass = 'enemy-intent--debuff'
+    if (justDied) {
+      intentText = '✂️ 倒下'
+      intentHint = '敌人被击败，正在消散'
+      intentClass = 'intent-defeat'
+      intentToneClass = 'enemy-intent--debuff'
+    } else if (enemy.freeze > 0) {
       intentText = '🧊 冻结中'
       intentHint = '跳过本回合行动，随后获得短暂冻结免疫'
       intentClass = 'intent-freeze'
+      intentToneClass = 'enemy-intent--debuff'
     } else if (enemy.defId === 'abyss_lord') {
       const phase = resolveAbyssLordPhase(enemy)
       const action = resolveAbyssLordAction(enemy.intentIndex, phase)
@@ -287,29 +501,35 @@ export function renderBattle(
         intentText = `🗡️ ${dmg}`
         intentHint = `阶段${phase}：将造成 ${dmg} 点伤害`
         intentClass = 'intent-attack'
+        intentToneClass = 'enemy-intent--attack'
       } else if (action.type === 'gaze') {
         intentText = '👁️ 凝视'
         intentHint = `阶段${phase}：随机指定3种卡，本战斗费用+1`
         intentClass = 'intent-poison'
+        intentToneClass = 'enemy-intent--debuff'
       } else if (action.type === 'fortify') {
         intentText = `🛡️${action.armor} 💪+${action.strength}`
         intentHint = `阶段${phase}：获得${action.armor}护甲并提升${action.strength}力量`
         intentClass = 'intent-buff'
+        intentToneClass = 'enemy-intent--defend'
       } else if (action.type === 'aoe_attack_burn') {
         const dmg = action.value + enemy.strength
         intentText = `🗡️${dmg} 🔥${action.burn}`
         intentHint = `阶段${phase}：造成${dmg}伤害并附加灼烧伤害`
         intentClass = 'intent-attack'
+        intentToneClass = 'enemy-intent--attack'
       } else if (action.type === 'attack_heal') {
         const dmg = action.value + enemy.strength
         intentText = `🗡️${dmg} ❤️+${action.heal}`
         intentHint = `阶段${phase}：造成${dmg}伤害并回复${action.heal}HP`
         intentClass = 'intent-attack'
+        intentToneClass = 'enemy-intent--attack'
       } else if (action.type === 'weaken_attack') {
         const dmg = action.value + enemy.strength
         intentText = `🗡️${dmg} 😵${action.weaken}`
         intentHint = `阶段${phase}：造成${dmg}伤害并施加${action.weaken}层虚弱`
         intentClass = 'intent-attack'
+        intentToneClass = 'enemy-intent--attack'
       }
     } else if (enemy.defId === 'goblin_king' && enemy.hp <= Math.floor(enemy.maxHp * 0.4)) {
       const phase2Step = enemy.intentIndex % 2
@@ -318,11 +538,13 @@ export function renderBattle(
         intentText = preview.intentText
         intentHint = preview.intentHint
         intentClass = preview.intentClass
+        intentToneClass = preview.intentClass === 'intent-attack' ? 'enemy-intent--attack' : 'enemy-intent--debuff'
       } else {
         const dmg = 12 + enemy.strength
         intentText = `🛡️10 🗡️${dmg}`
         intentHint = `二阶段：先获得10护甲，再造成${dmg}伤害`
         intentClass = 'intent-attack'
+        intentToneClass = 'enemy-intent--attack'
       }
     } else if (intent.type === 'attack') {
       let dmg = intent.value + enemy.strength
@@ -330,76 +552,100 @@ export function renderBattle(
       intentText = `🗡️ ${dmg}`
       intentHint = `将造成 ${dmg} 点伤害`
       intentClass = 'intent-attack'
+      intentToneClass = 'enemy-intent--attack'
     } else if (intent.type === 'defend') {
       intentText = `🛡️ ${intent.value}`
       intentHint = `将获得 ${intent.value} 点护甲`
       intentClass = 'intent-defend'
+      intentToneClass = 'enemy-intent--defend'
     } else if (intent.type === 'buff') {
       intentText = `💪 +${intent.value}`
       intentHint = `将提升 ${intent.value} 点力量`
       intentClass = 'intent-buff'
+      intentToneClass = 'enemy-intent--defend'
     } else if (intent.type === 'poison') {
       intentText = `☠️ ${intent.value}`
       intentHint = `将施加 ${intent.value} 层中毒`
       intentClass = 'intent-poison'
+      intentToneClass = 'enemy-intent--debuff'
     } else if (intent.type === 'weaken') {
       intentText = `😵 ${intent.value}`
       intentHint = `将施加 ${intent.value} 层虚弱`
       intentClass = 'intent-poison'
+      intentToneClass = 'enemy-intent--debuff'
     } else if (intent.type === 'curse') {
       intentText = `🕯️ 诅咒×${intent.count}`
       intentHint = `将塞入 ${intent.count} 张诅咒牌`
       intentClass = 'intent-poison'
+      intentToneClass = 'enemy-intent--debuff'
     } else if (intent.type === 'summon') {
       const minionCount = state.enemies.filter(e => e.defId === intent.enemyId && e.hp > 0).length
       const preview = resolveSummonIntentPreview(minionCount, 1, enemy.strength)
       intentText = preview.intentText
       intentHint = preview.intentHint
       intentClass = preview.intentClass
+      intentToneClass = preview.intentClass === 'intent-attack' ? 'enemy-intent--attack' : 'enemy-intent--debuff'
     } else if (intent.type === 'summon_multi') {
       const minionCount = state.enemies.filter(e => e.defId === intent.enemyId && e.hp > 0).length
       const preview = resolveSummonIntentPreview(minionCount, intent.count, enemy.strength)
       intentText = preview.intentText
       intentHint = preview.intentHint
       intentClass = preview.intentClass
+      intentToneClass = preview.intentClass === 'intent-attack' ? 'enemy-intent--attack' : 'enemy-intent--debuff'
     } else if (intent.type === 'defend_attack') {
       let dmg = intent.attackValue + enemy.strength
       if (enemy.weakened > 0) dmg = Math.floor(dmg * 0.75)
       intentText = `🛡️${intent.defendValue} 🗡️${dmg}`
       intentHint = `将先获得 ${intent.defendValue} 护甲，再造成 ${dmg} 伤害`
       intentClass = 'intent-attack'
+      intentToneClass = 'enemy-intent--attack'
     }
 
     const enemyStatusBadges: string[] = []
-    if (enemy.strength > 0) enemyStatusBadges.push(`<span class="status-badge">💪${enemy.strength}</span>`)
-    if (enemy.burn > 0) enemyStatusBadges.push(`<span class="status-badge">🔥${enemy.burn}</span>`)
-    if (enemy.poison > 0) enemyStatusBadges.push(`<span class="status-badge">🐍${enemy.poison}</span>`)
-    if (enemy.freeze > 0) enemyStatusBadges.push('<span class="status-badge">🧊</span>')
-    if (enemy.weakened > 0) enemyStatusBadges.push(`<span class="status-badge status-debuff">😵${enemy.weakened}</span>`)
-    if (enemy.vulnerable > 0) enemyStatusBadges.push(`<span class="status-badge status-debuff">💀${enemy.vulnerable}</span>`)
+    if (!justDied) {
+      if (enemy.strength > 0) enemyStatusBadges.push(`<span class="status-badge">💪${enemy.strength}</span>`)
+      if (enemy.burn > 0) enemyStatusBadges.push(`<span class="status-badge">🔥${enemy.burn}</span>`)
+      if (enemy.poison > 0) enemyStatusBadges.push(`<span class="status-badge">🐍${enemy.poison}</span>`)
+      if (enemy.freeze > 0) enemyStatusBadges.push('<span class="status-badge">🧊</span>')
+      if (enemy.weakened > 0) enemyStatusBadges.push(`<span class="status-badge status-debuff">😵${enemy.weakened}</span>`)
+      if (enemy.vulnerable > 0) enemyStatusBadges.push(`<span class="status-badge status-debuff">💀${enemy.vulnerable}</span>`)
+    }
     const enemyStatus = enemyStatusBadges.join('')
+    const enemySlotClass = justDied ? 'enemy-slot enemy-slot--dying' : 'enemy-slot'
 
     return `
-      <div class="enemy-unit" data-enemy-idx="${idx}" tabindex="0" role="button" aria-label="${enemyDef.name}">
-        <div class="enemy-intent ${intentClass}" title="${intentHint}">${intentText}</div>
+      <div class="${enemySlotClass}">
+        <div class="enemy-intent ${intentClass} ${intentToneClass}" title="${intentHint}">${intentText}</div>
+        <div
+          class="enemy-unit ${justDied ? 'is-defeated' : ''}"
+          data-enemy-idx="${idx}"
+          tabindex="${enemy.hp > 0 ? '0' : '-1'}"
+          role="button"
+          aria-label="${enemyDef.name}"
+          aria-disabled="${enemy.hp > 0 ? 'false' : 'true'}"
+        >
+          <div class="enemy-sprite" data-enemy-name="${enemyDef.name}">
+            <img src="${enemyDef.sprite}" alt="${enemyDef.name}" loading="lazy" />
+          </div>
+          <div class="enemy-name">${enemyDef.name}</div>
+          ${passiveText ? `<div class="enemy-passive">${passiveText}</div>` : ''}
+          <div class="hp-bar enemy-hp-bar">
+            <div class="hp-bar-fill" style="width: ${hpPercent}%"></div>
+            <div class="hp-bar-text">${enemy.hp}/${enemy.maxHp}</div>
+          </div>
+          <div class="enemy-meta">
+            ${enemy.armor > 0 ? `🛡️ ${enemy.armor}` : ' '}
+          </div>
+          <div class="enemy-preview" data-preview-idx="${idx}"></div>
+          ${enemyStatus ? `<div class="status-row enemy-status-row">${enemyStatus}</div>` : ''}
+        </div>
         <div class="enemy-intent-hint">${intentHint}</div>
-        <div class="enemy-name">👾 ${enemyDef.name}</div>
-        ${passiveText ? `<div class="enemy-passive">${passiveText}</div>` : ''}
-        <div class="hp-bar-container">
-          <div class="hp-bar-fill" style="width: ${hpPercent}%"></div>
-        </div>
-        <div style="font-size:9px; color:#aaa;">
-          HP ${enemy.hp}/${enemy.maxHp}
-          ${enemy.armor > 0 ? ` 🛡️${enemy.armor}` : ''}
-        </div>
-        <div class="enemy-preview" data-preview-idx="${idx}"></div>
-        ${enemyStatus ? `<div class="status-row enemy-status-row">${enemyStatus}</div>` : ''}
       </div>
     `
   }).join('')
 
   // Build hand cards HTML
-  const cardsHtml = state.player.hand.map(card => {
+  const cardsHtml = state.player.hand.map((card, index) => {
     const def = getEffectiveCardDef(card)
     const playable = canPlayCard(state, card.uid)
     let costLabel = ''
@@ -415,9 +661,25 @@ export function renderBattle(
     } else {
       costLabel = reducedCost < def.cost ? `✦<s>${def.cost}</s>${reducedCost}` : `✦${def.cost}`
     }
+    const fan = resolveHandFanStyle(index, state.player.hand.length)
+    const tiltDeg = (((Math.random() - 0.5) * 2)).toFixed(2)
     const selectedClass = pendingCardUid === card.uid ? 'selected' : ''
+    const cardTypeClass = def.id.startsWith('curse_')
+      ? 'card--curse'
+      : def.category === 'combat'
+        ? 'card--attack'
+        : def.category === 'spell'
+          ? 'card--skill'
+          : 'card--power'
     return `
-      <div class="card ${playable ? '' : 'disabled'} ${selectedClass}" data-uid="${card.uid}" tabindex="${playable ? '0' : '-1'}" role="button" aria-label="${def.name}">
+      <div
+        class="card card--hand ${cardTypeClass} ${playable ? '' : 'disabled'} ${selectedClass}"
+        data-uid="${card.uid}"
+        tabindex="${playable ? '0' : '-1'}"
+        role="button"
+        aria-label="${def.name}"
+        style="${buildHandCardStyleVars(index, fan)}--card-tilt:${tiltDeg}deg;"
+      >
         <div class="card-name">${def.name}</div>
         <div class="card-cost ${def.costType}">${costLabel}</div>
         <div class="card-desc">${decorateKeywords(def.description)}</div>
@@ -431,7 +693,7 @@ export function renderBattle(
     .map((id) => {
       const used = !!state.usedMaterials[id]
       return `
-        <button class="btn btn-small battle-material-btn" data-material-id="${id}" ${used ? 'disabled' : ''}>
+        <button class="btn battle-material-btn" data-material-id="${id}" ${used ? 'disabled' : ''}>
           <div class="battle-material-name">${formatMaterial(id)} ${used ? '(已用)' : `×${state.availableMaterials[id]}`}</div>
           <div class="battle-material-effect">${getBattleMaterialEffectText(id)}</div>
         </button>
@@ -444,61 +706,141 @@ export function renderBattle(
         ? `试炼: 速度（限时${state.trialTurnLimit ?? 5}回合）`
         : '试炼: 耐久（敌方伤害x0.5）'
     : ''
+  const playerHpPercent = Math.max(0, Math.min(100, (state.player.hp / state.player.maxHp) * 100))
+  const hpDangerClass = playerHpPercent <= 35 ? 'is-low' : ''
+  const livingEnemyCount = state.enemies.filter((enemy) => enemy.hp > 0).length
+  const hudHtml = buildBattleHudSections({
+    hpBarHtml: `
+      <div class="hp-bar player-hp-bar hud-hp-bar ${hpDangerClass}">
+        <div class="hp-bar-fill" style="width:${playerHpPercent}%"></div>
+        <div class="hp-bar-text">${state.player.hp}/${state.player.maxHp}</div>
+      </div>
+    `,
+    armorHtml: `<span class="hud-stat hud-stat--armor"><span class="hud-label">护甲</span><span class="hud-number">${state.player.armor}</span></span>`,
+    staminaHtml: `<span class="hud-stat hud-stat--stamina"><span class="hud-label">体力</span><span class="hud-number">${state.player.stamina}/${state.player.maxStamina}</span></span>`,
+    manaHtml: `<span class="hud-stat hud-stat--mana"><span class="hud-label">法力</span><span class="hud-number">${state.player.mana}/${state.player.maxMana}</span></span>`,
+    enemyCountHtml: `<span class="hud-stat hud-stat--enemy"><span class="hud-label">敌人</span><span class="hud-number">${livingEnemyCount}</span></span>`,
+    weaponHtml: weaponText
+      ? `<span class="hud-stat hud-stat--weapon"><span class="hud-label">武器</span><span class="hud-text">${weaponText}</span></span>`
+      : '',
+    turnHtml: `<span class="hud-stat hud-stat--turn"><span class="hud-label">回合</span><span class="hud-number">${state.turn}</span></span>`,
+    dangerStatusHtml: dangerStatusHtml ? `<span class="hud-status-row hud-status-row--danger">${dangerStatusHtml}</span>` : '',
+    trialHtml: trialText ? `<span class="hud-meta hud-meta--trial">${trialText}</span>` : '',
+    enchantHtml: enchantText ? `<span class="hud-meta hud-meta--enchant">${enchantText}</span>` : '',
+    enchantFeedbackHtml: enchantFeedbackText ? `<span class="hud-meta hud-meta--feedback">${enchantFeedbackText}</span>` : '',
+    subStatusHtml: subStatusHtml ? `<span class="hud-status-row">${subStatusHtml}</span>` : '<span class="hud-meta hud-meta--empty">无额外状态</span>',
+    helpHtml: '<button class="hud-help-btn" id="btn-status-help" type="button" aria-label="状态说明">?</button>',
+  })
 
   container.innerHTML = `
-    <div class="player-bar">
-      <span class="stat stat-hp">♥ ${state.player.hp}/${state.player.maxHp}</span>
-      <span class="stat stat-stamina">⚡ ${state.player.stamina}/${state.player.maxStamina}</span>
-      <span class="stat stat-mana">✦ ${state.player.mana}/${state.player.maxMana}</span>
-      <span class="stat stat-armor">🛡️ ${state.player.armor}</span>
-      ${weaponText ? `<span class="stat" style="color:#f0a500;">${weaponText}</span>` : ''}
-      ${enchantText ? `<span class="stat" style="color:#7ad3ff;">${enchantText}</span>` : ''}
-      ${enchantFeedback}
-      ${playerStatus ? `<span class="stat status-row">${playerStatus}</span>` : ''}
-      ${trialText ? `<span class="stat" style="color:#f08c00;">${trialText}</span>` : ''}
-      <span class="stat">回合 ${state.turn}</span>
-      <span class="stat stat-help" id="btn-status-help">?</span>
-    </div>
-    <div id="status-guide" class="status-guide" style="display:none;">
-      <div class="status-guide-inner">
-        <div class="status-guide-title">状态说明</div>
-        <div class="status-guide-row">💪 力量 — 战技伤害+N</div>
-        <div class="status-guide-row">📖 智慧 — 法术伤害+N</div>
-        <div class="status-guide-row">🛡️ 护甲 — 抵消伤害，回合开始清零</div>
-        <div class="status-guide-row">🔵 屏障 — 回合开始保留最多N点护甲</div>
-        <div class="status-guide-row">⚡蓄 蓄能 — 下个法术伤害+N×10%，用后清零</div>
-        <div class="status-guide-row">🔥 灼烧 — 回合末受N伤害，每回合-1</div>
-        <div class="status-guide-row">🐍 中毒 — 回合开始受N伤害，不自然消退</div>
-        <div class="status-guide-row">🧊 冻结 — 跳过下次行动</div>
-        <div class="status-guide-row">💀 易伤 — 受到伤害+50%，每回合-1</div>
-        <div class="status-guide-row">😵 虚弱 — 造成伤害-25%，每回合-1</div>
-        <div class="status-guide-row">✨ 战技加成 — 下次战技伤害+N%</div>
-        <div class="status-guide-row">⚡x2 翻倍 — 下次战技伤害×2</div>
-        <div class="status-guide-row">🔮 法术加成 — 下次法术伤害+N</div>
-        <div class="status-guide-row">🐍+ 淬毒 — 战技命中附加N中毒</div>
-        <div class="status-guide-row">☠️ 中毒(玩家) — 每回合受N伤害</div>
-        <div class="status-guide-close">点击任意处关闭</div>
+    <div class="scene-battle ${actClass} ${eldritchClass}">
+      <div class="player-bar">
+        ${hudHtml}
       </div>
-    </div>
-    <div class="enemy-area ${targetModeClass}">
-      ${enemiesHtml}
-    </div>
-    <div class="battle-material-bar">
-      ${battleMaterials || '<span class="battle-material-empty">无可用材料</span>'}
-    </div>
-    ${pendingCardUid ? '<div class="target-hint">选择目标（右键取消）</div>' : ''}
-    <div class="hand-area">
-      <div class="hand-cards">${cardsHtml}</div>
-      <div class="hand-footer">
-        <span>抽牌堆: ${state.player.drawPile.length}</span>
-        <button class="btn btn-small" id="btn-normal-attack" ${canUseNormalAttack(state) ? '' : 'disabled'}>${state.player.normalAttackUsedThisTurn ? '普攻(已用)' : '普攻(0费)'}</button>
-        <button class="btn" id="btn-end-turn">结束回合</button>
-        <span>弃牌堆: ${state.player.discardPile.length}</span>
+
+      <div class="battle-scene-layer battle-scene-bg">
+        <img src="/assets/scenes/${sceneTheme}-top.png" alt="" loading="lazy" />
+      </div>
+
+      <div id="status-guide" class="status-guide" style="display:none;">
+        <div class="status-guide-inner">
+          <div class="status-guide-title">状态说明</div>
+          <div class="status-guide-row">💪 力量 — 战技伤害+N</div>
+          <div class="status-guide-row">📖 智慧 — 法术伤害+N</div>
+          <div class="status-guide-row">🛡️ 护甲 — 抵消伤害，回合开始清零</div>
+          <div class="status-guide-row">🔵 屏障 — 回合开始保留最多N点护甲</div>
+          <div class="status-guide-row">⚡蓄 蓄能 — 下个法术伤害+N×10%，用后清零</div>
+          <div class="status-guide-row">🔥 灼烧 — 回合末受N伤害，每回合-1</div>
+          <div class="status-guide-row">🐍 中毒 — 回合开始受N伤害，不自然消退</div>
+          <div class="status-guide-row">🧊 冻结 — 跳过下次行动</div>
+          <div class="status-guide-row">💀 易伤 — 受到伤害+50%，每回合-1</div>
+          <div class="status-guide-row">😵 虚弱 — 造成伤害-25%，每回合-1</div>
+          <div class="status-guide-row">✨ 战技加成 — 下次战技伤害+N%</div>
+          <div class="status-guide-row">⚡x2 翻倍 — 下次战技伤害×2</div>
+          <div class="status-guide-row">🔮 法术加成 — 下次法术伤害+N</div>
+          <div class="status-guide-row">🐍+ 淬毒 — 战技命中附加N中毒</div>
+          <div class="status-guide-row">☠️ 中毒(玩家) — 每回合受N伤害</div>
+          <div class="status-guide-close">点击任意处关闭</div>
+        </div>
+      </div>
+
+      <div class="battle-main battle-stage">
+        <div class="battle-scene-layer battle-scene-platform">
+          <img src="${stagePlatformSrc}" alt="" loading="lazy" />
+        </div>
+        <div class="battle-scene-layer battle-scene-contact" aria-hidden="true">
+          <img src="${stageContactSrc}" alt="" loading="lazy" />
+        </div>
+        <div class="battle-scene-layer battle-scene-corners">
+          <img src="/assets/scenes/stage-deco-corners.png" alt="" loading="lazy" />
+        </div>
+        <div class="player-area">
+          <div class="player-sprite" data-player-name="工匠">
+            <img src="/assets/characters/player/hero.png" alt="工匠" loading="lazy" />
+          </div>
+          <div class="buff-row">
+            ${playerStatus}
+          </div>
+        </div>
+        <div class="enemy-area ${targetModeClass}">
+          ${enemiesHtml}
+        </div>
+        <div class="battle-scene-layer battle-scene-fg">
+          <img src="/assets/scenes/${sceneTheme}-foreground-mask.png" alt="" loading="lazy" />
+        </div>
+      </div>
+
+      <div class="battle-material-bar">
+        ${battleMaterials || '<span class="battle-material-empty">无可用材料</span>'}
+      </div>
+      ${pendingCardUid ? '<div class="target-hint">选择目标（右键取消）</div>' : ''}
+
+      <div class="hand-area">
+        <div class="hand-cards">${cardsHtml}</div>
+        <div class="hand-footer">
+          <span class="deck-counter">抽牌堆: ${state.player.drawPile.length}</span>
+          <span class="discard-counter">弃牌堆: ${state.player.discardPile.length}</span>
+        </div>
+        <div class="hand-actions">
+          <button class="btn btn-md" id="btn-normal-attack" ${canUseNormalAttack(state) ? '' : 'disabled'}>${state.player.normalAttackUsedThisTurn ? '⚔️ 普攻(已用)' : '⚔️ 普攻'}</button>
+          <button class="btn btn-md btn-ghost" id="btn-end-turn">⏭️ 结束回合</button>
+        </div>
       </div>
     </div>
   `
 
   // --- Event binding ---
+  container.querySelectorAll<HTMLImageElement>('.player-sprite img').forEach((imgEl) => {
+    const wrapper = imgEl.closest<HTMLElement>('.player-sprite')
+    if (!wrapper) return
+    const playerName = wrapper.dataset.playerName ?? imgEl.alt ?? '工匠'
+    const renderFallback = () => {
+      const fallback = document.createElement('div')
+      fallback.className = 'player-sprite--fallback'
+      fallback.textContent = playerName
+      wrapper.replaceChildren(fallback)
+    }
+    imgEl.addEventListener('error', renderFallback, { once: true })
+    if (imgEl.complete && imgEl.naturalWidth === 0) {
+      renderFallback()
+    }
+  })
+
+  container.querySelectorAll<HTMLImageElement>('.enemy-sprite img').forEach((imgEl) => {
+    const wrapper = imgEl.closest<HTMLElement>('.enemy-sprite')
+    if (!wrapper) return
+    const enemyName = wrapper.dataset.enemyName ?? imgEl.alt ?? '未知敌人'
+    const renderFallback = () => {
+      const fallback = document.createElement('div')
+      fallback.className = 'enemy-sprite--fallback'
+      fallback.textContent = enemyName
+      wrapper.replaceChildren(fallback)
+    }
+    imgEl.addEventListener('error', renderFallback, { once: true })
+    if (imgEl.complete && imgEl.naturalWidth === 0) {
+      renderFallback()
+    }
+  })
 
   // Cancel target selection on right-click or clicking empty area
   container.addEventListener('contextmenu', (e) => {
@@ -512,23 +854,27 @@ export function renderBattle(
   // Enemy click (target selection)
   container.querySelectorAll<HTMLElement>('.enemy-unit').forEach(el => {
     el.addEventListener('click', (e) => {
+      if (cardFlightAnimating) return
       e.stopPropagation()
       if (!pendingCardUid) return
       const idx = parseInt(el.dataset.enemyIdx!, 10)
+      if (!Number.isFinite(idx) || (state.enemies[idx]?.hp ?? 0) <= 0) return
       const uid = pendingCardUid
       exitTargetMode(container)
       applyPreviewToDom(container, state, null, false)
-      callbacks.onPlayCard(uid, idx)
+      playCardWithAnimation(container, state, callbacks, uid, idx)
     })
     el.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (cardFlightAnimating) return
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault()
         const idx = parseInt(el.dataset.enemyIdx!, 10)
+        if (!Number.isFinite(idx) || (state.enemies[idx]?.hp ?? 0) <= 0) return
         if (pendingCardUid) {
           const uid = pendingCardUid
           exitTargetMode(container)
           applyPreviewToDom(container, state, null, false)
-          callbacks.onPlayCard(uid, idx)
+          playCardWithAnimation(container, state, callbacks, uid, idx)
           return
         }
         if (pendingNormalAttack) {
@@ -539,10 +885,12 @@ export function renderBattle(
       }
     })
     el.addEventListener('click', (e) => {
+      if (cardFlightAnimating) return
       if (!pendingNormalAttack) return
       if (pendingCardUid) return
       e.stopPropagation()
       const idx = parseInt(el.dataset.enemyIdx!, 10)
+      if (!Number.isFinite(idx) || (state.enemies[idx]?.hp ?? 0) <= 0) return
       exitTargetMode(container)
       applyPreviewToDom(container, state, null, false)
       callbacks.onNormalAttack(idx)
@@ -552,6 +900,7 @@ export function renderBattle(
   // Card click
   container.querySelectorAll<HTMLElement>('.card:not(.disabled)').forEach(el => {
     el.addEventListener('click', (e) => {
+      if (cardFlightAnimating) return
       e.stopPropagation()
       const uid = el.dataset.uid!
       const card = state.player.hand.find(c => c.uid === uid)
@@ -575,9 +924,12 @@ export function renderBattle(
         applyPreviewToDom(container, state, uid, false)
       } else if (cardNeedsTarget(def.effects) && livingEnemies.length === 1) {
         const targetIdx = state.enemies.findIndex(en => en.hp > 0)
-        callbacks.onPlayCard(uid, targetIdx)
+        if (targetIdx >= 0) {
+          playCardWithAnimation(container, state, callbacks, uid, targetIdx)
+        }
       } else {
-        callbacks.onPlayCard(uid, 0)
+        const fallbackTarget = state.enemies.findIndex(en => en.hp > 0)
+        playCardWithAnimation(container, state, callbacks, uid, Math.max(0, fallbackTarget))
       }
     })
     el.addEventListener('mouseenter', () => {
@@ -603,11 +955,13 @@ export function renderBattle(
   // End turn button
   container.querySelector('#btn-end-turn')!
     .addEventListener('click', () => {
+      if (cardFlightAnimating) return
       pendingCardUid = null
       callbacks.onEndTurn()
     })
 
   container.querySelector('#btn-normal-attack')?.addEventListener('click', () => {
+    if (cardFlightAnimating) return
     const livingEnemies = state.enemies.filter(en => en.hp > 0)
     const mode = resolveNormalAttackMode(livingEnemies.length)
     if (mode === 'target') {
@@ -623,6 +977,7 @@ export function renderBattle(
 
   container.querySelectorAll<HTMLElement>('.battle-material-btn').forEach(el => {
     el.addEventListener('click', () => {
+      if (cardFlightAnimating) return
       const materialId = el.dataset.materialId as MaterialId
       if (!materialId) return
       if (window.confirm(`确认消耗 ${formatMaterial(materialId)}？每场战斗每种材料只能使用一次。`)) {

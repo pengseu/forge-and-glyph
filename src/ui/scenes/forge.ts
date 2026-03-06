@@ -11,58 +11,60 @@ export function renderForge(
   run: RunState,
   callbacks: GameCallbacks,
 ): void {
-  const recipesHtml = FORGE_RECIPES.map(r => {
-    const masteryLevel = r.requiresBlueprint ? (run.blueprintMastery?.[r.requiresBlueprint] ?? 0) : 0
-    const effective = resolveRecipeCost(r, masteryLevel)
-    const unlocked = isRecipeUnlocked(run, r)
+  const recipesHtml = FORGE_RECIPES.map((recipe) => {
+    const masteryLevel = recipe.requiresBlueprint ? (run.blueprintMastery?.[recipe.requiresBlueprint] ?? 0) : 0
+    const effective = resolveRecipeCost(recipe, masteryLevel)
+    const unlocked = isRecipeUnlocked(run, recipe)
     const canPayFixedCost = Object.entries(effective.cost).every(([k, v]) => run.materials[k as keyof typeof run.materials] >= (v ?? 0))
     const totalEssence = run.materials.elemental_essence + run.materials.war_essence + run.materials.guard_essence
     const canPayAnyEssence = (effective.anyEssenceCost ?? 0) <= totalEssence
     const canCraft = unlocked && canPayFixedCost && canPayAnyEssence
-    const fixedCostText = Object.entries(effective.cost).map(([k, v]) => `${formatMaterial(k as keyof RunState['materials'])}×${v}`).join(' + ')
+    const fixedCostText = Object.entries(effective.cost)
+      .map(([k, v]) => `${formatMaterial(k as keyof RunState['materials'])}×${v}`)
+      .join(' + ')
     const costText = [fixedCostText, effective.anyEssenceCost ? `任意精华×${effective.anyEssenceCost}` : '']
       .filter(Boolean)
       .join(' + ')
-    const weapon = getWeaponDef(r.weaponDefId)
-    const lockText = unlocked ? '' : `（未解锁蓝图：${r.requiresBlueprint}）`
+    const weapon = getWeaponDef(recipe.weaponDefId)
     return `
-      <div class="forge-recipe">
-        <div class="forge-name">${r.name}</div>
-        <div class="forge-effect">效果：${describeWeaponEffect(weapon.effect)}</div>
-        <div class="forge-cost">${costText} ${lockText}</div>
-        <button class="btn btn-small" data-recipe-id="${r.id}" ${canCraft ? '' : 'disabled'}>锻造</button>
-      </div>
+      <article class="forge-action-item ${canCraft ? '' : 'is-disabled'}">
+        <div class="forge-action-name">${recipe.name}</div>
+        <div class="forge-action-desc">${describeWeaponEffect(weapon.effect)}</div>
+        <div class="forge-action-cost">${costText}${unlocked ? '' : ` · 未解锁蓝图：${recipe.requiresBlueprint}`}</div>
+        <button class="btn btn-sm" data-recipe-id="${recipe.id}" ${canCraft ? '' : 'disabled'}>锻造</button>
+      </article>
     `
   }).join('')
 
   const weapon = run.equippedWeapon
   const enchantSlots = weapon?.enchantments ?? []
-  const resonanceHints = getTriggeredResonances(enchantSlots).map((r) => `✨共鸣：${r.name}`).join(' · ')
-  const enchantHtml = ENCHANTMENTS.map((e) => {
+  const resonanceHints = getTriggeredResonances(enchantSlots).map((r) => `✨ ${r.name}`).join(' · ')
+
+  const enchantHtml = ENCHANTMENTS.map((enchant) => {
     if (!weapon) return ''
     if (enchantSlots.length < 2) {
-      return `<button class="btn btn-small" data-forge-enchant="${e.id}" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${e.icon}${e.name}</button>`
+      return `<button class="btn btn-sm" data-forge-enchant="${enchant.id}" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${enchant.icon}${enchant.name}</button>`
     }
     return `
-      <div class="enchant-replace-actions">
-        <button class="btn btn-small" data-forge-enchant="${e.id}" data-replace-idx="0" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${e.icon}${e.name}→槽1</button>
-        <button class="btn btn-small" data-forge-enchant="${e.id}" data-replace-idx="1" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${e.icon}${e.name}→槽2</button>
+      <div class="forge-enchant-row">
+        <button class="btn btn-sm" data-forge-enchant="${enchant.id}" data-replace-idx="0" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${enchant.icon}${enchant.name}→槽1</button>
+        <button class="btn btn-sm" data-forge-enchant="${enchant.id}" data-replace-idx="1" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${enchant.icon}${enchant.name}→槽2</button>
       </div>
     `
   }).join('')
 
-  const upgradableCards = run.deck.filter((c) => !c.upgraded)
+  const upgradableCards = run.deck.filter((card) => !card.upgraded)
   const upgradeHtml = upgradableCards
     .map((card) => {
       const def = getCardDef(card.defId)
-      return `<button class="shop-remove-card" data-forge-upgrade="${card.uid}">${def.name}</button>`
+      return `<button class="forge-compact-btn" data-forge-upgrade="${card.uid}">${def.name}</button>`
     })
     .join('')
 
   const removeHtml = run.deck
     .map((card) => {
       const def = getCardDef(card.defId)
-      return `<button class="shop-remove-card" data-forge-remove="${card.uid}">${def.name}</button>`
+      return `<button class="forge-compact-btn" data-forge-remove="${card.uid}">${def.name}</button>`
     })
     .join('')
 
@@ -78,40 +80,54 @@ export function renderForge(
     : '未装备武器'
 
   container.innerHTML = `
-    <div class="scene-forge">
-      <h2>⚒️ 工坊（本次仅能执行1项）</h2>
-      <div class="forge-materials">
-        ${Object.entries(run.materials).map(([k, v]) => `<span>${formatMaterial(k as keyof RunState['materials'])}:${v}</span>`).join(' ')}
-      </div>
+    <div class="scene-forge scene-forge-v3">
+      <header class="forge-header">
+        <h2 class="forge-title">⚒️ 铁匠工坊</h2>
+        <p class="forge-subtitle">选择一项工艺，仅此一次</p>
+      </header>
 
-      <div class="inventory-section">
-        <h3>1) 锻造武器</h3>
-        <div class="forge-recipes">${recipesHtml}</div>
-      </div>
+      <section class="forge-action-grid">
+        <article class="panel forge-action-panel">
+          <h3>🔨 锻造</h3>
+          <p>消耗材料锻造新武器</p>
+          <div class="forge-action-list">${recipesHtml || '<div class="forge-empty">暂无配方</div>'}</div>
+        </article>
 
-      <div class="inventory-section">
-        <h3>2) 附魔武器（元素精华×1）</h3>
-        <div class="inventory-item">当前武器：${weapon ? getWeaponDef(weapon.defId).name : '无'} · 槽位：${slotText}</div>
-        <div class="inventory-item">${resonanceHints || '暂无共鸣'}</div>
-        <div class="forge-recipes">${enchantHtml || '<div class="inventory-item">未装备武器</div>'}</div>
-      </div>
+        <article class="panel forge-action-panel">
+          <h3>✨ 附魔</h3>
+          <p>当前武器：${weapon ? getWeaponDef(weapon.defId).name : '无'} · 槽位：${slotText}</p>
+          <div class="forge-resonance-hint">${resonanceHints || '暂无共鸣'}</div>
+          <div class="forge-action-list">${enchantHtml || '<div class="forge-empty">未装备武器</div>'}</div>
+        </article>
 
-      <div class="inventory-section">
-        <h3>3) 升级卡牌</h3>
-        <div class="shop-remove-list">${upgradeHtml || '<span class="inventory-item">无可升级卡牌</span>'}</div>
-      </div>
+        <article class="panel forge-action-panel">
+          <h3>⬆️ 升级卡牌</h3>
+          <p>选择一张卡牌升级</p>
+          <div class="forge-compact-list">${upgradeHtml || '<div class="forge-empty">无可升级卡牌</div>'}</div>
+        </article>
 
-      <div class="inventory-section">
-        <h3>4) 精简卡组（移除1张）</h3>
-        <div class="shop-remove-list">${removeHtml || '<span class="inventory-item">无可移除卡牌</span>'}</div>
-      </div>
+        <article class="panel forge-action-panel">
+          <h3>✂️ 精简卡组</h3>
+          <p>移除一张卡牌</p>
+          <div class="forge-compact-list">${removeHtml || '<div class="forge-empty">无可移除卡牌</div>'}</div>
+        </article>
+      </section>
 
-      <button class="btn" id="btn-leave-forge">离开</button>
+      <footer class="forge-footer">
+        <div class="forge-material-bar">
+          ${Object.entries(run.materials).map(([key, value]) => `<span class="forge-material-tag">${formatMaterial(key as keyof RunState['materials'])} ×${value}</span>`).join('')}
+        </div>
+        <button class="btn btn-md" id="btn-leave-forge">返回地图</button>
+      </footer>
     </div>
   `
 
-  container.querySelectorAll<HTMLElement>('[data-recipe-id]').forEach(el => {
-    el.addEventListener('click', () => callbacks.onForgeCraft(el.dataset.recipeId!))
+  container.querySelectorAll<HTMLElement>('[data-recipe-id]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const recipeId = el.dataset.recipeId
+      if (!recipeId) return
+      callbacks.onForgeCraft(recipeId)
+    })
   })
 
   container.querySelectorAll<HTMLElement>('[data-forge-enchant]').forEach((el) => {
@@ -124,12 +140,34 @@ export function renderForge(
   })
 
   container.querySelectorAll<HTMLElement>('[data-forge-upgrade]').forEach((el) => {
-    el.addEventListener('click', () => callbacks.onForgeUpgradeCard(el.dataset.forgeUpgrade!))
+    el.addEventListener('click', () => {
+      const uid = el.dataset.forgeUpgrade
+      if (!uid) return
+      callbacks.onForgeUpgradeCard(uid)
+    })
   })
 
   container.querySelectorAll<HTMLElement>('[data-forge-remove]').forEach((el) => {
-    el.addEventListener('click', () => callbacks.onForgeRemoveCard(el.dataset.forgeRemove!))
+    el.addEventListener('click', () => {
+      const uid = el.dataset.forgeRemove
+      if (!uid) return
+      callbacks.onForgeRemoveCard(uid)
+    })
   })
 
   container.querySelector('#btn-leave-forge')?.addEventListener('click', () => callbacks.onForgeLeave())
+
+  container.querySelectorAll<HTMLImageElement>('.forge-weapon-preview img').forEach((imgEl) => {
+    const wrapper = imgEl.closest<HTMLElement>('.forge-weapon-preview')
+    if (!wrapper) return
+    const name = wrapper.dataset.weaponName ?? imgEl.alt ?? '武器'
+    const renderFallback = () => {
+      const fallback = document.createElement('div')
+      fallback.className = 'forge-image-fallback'
+      fallback.textContent = name
+      wrapper.replaceChildren(fallback)
+    }
+    imgEl.addEventListener('error', renderFallback, { once: true })
+    if (imgEl.complete && imgEl.naturalWidth === 0) renderFallback()
+  })
 }

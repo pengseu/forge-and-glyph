@@ -4,8 +4,43 @@ import { getCardDef } from '../../game/cards'
 import { canUpgrade, getEffectiveCardDef, upgradeCard } from '../../game/campfire'
 
 type CampfireView = 'menu' | 'upgrade'
+type CampfireOptionId = 'rest' | 'upgrade' | 'continue'
+
+type CampfireMenuOption = {
+  id: CampfireOptionId
+  title: string
+  desc: string
+  buttonLabel: string
+  disabled: boolean
+}
 
 let currentView: CampfireView = 'menu'
+
+export function resolveCampfireMenuOptions(playerHp: number, playerMaxHp: number): CampfireMenuOption[] {
+  return [
+    {
+      id: 'rest',
+      title: '❤️ 休息',
+      desc: '恢复30%HP',
+      buttonLabel: `休息 (${playerHp}/${playerMaxHp})`,
+      disabled: playerHp >= playerMaxHp,
+    },
+    {
+      id: 'upgrade',
+      title: '⬆️ 升级卡牌',
+      desc: '选择一张卡牌升级',
+      buttonLabel: '选择卡牌',
+      disabled: false,
+    },
+    {
+      id: 'continue',
+      title: '➡️ 继续旅程',
+      desc: '返回地图',
+      buttonLabel: '出发',
+      disabled: false,
+    },
+  ]
+}
 
 export function renderCampfire(
   container: HTMLElement,
@@ -16,14 +51,37 @@ export function renderCampfire(
 ): void {
   container.innerHTML = ''
   const wrapper = document.createElement('div')
-  wrapper.className = 'scene-campfire'
+  wrapper.className = `scene-campfire scene-campfire-v3 ${currentView === 'upgrade' ? 'scene-campfire--upgrade' : ''}`
+  wrapper.innerHTML = `
+    <div class="campfire-bg" data-art-name="篝火场景背景">
+      <img src="/assets/scenes/campfire.png" alt="篝火场景背景" loading="lazy" />
+    </div>
+    <div class="campfire-content"></div>
+  `
+
+  const bgImg = wrapper.querySelector<HTMLImageElement>('.campfire-bg img')
+  if (bgImg) {
+    const bgWrapper = wrapper.querySelector<HTMLElement>('.campfire-bg')
+    const renderFallback = () => {
+      if (!bgWrapper) return
+      const fallback = document.createElement('div')
+      fallback.className = 'campfire-art-fallback'
+      fallback.textContent = bgWrapper.dataset.artName ?? '篝火场景背景'
+      bgWrapper.replaceChildren(fallback)
+    }
+    bgImg.addEventListener('error', renderFallback, { once: true })
+    if (bgImg.complete && bgImg.naturalWidth === 0) renderFallback()
+  }
+
+  const content = wrapper.querySelector<HTMLElement>('.campfire-content')
+  if (!content) return
 
   const rerender = () => renderCampfire(container, run, playerHp, playerMaxHp, callbacks)
 
   if (currentView === 'menu') {
-    renderMenu(wrapper, playerHp, playerMaxHp, callbacks, rerender)
+    renderMenu(content, playerHp, playerMaxHp, callbacks, rerender)
   } else {
-    renderUpgradeView(wrapper, run, callbacks, rerender)
+    renderUpgradeView(content, run, callbacks, rerender)
   }
 
   container.appendChild(wrapper)
@@ -34,63 +92,82 @@ export function resetCampfireView(): void {
 }
 
 function renderMenu(
-  wrapper: HTMLElement,
+  content: HTMLElement,
   playerHp: number,
   playerMaxHp: number,
   callbacks: GameCallbacks,
   rerender: () => void,
 ): void {
-  const title = document.createElement('h2')
-  title.textContent = '🔥 篝火'
-  wrapper.appendChild(title)
+  const options = resolveCampfireMenuOptions(playerHp, playerMaxHp)
 
-  const options = document.createElement('div')
-  options.className = 'campfire-options'
-  const healBtn = document.createElement('button')
-  healBtn.className = 'btn'
-  healBtn.textContent = `回血（本次篝火限1次） (${playerHp} / ${playerMaxHp})`
-  if (playerHp >= playerMaxHp) {
-    healBtn.disabled = true
+  content.innerHTML = `
+    <header class="campfire-header">
+      <h2 class="campfire-title">🔥 篝火休憩</h2>
+      <p class="campfire-subtitle">在温暖中恢复力量…</p>
+    </header>
+    <div class="campfire-option-grid">
+      ${options.map((option) => `
+        <section class="panel campfire-option" data-option-id="${option.id}">
+          <h3 class="campfire-option-title">${option.title}</h3>
+          <p class="campfire-option-desc">${option.desc}</p>
+          <button class="btn btn-md" id="btn-campfire-${option.id}" ${option.disabled ? 'disabled' : ''}>${option.buttonLabel}</button>
+        </section>
+      `).join('')}
+    </div>
+  `
+
+  let lockedChoice = false
+  const chooseOption = (optionId: CampfireOptionId, action: () => void): void => {
+    if (lockedChoice) return
+    lockedChoice = true
+    content.querySelectorAll<HTMLElement>('.campfire-option').forEach((panel) => {
+      const selected = panel.dataset.optionId === optionId
+      panel.classList.toggle('is-selected', selected)
+      panel.classList.toggle('is-dimmed', !selected)
+    })
+    content.querySelectorAll<HTMLButtonElement>('.campfire-option .btn').forEach((btn) => {
+      btn.disabled = true
+    })
+    window.setTimeout(action, 90)
   }
-  healBtn.addEventListener('click', () => {
-    callbacks.onCampfireHeal()
-  })
-  options.appendChild(healBtn)
 
-  const upgradeBtn = document.createElement('button')
-  upgradeBtn.className = 'btn'
-  upgradeBtn.textContent = '升级卡牌（本次篝火限1次）'
-  upgradeBtn.addEventListener('click', () => {
-    currentView = 'upgrade'
-    rerender()
+  content.querySelector('#btn-campfire-rest')?.addEventListener('click', () => {
+    chooseOption('rest', callbacks.onCampfireHeal)
   })
-  options.appendChild(upgradeBtn)
-
-  const continueBtn = document.createElement('button')
-  continueBtn.className = 'btn'
-  continueBtn.textContent = '继续旅程'
-  continueBtn.addEventListener('click', () => {
-    resetCampfireView()
-    callbacks.onCampfireContinue()
+  content.querySelector('#btn-campfire-upgrade')?.addEventListener('click', () => {
+    chooseOption('upgrade', () => {
+      currentView = 'upgrade'
+      rerender()
+    })
   })
-  options.appendChild(continueBtn)
-
-  wrapper.appendChild(options)
+  content.querySelector('#btn-campfire-continue')?.addEventListener('click', () => {
+    chooseOption('continue', () => {
+      resetCampfireView()
+      callbacks.onCampfireContinue()
+    })
+  })
 }
 
 function renderUpgradeView(
-  wrapper: HTMLElement,
+  content: HTMLElement,
   run: RunState,
   callbacks: GameCallbacks,
   rerender: () => void,
 ): void {
   const title = document.createElement('h2')
   title.textContent = '选择要升级的卡牌'
-  wrapper.appendChild(title)
+  title.className = 'campfire-upgrade-title campfire-title'
+  content.appendChild(title)
+
+  const subtitle = document.createElement('p')
+  subtitle.className = 'campfire-upgrade-subtitle'
+  subtitle.textContent = '只能选择一张，升级后将继续旅程。'
+  content.appendChild(subtitle)
 
   const cardsContainer = document.createElement('div')
   cardsContainer.className = 'campfire-cards'
 
+  let lockedSelection = false
   for (const card of run.deck) {
     const effectiveDef = getEffectiveCardDef(card)
     const isUpgraded = !!card.upgraded
@@ -126,22 +203,28 @@ function renderUpgradeView(
       el.appendChild(preview)
 
       el.addEventListener('click', () => {
+        if (lockedSelection) return
+        lockedSelection = true
+        el.classList.add('campfire-card--picked')
         resetCampfireView()
-        callbacks.onCampfireUpgradeCard(card.uid)
+        window.setTimeout(() => callbacks.onCampfireUpgradeCard(card.uid), 90)
       })
     }
 
     cardsContainer.appendChild(el)
   }
 
-  wrapper.appendChild(cardsContainer)
+  content.appendChild(cardsContainer)
 
+  const actions = document.createElement('div')
+  actions.className = 'campfire-upgrade-actions'
   const backBtn = document.createElement('button')
-  backBtn.className = 'btn'
+  backBtn.className = 'btn btn-md btn-ghost'
   backBtn.textContent = '返回'
   backBtn.addEventListener('click', () => {
     currentView = 'menu'
     rerender()
   })
-  wrapper.appendChild(backBtn)
+  actions.appendChild(backBtn)
+  content.appendChild(actions)
 }

@@ -1,0 +1,52 @@
+战败...
+回合数: 2
+
+本局时长: 139s
+
+金币: 58 · 卡组: 13
+
+路线
+1. normal_battle (l1_start)
+2. normal_battle (l2_right)
+3. event (l3_mid)
+4. normal_battle (l4_left)
+5. forge (l5_left)
+6. normal_battle (l6_left)
+背包
+武器
+
+iron_longsword
+iron_staff
+材料
+
+iron_ingot: 0
+steel_ingot: 0
+elemental_essence: 0
+war_essence: 0
+guard_essence: 0
+goblin_crown_fragment: 0
+每场战斗
+战斗1 · normal_battle · goblin_scout, mushroom_creature · victory · 3回合
+战斗2 · normal_battle · goblin_scout, mushroom_creature · victory · 3回合
+战斗3 · normal_battle · goblin_scout, goblin_scout · victory · 3回合
+战斗4 · normal_battle · goblin_scout, goblin_scout, mushroom_creature · defeat · 2回合
+全局日志
+14:58:35 开始新的一局冒险
+14:58:36 进入节点 l1_start (normal_battle)
+14:58:49 战斗胜利：l1_start，3 回合
+14:58:58 奖励选卡：soul_siphon
+14:59:03 进入节点 l2_right (normal_battle)
+14:59:15 战斗胜利：l2_right，3 回合
+14:59:20 奖励选卡：deep_thought
+14:59:23 进入节点 l3_mid (event)
+14:59:25 事件【废弃营地】选择：search_camp
+14:59:30 进入节点 l4_left (normal_battle)
+14:59:51 战斗胜利：l4_left，3 回合
+15:00:01 奖励选卡：thorn_armor
+15:00:06 进入节点 l5_left (forge)
+15:00:21 铁匠：锻造 forge_iron_staff
+15:00:22 离开铁匠
+15:00:26 背包：装备武器 weapon_1772348421602_0.21649727652249817
+15:00:29 进入节点 l6_left (normal_battle)
+15:00:54 战斗失败：l6_left，2 回合
+15:00:54 本局结束：失败

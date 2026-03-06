@@ -2,6 +2,7 @@ import { ALL_CARDS } from './cards'
 import { generateMapByAct } from './map'
 import { upgradeEquippedWeapon } from './run'
 import type { RunState } from './types'
+import { random } from './random'
 
 export type IntermissionChoiceId =
   | 'elite_armament'
@@ -102,7 +103,7 @@ export function getIntermissionChoices(act: 1 | 2 | 3): IntermissionChoiceDef[] 
 export function applyIntermissionChoice(
   state: RunState,
   choiceId: IntermissionChoiceId,
-  rng: () => number = Math.random,
+  rng: () => number = random,
 ): RunState {
   if (choiceId === 'elite_armament') {
     return upgradeEquippedWeapon(state)
@@ -163,7 +164,7 @@ export function applyIntermissionChoice(
   return state
 }
 
-export function advanceToNextAct(state: RunState, rng: () => number = Math.random): RunState {
+export function advanceToNextAct(state: RunState, rng: () => number = random): RunState {
   if (state.act >= 3) return state
   const nextAct = (state.act + 1) as 1 | 2 | 3
   const nextMap = generateMapByAct(nextAct, rng)

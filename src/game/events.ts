@@ -2,6 +2,7 @@ import { ALL_CARDS } from './cards'
 import { addMaterialReward } from './run'
 import { resolveLegacyWeaponChoice } from './meta'
 import type { EventDef, EventOptionId, MaterialId, RunState } from './types'
+import { random } from './random'
 
 const ACT1_EVENTS: Array<{ def: EventDef; weight: number }> = [
   {
@@ -333,13 +334,13 @@ export function createTrialChoiceEvent(): EventDef {
   }
 }
 
-export function rollEventByAct(act: 1 | 2 | 3, rng: () => number = Math.random): EventDef {
+export function rollEventByAct(act: 1 | 2 | 3, rng: () => number = random): EventDef {
   if (act === 1) return weightedRoll(ACT1_EVENTS, rng)
   if (act === 2) return weightedRoll(ACT2_EVENTS, rng)
   return weightedRoll(ACT3_EVENTS, rng)
 }
 
-export function rollEvent(rng: () => number = Math.random): EventDef {
+export function rollEvent(rng: () => number = random): EventDef {
   return rollEventByAct(1, rng)
 }
 
@@ -347,7 +348,7 @@ export function resolveEventOption(
   run: RunState,
   event: EventDef,
   optionId: EventOptionId,
-  rng: () => number = Math.random,
+  rng: () => number = random,
 ): EventResolution {
   if (optionId === 'leave' || optionId === 'cursed_leave' || optionId === 'traveler_ignore' || optionId === 'guardian_escape' || optionId === 'altar_leave') {
     return { run }

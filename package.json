@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest --run"
+    "test": "vitest --run",
+    "balance:report": "./node_modules/.bin/vite-node --script scripts/generate-balance-report.ts",
+    "assets:check": "./node_modules/.bin/vite-node --script scripts/assets-manifest-sync.ts",
+    "assets:sync": "./node_modules/.bin/vite-node --script scripts/assets-manifest-sync.ts --apply"
   },
   "devDependencies": {
     "typescript": "~5.9.3",

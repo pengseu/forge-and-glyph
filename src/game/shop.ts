@@ -1,6 +1,7 @@
 import { getRewardPoolByAct } from './cards'
 import type { CardDef, ShopMaterialOffer, ShopOffer } from './types'
 import { SHOP_SERVICE_BY_ACT } from './config'
+import { random } from './random'
 
 export interface ShopServicePricing {
   healPrice: number
@@ -18,13 +19,13 @@ function pickOne(pool: CardDef[], rng: () => number): CardDef {
   return pool[idx]
 }
 
-export function generateShopOffers(rng: () => number = Math.random): ShopOffer[] {
+export function generateShopOffers(rng: () => number = random): ShopOffer[] {
   return generateShopOffersByAct(1, rng)
 }
 
 export function generateShopOffersByAct(
   act: 1 | 2 | 3,
-  rng: () => number = Math.random,
+  rng: () => number = random,
 ): ShopOffer[] {
   const source = getRewardPoolByAct(act)
   const commons = source.filter(c => c.rarity === 'common')
@@ -64,7 +65,7 @@ export function generateShopOffersByAct(
 
 export function generateShopMaterialOffersByAct(
   act: 1 | 2 | 3,
-  rng: () => number = Math.random,
+  rng: () => number = random,
 ): ShopMaterialOffer[] {
   const essenceIds: Array<ShopMaterialOffer['materialId']> = ['elemental_essence', 'war_essence', 'guard_essence']
   const randomEssence = essenceIds[Math.floor(rng() * essenceIds.length)]

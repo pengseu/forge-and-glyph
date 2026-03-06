@@ -5,11 +5,12 @@ import { applyCardEffects } from './effects'
 import { getEffectiveCardDef } from './campfire'
 import { EMPTY_MATERIAL_BAG } from './materials'
 import { getWeaponDef } from './weapons'
+import { random } from './random'
 
 function shuffleArray<T>(arr: T[]): T[] {
   const result = [...arr]
   for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(random() * (i + 1));
     [result[i], result[j]] = [result[j], result[i]]
   }
   return result
@@ -50,7 +51,7 @@ function createEnemyState(enemyId: string): EnemyState {
 
 function createGeneratedCard(defId: string): CardInstance {
   return {
-    uid: `generated_${Date.now()}_${Math.random()}`,
+    uid: `generated_${Date.now()}_${random()}`,
     defId,
   }
 }
@@ -133,7 +134,7 @@ function addCostIncreaseToRandomCards(state: BattleState, count: number): Battle
   const pool = [...seen].filter(id => !state.player.costIncreasedCardDefIds.includes(id))
   const picked: string[] = []
   while (picked.length < count && pool.length > 0) {
-    const idx = Math.floor(Math.random() * pool.length)
+    const idx = Math.floor(random() * pool.length)
     picked.push(pool[idx])
     pool.splice(idx, 1)
   }

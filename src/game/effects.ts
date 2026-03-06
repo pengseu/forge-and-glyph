@@ -1,11 +1,12 @@
 import type { BattleState, CardCategory, CardEffect } from './types'
 import { hasResonance } from './enchantments'
 import { getEffectiveCardDef } from './campfire'
+import { random } from './random'
 
 function shuffleArray<T>(arr: T[]): T[] {
   const result = [...arr]
   for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
+    const j = Math.floor(random() * (i + 1))
     ;[result[i], result[j]] = [result[j], result[i]]
   }
   return result
@@ -304,7 +305,7 @@ function applyAttackHitEnchantments(
       .map((e, i) => ({ e, i }))
       .filter(({ e, i }) => i !== targetIndex && e.hp > 0)
     const chainIdx = candidates.length > 0
-      ? candidates[Math.floor(Math.random() * candidates.length)].i
+      ? candidates[Math.floor(random() * candidates.length)].i
       : -1
     if (chainIdx >= 0) {
       s = dealDamageToEnemy(s, chainIdx, 4)

@@ -152,8 +152,8 @@ export function renderResult(
         <ul>${globalLogs || '<li>无</li>'}</ul>
         </details>
       </div>
-      <button class="btn" id="btn-export-log">保存日志</button>
-      <button class="btn" id="btn-restart">再来一局</button>
+      <button class="btn btn-md" id="btn-export-log">保存日志</button>
+      <button class="btn btn-md" id="btn-restart">再来一局</button>
     </div>
   `
   container.querySelector('#btn-export-log')?.addEventListener('click', () => {

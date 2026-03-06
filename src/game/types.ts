@@ -94,6 +94,7 @@ export type EnemyIntent =
 export interface EnemyDef {
   id: string
   name: string
+  sprite: string
   maxHp: number
   intents: EnemyIntent[]
 }
@@ -249,7 +250,7 @@ export type MaterialId =
 export type MaterialBag = Record<MaterialId, number>
 
 // --- Scene ---
-export type Scene = 'title' | 'weapon_select' | 'map' | 'battle' | 'reward' | 'result' | 'campfire' | 'shop' | 'inventory' | 'forge' | 'enchant' | 'event' | 'act_transition'
+export type Scene = 'title' | 'style_lab' | 'weapon_select' | 'map' | 'battle' | 'reward' | 'result' | 'campfire' | 'shop' | 'inventory' | 'forge' | 'enchant' | 'event' | 'act_transition'
 
 export type EventOptionId =
   | 'leave'
@@ -371,6 +372,35 @@ export interface RunReport {
 }
 
 export interface GameState {
+  seedText: string
+  rngState: number
+  hasAutoSave: boolean
+  saveSlots: Array<{
+    slot: 1 | 2 | 3
+    savedAt: number | null
+    scene: Scene | null
+    act: 1 | 2 | 3 | null
+    hp: number | null
+    gold: number | null
+  }>
+  challengeUnlocked: boolean
+  challengeModeEnabled: boolean
+  skipTutorial: boolean
+  tutorialStep: number
+  workshopGuideSeen: boolean
+  guideFlags: {
+    resonance: boolean
+    curse: boolean
+    materialEmergency: boolean
+    temple: boolean
+  }
+  activeGuide: { id: string; title: string; body: string } | null
+  audio: {
+    muted: boolean
+    master: number
+    sfx: number
+    bgm: number
+  }
   scene: Scene
   run: RunState | null
   battle: BattleState | null

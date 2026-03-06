@@ -4,6 +4,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   goblin_scout: {
     id: 'goblin_scout',
     name: '地精散兵',
+    sprite: '/assets/characters/enemies/goblin_scout.png',
     maxHp: 28,
     intents: [
       { type: 'attack', value: 8 },
@@ -15,6 +16,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   forest_wolf: {
     id: 'forest_wolf',
     name: '森林狼',
+    sprite: '/assets/characters/enemies/forest_wolf.png',
     maxHp: 30,
     intents: [
       { type: 'buff', buffType: 'strength', value: 2 },
@@ -26,6 +28,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   mushroom_creature: {
     id: 'mushroom_creature',
     name: '蘑菇怪',
+    sprite: '/assets/characters/enemies/mushroom_creature.png',
     maxHp: 32,
     intents: [
       { type: 'poison', value: 2 },
@@ -37,6 +40,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   goblin_brute: {
     id: 'goblin_brute',
     name: '地精勇士',
+    sprite: '/assets/characters/enemies/goblin_brute.png',
     maxHp: 44,
     intents: [
       { type: 'attack', value: 11 },
@@ -48,6 +52,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   goblin_shaman: {
     id: 'goblin_shaman',
     name: '地精术士',
+    sprite: '/assets/characters/enemies/goblin_shaman.png',
     maxHp: 24,
     intents: [
       { type: 'heal_ally_lowest', value: 10 },
@@ -59,6 +64,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   shadow_assassin: {
     id: 'shadow_assassin',
     name: '暗影刺客',
+    sprite: '/assets/characters/enemies/shadow_assassin.png',
     maxHp: 55,
     intents: [
       { type: 'defend', value: 6 },
@@ -70,6 +76,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   stone_gargoyle: {
     id: 'stone_gargoyle',
     name: '石像鬼',
+    sprite: '/assets/characters/enemies/stone_gargoyle.png',
     maxHp: 65,
     intents: [
       { type: 'attack', value: 12 },
@@ -81,6 +88,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   goblin_king: {
     id: 'goblin_king',
     name: '地精王',
+    sprite: '/assets/characters/enemies/goblin_king.png',
     maxHp: 110,
     intents: [
       { type: 'summon', enemyId: 'goblin_minion' },
@@ -92,6 +100,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   goblin_minion: {
     id: 'goblin_minion',
     name: '地精小兵',
+    sprite: '/assets/characters/enemies/goblin_minion.png',
     maxHp: 22,
     intents: [
       { type: 'attack', value: 7 },
@@ -103,6 +112,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   thorn_vine: {
     id: 'thorn_vine',
     name: '荆棘藤蔓',
+    sprite: '/assets/characters/enemies/thorn_vine.png',
     maxHp: 40,
     intents: [
       { type: 'defend_attack', defendValue: 0, attackValue: 8 },
@@ -114,6 +124,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   shadow_walker: {
     id: 'shadow_walker',
     name: '暗影行者',
+    sprite: '/assets/characters/enemies/shadow_walker.png',
     maxHp: 35,
     intents: [
       { type: 'defend', value: 6 },
@@ -125,6 +136,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   berserker: {
     id: 'berserker',
     name: '狂战士',
+    sprite: '/assets/characters/enemies/berserker.png',
     maxHp: 50,
     intents: [
       { type: 'attack', value: 12 },
@@ -136,6 +148,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   lich: {
     id: 'lich',
     name: '巫妖',
+    sprite: '/assets/characters/enemies/lich.png',
     maxHp: 80,
     intents: [
       { type: 'curse', cardId: 'curse_doubt', count: 2 },
@@ -147,6 +160,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   iron_golem: {
     id: 'iron_golem',
     name: '铁甲傀儡',
+    sprite: '/assets/characters/enemies/iron_golem.png',
     maxHp: 70,
     intents: [
       { type: 'attack', value: 18 },
@@ -158,6 +172,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   dark_witch: {
     id: 'dark_witch',
     name: '黑暗女巫',
+    sprite: '/assets/characters/enemies/dark_witch.png',
     maxHp: 150,
     intents: [
       { type: 'curse', cardId: 'curse_pain', count: 2 },
@@ -169,6 +184,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   shadow_eye: {
     id: 'shadow_eye',
     name: '暗影之眼',
+    sprite: '/assets/characters/enemies/shadow_eye.png',
     maxHp: 18,
     intents: [
       { type: 'attack', value: 8 },
@@ -180,6 +196,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   void_messenger: {
     id: 'void_messenger',
     name: '虚空使者',
+    sprite: '/assets/characters/enemies/void_messenger.png',
     maxHp: 55,
     intents: [
       { type: 'attack', value: 14 },
@@ -191,6 +208,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   soul_weaver: {
     id: 'soul_weaver',
     name: '灵魂编织者',
+    sprite: '/assets/characters/enemies/soul_weaver.png',
     maxHp: 45,
     intents: [
       { type: 'defend', value: 5 },
@@ -202,6 +220,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   elemental_symbiote: {
     id: 'elemental_symbiote',
     name: '元素共生体',
+    sprite: '/assets/characters/enemies/elemental_symbiote.png',
     maxHp: 40,
     intents: [
       { type: 'defend_attack', defendValue: 0, attackValue: 12 },
@@ -213,6 +232,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   abyss_knight: {
     id: 'abyss_knight',
     name: '深渊骑士',
+    sprite: '/assets/characters/enemies/abyss_knight.png',
     maxHp: 100,
     intents: [
       { type: 'attack', value: 16 },
@@ -224,6 +244,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   fate_weaver: {
     id: 'fate_weaver',
     name: '命运织者',
+    sprite: '/assets/characters/enemies/fate_weaver.png',
     maxHp: 85,
     intents: [
       { type: 'attack', value: 10 },
@@ -235,6 +256,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   abyss_lord: {
     id: 'abyss_lord',
     name: '深渊领主',
+    sprite: '/assets/characters/enemies/abyss_lord.png',
     maxHp: 200,
     intents: [
       { type: 'attack', value: 18 },

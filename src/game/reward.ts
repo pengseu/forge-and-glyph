@@ -1,5 +1,6 @@
 import type { CardDef, NodeType } from './types'
 import { getRewardPoolByAct } from './cards'
+import { random } from './random'
 
 const RARITY_WEIGHTS_BY_ACT: Record<1 | 2 | 3, Record<string, number>> = {
   1: { basic: 0, common: 50, rare: 30, epic: 10, legendary: 0 },
@@ -11,7 +12,7 @@ function weightedRandomCards(
   pool: CardDef[],
   count: number,
   minRarity?: string,
-  rng: () => number = Math.random,
+  rng: () => number = random,
   weights: Record<string, number> = RARITY_WEIGHTS_BY_ACT[1],
 ): CardDef[] {
   // Filter pool to exclude basic cards (not offered as rewards)
@@ -56,10 +57,10 @@ function weightedRandomCards(
 }
 
 export function getRewardCards(nodeType: NodeType): CardDef[] {
-  return getRewardCardsByAct(nodeType, 1, Math.random)
+  return getRewardCardsByAct(nodeType, 1, random)
 }
 
-export function getRewardCardsByAct(nodeType: NodeType, act: 1 | 2 | 3, rng: () => number = Math.random): CardDef[] {
+export function getRewardCardsByAct(nodeType: NodeType, act: 1 | 2 | 3, rng: () => number = random): CardDef[] {
   if (nodeType === 'campfire') return []
   const pool = getRewardPoolByAct(act)
   const weights = RARITY_WEIGHTS_BY_ACT[act]

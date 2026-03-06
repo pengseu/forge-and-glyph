@@ -1,6 +1,7 @@
 import { BOSS_LEGENDARY_WEAPON_BY_ACT } from './config'
 import { EMPTY_MATERIAL_BAG } from './materials'
 import type { EnchantmentId, EventDef, RunState } from './types'
+import { random } from './random'
 
 const META_KEY = 'fg_meta_profile_v1'
 
@@ -14,9 +15,15 @@ export interface MetaProfile {
   blueprintProgress: Record<string, { replicaEliteKills: number; replicaClears: number; replicaInheritances: number }>
   legacyWeaponDefId: string | null
   legacyWeaponEnchantments: EnchantmentId[]
+  unlockedMetaCards: string[]
+  unlockedMetaWeapons: string[]
+  unlockedMetaEnchantments: string[]
+  unlockedStarters: string[]
+  milestones: Record<string, { progress: number; target: number; unlocked: boolean }>
   unlockFlags: {
     challengeMode: boolean
     extraStarters: boolean
+    firstDeathBonusClaimed: boolean
   }
   lastRunAt: number | null
 }
@@ -37,9 +44,15 @@ export function createDefaultMetaProfile(): MetaProfile {
     blueprintProgress: {},
     legacyWeaponDefId: null,
     legacyWeaponEnchantments: [],
+    unlockedMetaCards: [],
+    unlockedMetaWeapons: [],
+    unlockedMetaEnchantments: [],
+    unlockedStarters: [],
+    milestones: {},
     unlockFlags: {
       challengeMode: false,
       extraStarters: false,
+      firstDeathBonusClaimed: false,
     },
     lastRunAt: null,
   }
@@ -105,6 +118,72 @@ function normalizeBlueprintProgress(
   return out
 }
 
+function normalizeMilestones(value: unknown): Record<string, { progress: number; target: number; unlocked: boolean }> {
+  if (!value || typeof value !== 'object') return {}
+  const out: Record<string, { progress: number; target: number; unlocked: boolean }> = {}
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof key !== 'string' || !raw || typeof raw !== 'object') continue
+    const row = raw as Record<string, unknown>
+    const progress = Math.max(0, Math.floor(Number(row.progress ?? 0)))
+    const target = Math.max(1, Math.floor(Number(row.target ?? 1)))
+    out[key] = {
+      progress: Number.isFinite(progress) ? progress : 0,
+      target: Number.isFinite(target) ? target : 1,
+      unlocked: !!row.unlocked,
+    }
+  }
+  return out
+}
+
+type MilestoneRewardKind = 'card' | 'weapon' | 'enchantment' | 'starter'
+
+interface MilestoneDef {
+  id: string
+  target: number
+  rewardKind: MilestoneRewardKind
+  rewardId: string
+  progressGain: (ctx: {
+    prev: MetaProfile
+    payload: {
+      result: 'victory' | 'defeat'
+      act: 1 | 2 | 3
+      equippedWeaponDefId?: string | null
+      equippedWeaponEnchantments?: EnchantmentId[]
+    }
+  }) => number
+}
+
+const META_MILESTONES: MilestoneDef[] = [
+  {
+    id: 'unlock_poison_core',
+    target: 1,
+    rewardKind: 'card',
+    rewardId: 'acidic_poison_core',
+    progressGain: ({ payload }) => (payload.result === 'victory' ? 1 : 0),
+  },
+  {
+    id: 'unlock_staff_blueprint',
+    target: 1,
+    rewardKind: 'weapon',
+    rewardId: 'staff_master_blueprint',
+    progressGain: ({ payload }) => (payload.result === 'victory' && payload.equippedWeaponDefId?.includes('staff') ? 1 : 0),
+  },
+  {
+    id: 'unlock_flame_script',
+    target: 1,
+    rewardKind: 'enchantment',
+    rewardId: 'burnout_script',
+    progressGain: ({ payload }) => (payload.result === 'victory' && (payload.equippedWeaponEnchantments ?? []).includes('flame') ? 1 : 0),
+  },
+  {
+    id: 'unlock_extra_starters_pack',
+    target: 3,
+    rewardKind: 'starter',
+    rewardId: 'dagger_hammer_pack',
+    progressGain: ({ payload }) => (payload.result === 'victory' ? 1 : 0),
+  },
+]
+
 function resolveMasteryByProgress(progress: { replicaEliteKills: number; replicaClears: number; replicaInheritances: number }): number {
   if (progress.replicaInheritances >= 1) return 3
   if (progress.replicaClears >= 1) return 2
@@ -137,9 +216,15 @@ export function loadMetaProfile(storage?: StorageLike): MetaProfile {
       blueprintProgress: normalizeBlueprintProgress(parsed.blueprintProgress),
       legacyWeaponDefId: typeof parsed.legacyWeaponDefId === 'string' ? parsed.legacyWeaponDefId : null,
       legacyWeaponEnchantments: normalizeEnchantmentList(parsed.legacyWeaponEnchantments),
+      unlockedMetaCards: uniqueStrings(parsed.unlockedMetaCards),
+      unlockedMetaWeapons: uniqueStrings(parsed.unlockedMetaWeapons),
+      unlockedMetaEnchantments: uniqueStrings(parsed.unlockedMetaEnchantments),
+      unlockedStarters: uniqueStrings(parsed.unlockedStarters),
+      milestones: normalizeMilestones(parsed.milestones),
       unlockFlags: {
         challengeMode: !!parsed.unlockFlags?.challengeMode,
         extraStarters: !!parsed.unlockFlags?.extraStarters,
+        firstDeathBonusClaimed: !!parsed.unlockFlags?.firstDeathBonusClaimed,
       },
       lastRunAt: typeof parsed.lastRunAt === 'number' ? parsed.lastRunAt : base.lastRunAt,
     }
@@ -201,11 +286,16 @@ export function applyRunResultToMeta(
     completedReplicaInheritanceBlueprints?: string[]
   },
 ): MetaProfile {
+  const firstDeathBonus = payload.result === 'defeat' && !profile.unlockFlags.firstDeathBonusClaimed ? 1 : 0
   let next: MetaProfile = {
     ...profile,
-    adventureTokens: profile.adventureTokens + calcAdventureTokens(payload.result, payload.act),
+    adventureTokens: profile.adventureTokens + calcAdventureTokens(payload.result, payload.act) + firstDeathBonus,
     totalRuns: profile.totalRuns + 1,
     totalVictories: profile.totalVictories + (payload.result === 'victory' ? 1 : 0),
+    unlockFlags: {
+      ...profile.unlockFlags,
+      firstDeathBonusClaimed: profile.unlockFlags.firstDeathBonusClaimed || payload.result === 'defeat',
+    },
     lastRunAt: Date.now(),
   }
   for (const blueprintId of payload.unlockedBlueprints ?? []) {
@@ -261,13 +351,42 @@ export function applyRunResultToMeta(
   }
 
   const totalVictories = next.totalVictories
+
+  const nextMilestones = { ...next.milestones }
+  let unlockedMetaCards = [...next.unlockedMetaCards]
+  let unlockedMetaWeapons = [...next.unlockedMetaWeapons]
+  let unlockedMetaEnchantments = [...next.unlockedMetaEnchantments]
+  let unlockedStarters = [...next.unlockedStarters]
+  for (const def of META_MILESTONES) {
+    const base = nextMilestones[def.id] ?? { progress: 0, target: def.target, unlocked: false }
+    if (base.unlocked) {
+      nextMilestones[def.id] = base
+      continue
+    }
+    const gained = Math.max(0, Math.floor(def.progressGain({ prev: profile, payload })))
+    const progress = Math.min(def.target, base.progress + gained)
+    const unlocked = progress >= def.target
+    nextMilestones[def.id] = { progress, target: def.target, unlocked }
+    if (!unlocked) continue
+    if (def.rewardKind === 'card' && !unlockedMetaCards.includes(def.rewardId)) unlockedMetaCards.push(def.rewardId)
+    if (def.rewardKind === 'weapon' && !unlockedMetaWeapons.includes(def.rewardId)) unlockedMetaWeapons.push(def.rewardId)
+    if (def.rewardKind === 'enchantment' && !unlockedMetaEnchantments.includes(def.rewardId)) unlockedMetaEnchantments.push(def.rewardId)
+    if (def.rewardKind === 'starter' && !unlockedStarters.includes(def.rewardId)) unlockedStarters.push(def.rewardId)
+  }
+
   next = {
     ...next,
     blueprintProgress,
     blueprintMastery: nextMastery,
+    milestones: nextMilestones,
+    unlockedMetaCards,
+    unlockedMetaWeapons,
+    unlockedMetaEnchantments,
+    unlockedStarters,
     unlockFlags: {
       challengeMode: next.unlockFlags.challengeMode || totalVictories >= 1,
-      extraStarters: next.unlockFlags.extraStarters || totalVictories >= 3,
+      extraStarters: next.unlockFlags.extraStarters || totalVictories >= 3 || unlockedStarters.includes('dagger_hammer_pack'),
+      firstDeathBonusClaimed: next.unlockFlags.firstDeathBonusClaimed,
     },
   }
 
@@ -329,7 +448,7 @@ export function resolveLegacyWeaponChoice(
     if (inheritedBlueprint) {
       completed.add(inheritedBlueprint)
     }
-    const uid = `legacy_${Date.now()}_${Math.random()}`
+    const uid = `legacy_${Date.now()}_${random()}`
     const weapon = {
       uid,
       defId: weakenLegacyWeaponDefId(run.legacyWeaponDefId),
@@ -344,7 +463,7 @@ export function resolveLegacyWeaponChoice(
     }
   }
   const essenceIds: Array<keyof RunState['materials']> = ['elemental_essence', 'war_essence', 'guard_essence']
-  const randomEssence = essenceIds[Math.floor(Math.random() * essenceIds.length)]
+  const randomEssence = essenceIds[Math.floor(random() * essenceIds.length)]
   const materialGain = { steel_ingot: 2, [randomEssence]: 1 } as Partial<RunState['materials']>
   const nextMaterials = { ...EMPTY_MATERIAL_BAG, ...run.materials }
   for (const [k, v] of Object.entries(materialGain)) {

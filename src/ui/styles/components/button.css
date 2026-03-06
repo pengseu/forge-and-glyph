@@ -1,0 +1,94 @@
+.btn {
+  border: 2px solid #ffffff;
+  border-radius: 4px 3px 5px 3px;
+  box-shadow: var(--shadow-m);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 8px 24px;
+  font-size: 15px;
+  line-height: 1;
+  background-color: var(--paper-cream);
+  background-image: url('/assets/textures/tex-washi.png');
+  background-size: 128px 128px;
+  background-blend-mode: soft-light;
+  color: var(--ink-primary);
+  font-family: var(--font-display);
+  cursor: pointer;
+  transition: all 150ms var(--ease-smooth);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.btn:hover {
+  background-color: var(--paper-cream);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-l);
+}
+
+.btn:active {
+  transform: translateY(1px);
+  box-shadow: var(--shadow-s);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  background-color: var(--paper-dark);
+  color: var(--ink-secondary);
+  text-shadow: none;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.btn-lg {
+  height: 48px;
+  padding: 12px 32px;
+  font-size: 18px;
+}
+
+.btn-md {
+  height: 36px;
+  padding: 8px 24px;
+  font-size: 15px;
+}
+
+.btn-sm {
+  height: 28px;
+  padding: 4px 16px;
+  font-size: 13px;
+}
+
+.btn-small {
+  height: 28px;
+  padding: 4px 16px;
+  font-size: 13px;
+}
+
+.btn-primary {
+  background-color: var(--color-gold);
+}
+
+.btn-primary:hover {
+  background-color: #b98936;
+}
+
+.btn-danger {
+  background-color: var(--color-hp);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background-color: var(--color-danger);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  background-image: none;
+  border: 2px dashed var(--ink-tertiary);
+}
+
+.btn-ghost:hover {
+  background-color: rgba(217, 201, 163, 0.25);
+}

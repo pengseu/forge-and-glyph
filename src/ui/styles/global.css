@@ -1,0 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Fredericka+the+Great&family=Fredoka+One&family=Noto+Sans+SC:wght@300;400&display=swap');
+
+:root {
+  --font-display: 'ZCOOL KuaiLe', cursive;
+  --font-display-en: 'Fredericka the Great', cursive;
+  --font-number: 'Fredoka One', sans-serif;
+  --font-body: 'Noto Sans SC', sans-serif;
+  /* Bridge legacy vars used by existing scenes */
+  --font-title: var(--font-display);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--paper-base);
+  color: var(--ink-primary);
+  font-family: var(--font-body);
+  background-image: url('/assets/textures/tex-kraft-base.png');
+  background-size: 512px 512px;
+  background-repeat: repeat;
+  background-blend-mode: multiply;
+}
+
+#app {
+  width: 1280px;
+  height: 720px;
+  margin: auto;
+  overflow: hidden;
+  position: relative;
+}

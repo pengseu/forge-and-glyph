@@ -3,6 +3,8 @@ export interface SeededRng {
   next: () => number
   nextInt: (min: number, max: number) => number
   chance: (p: number) => boolean
+  getState: () => number
+  setState: (nextState: number) => void
 }
 
 function normalizeSeed(seed: number): number {
@@ -24,6 +26,10 @@ export function createSeededRng(seed: number): SeededRng {
     next,
     nextInt: (min: number, max: number) => min + Math.floor(next() * (max - min + 1)),
     chance: (p: number) => next() < p,
+    getState: () => state >>> 0,
+    setState: (nextState: number) => {
+      state = normalizeSeed(nextState)
+    },
   }
 }
 

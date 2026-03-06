@@ -6,10 +6,11 @@ import { EMPTY_MATERIAL_BAG, addMaterial } from './materials'
 import { canPayMaterials, FORGE_RECIPES, isRecipeUnlocked, resolveRecipeCost } from './forge'
 import { getShopServicePricingByAct } from './shop'
 import { RUN_BASE_CONFIG, resolveBattleGoldRange } from './config'
+import { random } from './random'
 
 export function createRunState(
   seed?: Pick<RunState, 'unlockedBlueprints' | 'blueprintMastery' | 'legacyWeaponDefId' | 'legacyWeaponEnchantments'>,
-  rng: () => number = Math.random,
+  rng: () => number = random,
 ): RunState {
   const mapNodes = generateMap(rng)
   return {
@@ -93,7 +94,7 @@ export function applyBattleVictoryRewards(state: RunState, nodeType: NodeType): 
   }
 }
 
-export function generateBattleGold(nodeType: NodeType, rng: () => number = Math.random): number {
+export function generateBattleGold(nodeType: NodeType, rng: () => number = random): number {
   const range = resolveBattleGoldRange(nodeType)
   return range.min + Math.floor(rng() * (range.max - range.min + 1))
 }
@@ -115,7 +116,7 @@ export function addMaterialReward(
   return { ...state, materials }
 }
 
-export function addCardToDeck(state: RunState, cardId: string, rng: () => number = Math.random): RunState {
+export function addCardToDeck(state: RunState, cardId: string, rng: () => number = random): RunState {
   const def = getCardDef(cardId)
   const newCard: CardInstance = {
     uid: `card_${Date.now()}_${rng()}`,
@@ -150,7 +151,7 @@ export function healInShop(state: RunState): RunState {
   }
 }
 
-export function transformCardInShop(state: RunState, cardUid: string, rng: () => number = Math.random): RunState {
+export function transformCardInShop(state: RunState, cardUid: string, rng: () => number = random): RunState {
   const pricing = getShopServicePricingByAct(state.act)
   const transformPrice = pricing.transformPrice
   if (!transformPrice || state.gold < transformPrice) return state
@@ -174,7 +175,7 @@ export function transformCardInShop(state: RunState, cardUid: string, rng: () =>
 
 export function addWeaponToInventory(state: RunState, weaponDefId: string): RunState {
   const newWeapon: WeaponInstance = {
-    uid: `weapon_${Date.now()}_${Math.random()}`,
+    uid: `weapon_${Date.now()}_${random()}`,
     defId: weaponDefId,
     enchantments: [],
   }

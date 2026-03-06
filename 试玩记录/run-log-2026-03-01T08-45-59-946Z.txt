@@ -1,0 +1,87 @@
+战败...
+回合数: 6
+本局时长: 50s
+金币: 24 · 卡组: 11
+路线
+1. normal_battle (l1_start)
+2. normal_battle (l2_right)
+背包
+武器
+无
+材料
+iron_ingot: 0
+steel_ingot: 0
+elemental_essence: 0
+war_essence: 0
+guard_essence: 0
+goblin_crown_fragment: 0
+每场战斗
+战斗1 · normal_battle · goblin_scout, goblin_scout · victory · 3回合
+- [T0] system: 遭遇敌人：地精散兵、地精散兵
+- [T1] system: 战斗开始，玩家 HP 50/50
+- [T1] player: 打出卡牌【挥砍】目标#0
+- [T1] system: 地精散兵 HP 28 -> 22
+- [T1] player: 打出卡牌【火花】目标#0
+- [T1] system: 地精散兵 HP 22 -> 18
+- [T1] system: 地精散兵 灼烧 0 -> 1
+- [T1] player: 打出卡牌【格挡】目标#0
+- [T1] system: 玩家护甲 0 -> 5
+- [T1] player: 打出卡牌【格挡】目标#0
+- [T1] system: 玩家护甲 5 -> 10
+- [T1] player: 结束回合
+- [T2] system: 玩家HP 50 -> 44
+- [T2] system: 玩家护甲 10 -> 0
+- [T2] system: 地精散兵 HP 18 -> 17
+- [T2] system: 地精散兵 灼烧 1 -> 0
+- [T2] player: 打出卡牌【寒冰箭】目标#0
+- [T2] system: 玩家护甲 0 -> 2
+- [T2] system: 地精散兵 HP 17 -> 12
+- [T2] player: 打出卡牌【重斩】目标#0
+- [T2] system: 地精散兵 HP 12 -> 0
+- [T2] player: 打出卡牌【火花】目标#1
+- [T2] system: 地精散兵 HP 28 -> 24
+- [T2] system: 地精散兵 灼烧 0 -> 1
+- [T2] player: 打出卡牌【挥砍】目标#1
+- [T2] system: 地精散兵 HP 24 -> 18
+- [T2] player: 结束回合
+- [T3] system: 玩家HP 44 -> 38
+- [T3] system: 玩家护甲 2 -> 0
+- [T3] system: 地精散兵 HP 18 -> 17
+- [T3] system: 地精散兵 灼烧 1 -> 0
+- [T3] player: 打出卡牌【火球术】目标#1
+- [T3] system: 地精散兵 HP 17 -> 7
+- [T3] system: 地精散兵 灼烧 0 -> 2
+- [T3] player: 打出卡牌【重斩】目标#1
+- [T3] system: 地精散兵 HP 7 -> 0
+战斗2 · normal_battle · forest_wolf, forest_wolf · defeat · 3回合
+- [T0] system: 遭遇敌人：森林狼、森林狼
+- [T1] system: 战斗开始，玩家 HP 38/50
+- [T1] player: 打出卡牌【挥砍】目标#0
+- [T1] system: 森林狼 HP 30 -> 24
+- [T1] player: 打出卡牌【挥砍】目标#0
+- [T1] system: 森林狼 HP 24 -> 18
+- [T1] player: 打出卡牌【挥砍】目标#0
+- [T1] system: 森林狼 HP 18 -> 12
+- [T1] player: 结束回合
+- [T2] player: 打出卡牌【火球术】目标#0
+- [T2] system: 森林狼 HP 12 -> 2
+- [T2] system: 森林狼 灼烧 0 -> 2
+- [T2] player: 结束回合
+- [T3] system: 玩家HP 38 -> 12
+- [T3] system: 森林狼 HP 2 -> 0
+- [T3] system: 森林狼 灼烧 2 -> 1
+- [T3] player: 打出卡牌【挥砍】目标#1
+- [T3] system: 森林狼 HP 30 -> 24
+- [T3] player: 打出卡牌【重斩】目标#1
+- [T3] system: 森林狼 HP 24 -> 12
+- [T3] player: 打出卡牌【易伤诅咒】目标#1
+- [T3] player: 结束回合
+- [T3] system: 玩家HP 12 -> 0
+全局日志
+16:45:08 开始新的一局冒险
+16:45:09 进入节点 l1_start (normal_battle)
+16:45:26 战斗胜利：l1_start，3 回合
+16:45:32 奖励选卡：vulnerability_hex
+16:45:34 进入节点 l2_right (normal_battle)
+16:45:58 战斗失败：l2_right，3 回合
+16:45:58 本局结束：失败

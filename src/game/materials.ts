@@ -1,4 +1,5 @@
 import type { MaterialBag, MaterialId, NodeType } from './types'
+import { random } from './random'
 
 export const MATERIAL_DEFS: Record<MaterialId, { name: string; icon: string }> = {
   iron_ingot: { name: '铁锭', icon: '🪨' },
@@ -99,14 +100,14 @@ export function getBattleMaterialEffectText(materialId: MaterialId): string {
   }
 }
 
-export function rollMaterialReward(nodeType: NodeType, rng: () => number = Math.random): Partial<MaterialBag> {
+export function rollMaterialReward(nodeType: NodeType, rng: () => number = random): Partial<MaterialBag> {
   return rollMaterialRewardByAct(nodeType, 1, rng)
 }
 
 export function rollMaterialRewardByAct(
   nodeType: NodeType,
   act: 1 | 2 | 3,
-  rng: () => number = Math.random,
+  rng: () => number = random,
 ): Partial<MaterialBag> {
   const randomEssence = (): MaterialId => {
     const essences: MaterialId[] = ['elemental_essence', 'war_essence', 'guard_essence']

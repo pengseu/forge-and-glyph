@@ -1,0 +1,50 @@
+战败...
+回合数: 2
+
+本局时长: 114s
+
+金币: 33 · 卡组: 13
+
+路线
+1. normal_battle (l1_start)
+2. normal_battle (l2_left)
+3. shop (l3_left)
+4. normal_battle (l4_left)
+5. forge (l5_left)
+6. normal_battle (l6_left)
+背包
+武器
+
+iron_longsword
+材料
+
+iron_ingot: 0
+steel_ingot: 0
+elemental_essence: 0
+war_essence: 0
+guard_essence: 0
+goblin_crown_fragment: 0
+每场战斗
+战斗1 · normal_battle · goblin_scout, goblin_scout · victory · 3回合
+战斗2 · normal_battle · goblin_scout, goblin_scout · victory · 3回合
+战斗3 · normal_battle · goblin_scout, goblin_scout · victory · 2回合
+战斗4 · normal_battle · goblin_scout, goblin_scout, mushroom_creature · defeat · 2回合
+全局日志
+14:56:21 开始新的一局冒险
+14:56:23 进入节点 l1_start (normal_battle)
+14:56:40 战斗胜利：l1_start，3 回合
+14:56:43 奖励选卡：poison_spray
+14:56:47 进入节点 l2_left (normal_battle)
+14:57:07 战斗胜利：l2_left，3 回合
+14:57:16 奖励选卡：poison_spray
+14:57:17 进入节点 l3_left (shop)
+14:57:24 商店：购买治疗
+14:57:25 离开商店
+14:57:27 进入节点 l4_left (normal_battle)
+14:57:44 战斗胜利：l4_left，2 回合
+14:57:47 奖励选卡：bone_poison
+14:57:52 进入节点 l5_left (forge)
+14:57:55 离开铁匠
+14:57:58 进入节点 l6_left (normal_battle)
+14:58:16 战斗失败：l6_left，2 回合
+14:58:16 本局结束：失败

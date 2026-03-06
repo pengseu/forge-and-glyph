@@ -1,0 +1,111 @@
+{
+  "version": 2,
+  "generatedAt": "2026-03-02T14:15:33",
+  "baseSeed": 20260302,
+  "runsPerTier": 300,
+  "tiers": [
+    {
+      "tier": "novice",
+      "skillTier": "novice",
+      "maxBattleTurns": 60,
+      "target": {
+        "winRate": {
+          "min": 0.3,
+          "max": 0.5
+        },
+        "durationSec": {
+          "min": 2400,
+          "max": 3300
+        }
+      },
+      "confidence": {
+        "winRate95": {
+          "lower": 0,
+          "upper": 0.012643429997735661
+        }
+      },
+      "summary": {
+        "runs": 300,
+        "wins": 0,
+        "winRate": 0,
+        "avgDurationSec": 165.26666666666668,
+        "avgVictoryDurationSec": null,
+        "avgTurns": 9.533333333333333
+      },
+      "passed": {
+        "winRateEstimate": false,
+        "winRateCIOverlap": false,
+        "duration": false
+      }
+    },
+    {
+      "tier": "skilled",
+      "skillTier": "skilled",
+      "maxBattleTurns": 80,
+      "target": {
+        "winRate": {
+          "min": 0.6,
+          "max": 0.8
+        },
+        "durationSec": {
+          "min": 1800,
+          "max": 2700
+        }
+      },
+      "confidence": {
+        "winRate95": {
+          "lower": 0.0005886425761407379,
+          "upper": 0.018637164554943353
+        }
+      },
+      "summary": {
+        "runs": 300,
+        "wins": 1,
+        "winRate": 0.0033333333333333335,
+        "avgDurationSec": 463.6333333333333,
+        "avgVictoryDurationSec": 1230,
+        "avgTurns": 22.976666666666667
+      },
+      "passed": {
+        "winRateEstimate": false,
+        "winRateCIOverlap": false,
+        "duration": false
+      }
+    },
+    {
+      "tier": "expert",
+      "skillTier": "expert",
+      "maxBattleTurns": 120,
+      "target": {
+        "winRate": {
+          "min": 0.85,
+          "max": 1
+        },
+        "durationSec": {
+          "min": 1320,
+          "max": 2100
+        }
+      },
+      "confidence": {
+        "winRate95": {
+          "lower": 0.018204749873650852,
+          "upper": 0.0602624514575691
+        }
+      },
+      "summary": {
+        "runs": 300,
+        "wins": 10,
+        "winRate": 0.03333333333333333,
+        "avgDurationSec": 695.92,
+        "avgVictoryDurationSec": 1344.8,
+        "avgTurns": 34.76
+      },
+      "passed": {
+        "winRateEstimate": false,
+        "winRateCIOverlap": false,
+        "duration": true
+      }
+    }
+  ],
+  "overallPassed": false
+}

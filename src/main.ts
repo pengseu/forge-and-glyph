@@ -1,4 +1,13 @@
 import './style.css'
+import './ui/styles/tokens.css'
+import './ui/styles/global.css'
+import './ui/styles/components/button.css'
+import './ui/styles/components/panel.css'
+import './ui/styles/components/card.css'
+import './ui/styles/batch1-bridge.css'
+import './ui/styles/batch2-core.css'
+import './ui/styles/batch3-core.css'
+import './ui/styles/batch5-polish.css'
 import type { GameState, BattleState } from './game/types'
 import { createBattleState, startTurn, playCard, endPlayerTurn, useBattleMaterial, useNormalAttack } from './game/combat'
 import {
@@ -39,16 +48,50 @@ import {
   saveMetaProfile,
 } from './game/meta'
 import { createSeededRng, hashSeed } from './game/rng'
+import { setRandomSource } from './game/random'
+import { deserializeGameState, serializeGameState } from './game/state-codec'
+import { clearAuto, listSlotSummaries, loadAuto, loadSlot, saveAuto, saveSlot, type SavePayload } from './game/save'
+import { createDefaultSettings, loadSettings, saveSettings } from './game/settings'
+import { applyAudioSettings, playSfx, startBgmForAct, stopBgm } from './game/audio'
+import { ACT1_TUTORIAL_GUIDES, applyGuideQueue } from './game/guides'
 import { render } from './ui/renderer'
 
 const app = document.getElementById('app')!
 
 let prevBattle: BattleState | null = null
 const seedParam = new URLSearchParams(window.location.search).get('seed')
-const runtimeRng = createSeededRng(seedParam ? hashSeed(seedParam) : Date.now())
+const initialSeedText = seedParam ?? String(Date.now())
+const runtimeRng = createSeededRng(hashSeed(initialSeedText))
+setRandomSource(runtimeRng.next)
 let metaProfile = loadMetaProfile()
+let settings = loadSettings()
+applyAudioSettings(settings.audio)
 
 let gameState: GameState = {
+  seedText: initialSeedText,
+  rngState: runtimeRng.getState(),
+  hasAutoSave: loadAuto() !== null,
+  saveSlots: listSlotSummaries().map((slot) => ({
+    slot: slot.slot,
+    savedAt: slot.savedAt,
+    scene: slot.scene,
+    act: slot.act,
+    hp: slot.hp,
+    gold: slot.gold,
+  })),
+  challengeUnlocked: metaProfile.unlockFlags.challengeMode,
+  challengeModeEnabled: settings.challengeModeEnabled && metaProfile.unlockFlags.challengeMode,
+  skipTutorial: settings.skipTutorial,
+  tutorialStep: settings.guides.act1TutorialCompleted ? ACT1_TUTORIAL_GUIDES.length : 0,
+  workshopGuideSeen: settings.guides.workshop,
+  guideFlags: {
+    resonance: settings.guides.resonance,
+    curse: settings.guides.curse,
+    materialEmergency: settings.guides.materialEmergency,
+    temple: settings.guides.temple,
+  },
+  activeGuide: null,
+  audio: { ...settings.audio },
   scene: 'title',
   run: null,
   battle: null,
@@ -64,6 +107,129 @@ let gameState: GameState = {
   droppedWeaponId: null,
   lastResult: null,
   stats: { turns: 0, remainingHp: 0, runReport: null, finalSnapshot: null },
+}
+
+function toStateSlotSummary(slot: ReturnType<typeof listSlotSummaries>[number]): GameState['saveSlots'][number] {
+  return {
+    slot: slot.slot,
+    savedAt: slot.savedAt,
+    scene: slot.scene,
+    act: slot.act,
+    hp: slot.hp,
+    gold: slot.gold,
+  }
+}
+
+function refreshSaveUiState(): void {
+  gameState = {
+    ...gameState,
+    rngState: runtimeRng.getState(),
+    hasAutoSave: loadAuto() !== null,
+    saveSlots: listSlotSummaries().map(toStateSlotSummary),
+    challengeUnlocked: metaProfile.unlockFlags.challengeMode,
+  }
+  if (!metaProfile.unlockFlags.challengeMode && gameState.challengeModeEnabled) {
+    gameState = { ...gameState, challengeModeEnabled: false }
+  }
+}
+
+function setRuntimeSeed(seedText: string): void {
+  const hashed = hashSeed(seedText)
+  runtimeRng.setState(hashed)
+  setRandomSource(runtimeRng.next)
+}
+
+function saveGuideProgressFromState(state: GameState): void {
+  settings = {
+    ...settings,
+    guides: {
+      act1TutorialCompleted: state.tutorialStep >= ACT1_TUTORIAL_GUIDES.length,
+      workshop: state.workshopGuideSeen,
+      resonance: state.guideFlags.resonance,
+      curse: state.guideFlags.curse,
+      materialEmergency: state.guideFlags.materialEmergency,
+      temple: state.guideFlags.temple,
+    },
+  }
+  saveSettings(settings)
+}
+
+function hasGuideProgressChanged(prev: GameState, next: GameState): boolean {
+  return (
+    prev.tutorialStep !== next.tutorialStep ||
+    prev.workshopGuideSeen !== next.workshopGuideSeen ||
+    prev.guideFlags.resonance !== next.guideFlags.resonance ||
+    prev.guideFlags.curse !== next.guideFlags.curse ||
+    prev.guideFlags.materialEmergency !== next.guideFlags.materialEmergency ||
+    prev.guideFlags.temple !== next.guideFlags.temple
+  )
+}
+
+function buildSavePayload(): SavePayload | null {
+  if (!gameState.run) return null
+  return {
+    version: 1,
+    savedAt: Date.now(),
+    seedText: gameState.seedText,
+    rngState: runtimeRng.getState(),
+    gameState: serializeGameState({
+      ...gameState,
+      rngState: runtimeRng.getState(),
+    }),
+    metaProfile,
+  }
+}
+
+function applySavePayload(payload: SavePayload): void {
+  setRuntimeSeed(payload.seedText)
+  runtimeRng.setState(payload.rngState)
+  setRandomSource(runtimeRng.next)
+  metaProfile = payload.metaProfile
+  saveMetaProfile(metaProfile)
+  const restored = deserializeGameState(payload.gameState)
+  settings = {
+    ...createDefaultSettings(),
+    skipTutorial: restored.skipTutorial,
+    challengeModeEnabled: restored.challengeModeEnabled,
+    guides: {
+      act1TutorialCompleted: restored.tutorialStep >= ACT1_TUTORIAL_GUIDES.length,
+      workshop: restored.workshopGuideSeen,
+      resonance: restored.guideFlags.resonance,
+      curse: restored.guideFlags.curse,
+      materialEmergency: restored.guideFlags.materialEmergency,
+      temple: restored.guideFlags.temple,
+    },
+    audio: { ...restored.audio },
+  }
+  saveSettings(settings)
+  applyAudioSettings(settings.audio)
+  gameState = {
+    ...restored,
+    seedText: payload.seedText,
+    rngState: payload.rngState,
+    hasAutoSave: loadAuto() !== null,
+    saveSlots: listSlotSummaries().map(toStateSlotSummary),
+    challengeUnlocked: metaProfile.unlockFlags.challengeMode,
+    challengeModeEnabled: restored.challengeModeEnabled && metaProfile.unlockFlags.challengeMode,
+    skipTutorial: restored.skipTutorial,
+    audio: { ...restored.audio },
+  }
+  if (gameState.audio.muted || !gameState.run) stopBgm()
+  else startBgmForAct(gameState.run.act)
+  prevBattle = restored.battle
+}
+
+function persistAutoSave(): void {
+  if (!gameState.run) return
+  if (gameState.scene === 'title' || gameState.scene === 'result') return
+  const payload = buildSavePayload()
+  if (!payload) return
+  saveAuto(payload)
+}
+
+function applyChallengeHpScale(baseScale: number): number {
+  if (!gameState.challengeModeEnabled) return baseScale
+  return baseScale + 0.2
 }
 
 function initRunReport(): NonNullable<GameState['stats']['runReport']> {
@@ -150,6 +316,8 @@ function finalizeRun(result: 'victory' | 'defeat', runLike: import('./game/types
   } else {
     gameState.stats.finalSnapshot = null
   }
+  const firstDeathBonusTriggered = result === 'defeat' && !metaProfile.unlockFlags.firstDeathBonusClaimed
+  const challengeJustUnlocked = !metaProfile.unlockFlags.challengeMode && result === 'victory'
   metaProfile = applyRunResultToMeta(metaProfile, {
     result,
     act: runLike?.act ?? 1,
@@ -161,6 +329,25 @@ function finalizeRun(result: 'victory' | 'defeat', runLike: import('./game/types
     completedReplicaInheritanceBlueprints: runLike?.completedReplicaInheritanceBlueprints ?? [],
   })
   saveMetaProfile(metaProfile)
+  if (firstDeathBonusTriggered) {
+    gameState = {
+      ...gameState,
+      activeGuide: {
+        id: 'first_death_bonus',
+        title: '首次死亡奖励',
+        body: '首次战败已额外获得 1 点冒险之证。死亡并非白费，继续锻铸你的构筑路线。',
+      },
+    }
+  } else if (challengeJustUnlocked && metaProfile.unlockFlags.challengeMode) {
+    gameState = {
+      ...gameState,
+      activeGuide: {
+        id: 'challenge_unlocked',
+        title: '挑战模式已解锁',
+        body: '你已达成一次通关，可在标题页开启挑战模式。',
+      },
+    }
+  }
   pushGlobalLog(`本局结束：${result === 'victory' ? '胜利' : '失败'}`)
 }
 
@@ -229,6 +416,7 @@ function handleBattleVictory(newBattle: BattleState): void {
 
   closeBattleReport('victory', newBattle.turn)
   pushGlobalLog(`战斗胜利：${currentNode.id}，${newBattle.turn} 回合`)
+  playSfx('victory')
 
   gameState = {
     ...gameState,
@@ -248,7 +436,10 @@ function handleBattleDefeat(newBattle: BattleState): void {
   closeBattleReport('defeat', newBattle.turn)
   pushGlobalLog(`战斗失败：${gameState.run?.currentNodeId ?? 'unknown'}，${newBattle.turn} 回合`)
   finalizeRun('defeat', gameState.run, 0)
+  playSfx('defeat')
+  clearAuto()
   gameState = {
+    ...gameState,
     scene: 'result',
     run: null,
     battle: null,
@@ -294,10 +485,20 @@ function logBattleDiff(prev: BattleState, next: BattleState): void {
     if (before.freeze !== after.freeze) {
       pushBattleLog('system', next.turn, `${name} 冻结 ${before.freeze} -> ${after.freeze}`)
     }
+    if (before.bossPhase !== after.bossPhase && after.bossPhase > before.bossPhase) {
+      playSfx('boss_phase')
+      pushBattleLog('system', next.turn, `${name} 进入阶段 ${after.bossPhase}`)
+    }
   }
 }
 
 function update() {
+  refreshSaveUiState()
+  const beforeGuideState = gameState
+  gameState = applyGuideQueue(gameState)
+  if (hasGuideProgressChanged(beforeGuideState, gameState)) {
+    saveGuideProgressFromState(gameState)
+  }
   const clearIntermissionState = {
     intermissionMode: 'none' as const,
     intermissionCardOptions: [] as import('./game/types').CardDef[],
@@ -307,11 +508,15 @@ function update() {
     const nextRun = advanceToNextAct(run, runtimeRng.next)
     pushGlobalLog(`进入第 ${nextRun.act} 幕`)
     gameState = { ...gameState, run: nextRun, scene: 'map', ...clearIntermissionState }
+    if (!gameState.audio.muted) startBgmForAct(nextRun.act)
     update()
   }
 
   render(app, gameState, {
     onStartGame: () => {
+      const newSeedText = seedParam ?? String(Date.now())
+      setRuntimeSeed(newSeedText)
+      clearAuto()
       const run = createRunState({
         unlockedBlueprints: [...metaProfile.unlockedBlueprints],
         blueprintMastery: { ...metaProfile.blueprintMastery },
@@ -321,6 +526,21 @@ function update() {
       prevBattle = null
       gameState = {
         ...gameState,
+        seedText: newSeedText,
+        rngState: runtimeRng.getState(),
+        challengeUnlocked: metaProfile.unlockFlags.challengeMode,
+        challengeModeEnabled: settings.challengeModeEnabled && metaProfile.unlockFlags.challengeMode,
+        skipTutorial: settings.skipTutorial,
+        tutorialStep: settings.guides.act1TutorialCompleted ? ACT1_TUTORIAL_GUIDES.length : 0,
+        workshopGuideSeen: settings.guides.workshop,
+        guideFlags: {
+          resonance: settings.guides.resonance,
+          curse: settings.guides.curse,
+          materialEmergency: settings.guides.materialEmergency,
+          temple: settings.guides.temple,
+        },
+        activeGuide: null,
+        audio: { ...settings.audio },
         scene: 'weapon_select',
         run,
         currentEvent: null,
@@ -334,6 +554,112 @@ function update() {
         stats: { turns: 0, remainingHp: 0, runReport: initRunReport(), finalSnapshot: null },
       }
       pushGlobalLog('开始新的一局冒险')
+      if (!settings.audio.muted) startBgmForAct(1)
+      update()
+    },
+    onContinueGame: () => {
+      const payload = loadAuto()
+      if (!payload) return
+      applySavePayload(payload)
+      update()
+    },
+    onOpenStyleLab: () => {
+      gameState = { ...gameState, scene: 'style_lab' }
+      update()
+    },
+    onCloseStyleLab: () => {
+      gameState = { ...gameState, scene: 'title' }
+      update()
+    },
+    onLoadSlot: (slot) => {
+      const payload = loadSlot(slot)
+      if (!payload) return
+      saveAuto(payload)
+      applySavePayload(payload)
+      update()
+    },
+    onSaveSlot: (slot) => {
+      const payload = buildSavePayload()
+      if (!payload) return
+      saveSlot(slot, payload)
+      refreshSaveUiState()
+      update()
+    },
+    onToggleChallengeMode: () => {
+      if (!metaProfile.unlockFlags.challengeMode) return
+      const enabled = !gameState.challengeModeEnabled
+      gameState = { ...gameState, challengeModeEnabled: enabled }
+      settings = { ...settings, challengeModeEnabled: enabled }
+      saveSettings(settings)
+      update()
+    },
+    onToggleSkipTutorial: () => {
+      const skip = !gameState.skipTutorial
+      gameState = { ...gameState, skipTutorial: skip, activeGuide: skip ? null : gameState.activeGuide }
+      settings = { ...settings, skipTutorial: skip }
+      saveSettings(settings)
+      update()
+    },
+    onToggleMute: () => {
+      const muted = !gameState.audio.muted
+      const nextAudio = { ...gameState.audio, muted }
+      gameState = { ...gameState, audio: nextAudio }
+      settings = { ...settings, audio: nextAudio }
+      saveSettings(settings)
+      applyAudioSettings(nextAudio)
+      if (muted) stopBgm()
+      else if (gameState.run) startBgmForAct(gameState.run.act)
+      update()
+    },
+    onSetAudioVolume: (channel, value) => {
+      const normalized = Math.max(0, Math.min(1, value))
+      const nextAudio = { ...gameState.audio, [channel]: normalized }
+      gameState = { ...gameState, audio: nextAudio }
+      settings = { ...settings, audio: nextAudio }
+      saveSettings(settings)
+      applyAudioSettings(nextAudio)
+      update()
+    },
+    onResetGuides: () => {
+      settings = {
+        ...settings,
+        guides: {
+          act1TutorialCompleted: false,
+          workshop: false,
+          resonance: false,
+          curse: false,
+          materialEmergency: false,
+          temple: false,
+        },
+      }
+      saveSettings(settings)
+      gameState = {
+        ...gameState,
+        tutorialStep: 0,
+        workshopGuideSeen: false,
+        guideFlags: {
+          resonance: false,
+          curse: false,
+          materialEmergency: false,
+          temple: false,
+        },
+        activeGuide: null,
+      }
+      update()
+    },
+    onDismissGuide: () => {
+      const current = gameState.activeGuide
+      if (!current) return
+      if (current.id.startsWith('tutorial_act1_')) {
+        gameState = {
+          ...gameState,
+          tutorialStep: Math.min(ACT1_TUTORIAL_GUIDES.length, gameState.tutorialStep + 1),
+          activeGuide: null,
+        }
+      } else {
+        gameState = { ...gameState, activeGuide: null }
+      }
+      saveGuideProgressFromState(gameState)
       update()
     },
     onSelectStartingWeapon: (weaponDefId) => {
@@ -420,7 +746,7 @@ function update() {
       const weaponDefId = newRun.equippedWeapon?.defId ?? undefined
       const weaponEnchantments = newRun.equippedWeapon?.enchantments ?? []
       let battle = createBattleState(node.enemyIds, newRun.deck, weaponDefId, newRun.materials, weaponEnchantments)
-      const hpScale = getNodeHpScale(node.y, node.type, newRun.act)
+      const hpScale = applyChallengeHpScale(getNodeHpScale(node.y, node.type, newRun.act))
       battle = { ...battle, enemies: scaleEnemyHp(battle.enemies, hpScale) }
       battle = {
         ...battle,
@@ -451,6 +777,7 @@ function update() {
     onPlayCard: (cardUid: string, targetIndex?: number) => {
       if (!gameState.battle) return
       prevBattle = gameState.battle
+      playSfx('card')
       const playedCard = gameState.battle.player.hand.find(c => c.uid === cardUid)
       if (playedCard) {
         const def = getEffectiveCardDef(playedCard)
@@ -468,6 +795,7 @@ function update() {
     onNormalAttack: (targetIndex?: number) => {
       if (!gameState.battle) return
       prevBattle = gameState.battle
+      playSfx('hit')
       pushBattleLog('player', gameState.battle.turn, `使用普攻，目标#${targetIndex ?? 0}`)
       const newBattle = useNormalAttack(gameState.battle, targetIndex ?? 0)
       logBattleDiff(gameState.battle, newBattle)
@@ -533,7 +861,9 @@ function update() {
           }
         } else {
           finalizeRun('victory', newRun, gameState.stats.remainingHp)
+          clearAuto()
           gameState = {
+            ...gameState,
             scene: 'result',
             run: null,
             battle: null,
@@ -587,7 +917,9 @@ function update() {
           }
         } else {
           finalizeRun('victory', newRun, gameState.stats.remainingHp)
+          clearAuto()
           gameState = {
+            ...gameState,
             scene: 'result',
             run: null,
             battle: null,
@@ -642,7 +974,9 @@ function update() {
           }
         } else {
           finalizeRun('victory', newRun, gameState.stats.remainingHp)
+          clearAuto()
           gameState = {
+            ...gameState,
             scene: 'result',
             run: null,
             battle: null,
@@ -683,7 +1017,10 @@ function update() {
       update()
     },
     onRestart: () => {
+      clearAuto()
+      stopBgm()
       gameState = {
+        ...gameState,
         scene: 'title',
         run: null,
         battle: null,
@@ -890,7 +1227,7 @@ function update() {
           nextRun.materials,
           weaponEnchantments,
         )
-        const hpScale = getNodeHpScale(node.y, node.type, nextRun.act)
+        const hpScale = applyChallengeHpScale(getNodeHpScale(node.y, node.type, nextRun.act))
         battle = { ...battle, enemies: scaleEnemyHp(battle.enemies, hpScale) }
         battle = {
           ...battle,
@@ -952,6 +1289,9 @@ function update() {
           nextRun.materials,
           weaponEnchantments,
         )
+        if (gameState.challengeModeEnabled) {
+          battle = { ...battle, enemies: scaleEnemyHp(battle.enemies, 1.2) }
+        }
         battle = {
           ...battle,
           player: {
@@ -1084,6 +1424,7 @@ function update() {
       update()
     },
   }, prevBattle)
+  persistAutoSave()
 }
 
 update()

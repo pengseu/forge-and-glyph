@@ -1,4 +1,5 @@
 import type { MapNode, NodeType } from './types'
+import { random } from './random'
 
 type Encounter = { enemyIds: string[]; weight: number }
 
@@ -273,13 +274,13 @@ function generateAct3Map(rng: () => number): MapNode[] {
   ]
 }
 
-export function generateMapByAct(act: 1 | 2 | 3, rng: () => number = Math.random): MapNode[] {
+export function generateMapByAct(act: 1 | 2 | 3, rng: () => number = random): MapNode[] {
   if (act === 1) return generateAct1Map(rng)
   if (act === 2) return generateAct2Map(rng)
   return generateAct3Map(rng)
 }
 
-export function generateMap(rng: () => number = Math.random): MapNode[] {
+export function generateMap(rng: () => number = random): MapNode[] {
   return generateMapByAct(1, rng)
 }
 

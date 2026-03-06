@@ -103,6 +103,40 @@ describe('meta profile', () => {
     })
     expect(profile.blueprintMastery.mythic_ant_swarm_dagger).toBe(3)
   })
+
+  it('should grant first-death bonus only once', () => {
+    const base = createDefaultMetaProfile()
+    const first = applyRunResultToMeta(base, {
+      result: 'defeat',
+      act: 1,
+    })
+    expect(first.adventureTokens).toBe(calcAdventureTokens('defeat', 1) + 1)
+    expect(first.unlockFlags.firstDeathBonusClaimed).toBe(true)
+
+    const second = applyRunResultToMeta(first, {
+      result: 'defeat',
+      act: 1,
+    })
+    expect(second.adventureTokens - first.adventureTokens).toBe(calcAdventureTokens('defeat', 1))
+  })
+
+  it('should unlock milestone rewards across card/weapon/enchantment/starter categories', () => {
+    let profile = createDefaultMetaProfile()
+    profile = applyRunResultToMeta(profile, {
+      result: 'victory',
+      act: 1,
+      equippedWeaponDefId: 'iron_staff',
+      equippedWeaponEnchantments: ['flame'],
+    })
+    expect(profile.unlockedMetaCards).toContain('acidic_poison_core')
+    expect(profile.unlockedMetaWeapons).toContain('staff_master_blueprint')
+    expect(profile.unlockedMetaEnchantments).toContain('burnout_script')
+
+    profile = applyRunResultToMeta(profile, { result: 'victory', act: 1, equippedWeaponDefId: 'iron_staff' })
+    profile = applyRunResultToMeta(profile, { result: 'victory', act: 1, equippedWeaponDefId: 'iron_staff' })
+    expect(profile.unlockedStarters).toContain('dagger_hammer_pack')
+    expect(profile.unlockFlags.extraStarters).toBe(true)
+  })
 })
 
 describe('legacy event', () => {

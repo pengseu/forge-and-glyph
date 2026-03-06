@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildBattleHudSections, partitionHudStatuses } from '../battle'
+import { buildBattleEnemySlotHtml, buildBattleHudSections, partitionHudStatuses } from '../battle'
 
 describe('battle hud helpers', () => {
   it('should keep danger statuses in main row and move others to sub row', () => {
@@ -37,5 +37,31 @@ describe('battle hud helpers', () => {
     expect(html).toContain('class="hud-group hud-group--vitals"')
     expect(html).toContain('class="hud-group hud-group--resources"')
     expect(html).toContain('class="hud-group hud-group--combat"')
+  })
+
+  it('should build enemy slot html with lighter top area and tooltip details', () => {
+    const html = buildBattleEnemySlotHtml({
+      idx: 0,
+      enemyName: '蘑菇怪',
+      spriteSrc: '/assets/characters/enemies/mushroom_creature.png',
+      hp: 18,
+      maxHp: 38,
+      hpPercent: 47.36,
+      armor: 2,
+      intentText: '🗡️ 8',
+      intentHint: '将造成 8 点伤害',
+      intentClass: 'intent-attack',
+      intentToneClass: 'enemy-intent--attack',
+      passiveText: '⚡闪避：单次≤4伤害无效',
+      enemyStatusHtml: '<span class="status-badge">🔥2</span><span class="status-badge status-debuff">😵1</span>',
+      justDied: false,
+    })
+
+    expect(html).toContain('class="enemy-vitals"')
+    expect(html).toContain('class="status-row enemy-status-row enemy-status-row--bottom"')
+    expect(html).toContain('class="enemy-tooltip"')
+    expect(html).toContain('将造成 8 点伤害')
+    expect(html).toContain('⚡闪避：单次≤4伤害无效')
+    expect(html).not.toContain('enemy-intent-hint')
   })
 })

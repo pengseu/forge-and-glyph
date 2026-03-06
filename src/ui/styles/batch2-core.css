@@ -584,7 +584,7 @@
   align-items: center;
   position: relative;
   padding-top: 62px;
-  gap: 4px;
+  gap: 0;
 }
 
 .enemy-sprite {
@@ -619,7 +619,7 @@
 
 .enemy-intent {
   position: absolute;
-  top: 50px;
+  top: 2px;
   left: 50%;
   transform: translateX(-50%) rotate(-2deg);
   background: var(--paper-cream);
@@ -651,13 +651,13 @@
 
 .enemy-unit {
   position: relative;
-  width: auto;
-  min-height: auto;
+  width: 136px;
+  min-height: 214px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 4px;
+  gap: 0;
   background: none;
   border: none;
   box-shadow: none;
@@ -666,14 +666,25 @@
   overflow: visible;
 }
 
+.enemy-vitals {
+  position: absolute;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 20;
+}
+
 .enemy-hp-bar {
   position: relative;
-  width: 100px;
-  height: 6px;
+  width: 88px;
+  height: 8px;
   background: var(--paper-dark);
   border: 1.5px solid #fff;
   border-radius: 3px;
-  margin-top: 4px;
+  margin-top: 0;
   overflow: hidden;
   z-index: 20;
 }
@@ -683,7 +694,9 @@
 }
 
 .enemy-name {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
   background: var(--paper-cream);
   border: 1.5px solid #fff;
   border-radius: 3px;
@@ -691,9 +704,11 @@
   font-family: var(--font-display);
   font-size: 13px;
   box-shadow: var(--shadow-s);
-  margin-top: 4px;
-  transform: rotate(-1deg);
+  margin-top: 0;
+  transform: translateX(-50%) rotate(-1deg);
   z-index: 20;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .enemy-meta {
@@ -704,41 +719,70 @@
   z-index: 20;
 }
 
-.enemy-intent-hint {
-  position: relative;
-  max-width: 150px;
-  text-align: center;
-  z-index: 20;
+.enemy-meta--armor {
+  min-height: 0;
+  padding: 1px 6px;
+  background: color-mix(in srgb, var(--paper-cream) 86%, white 14%);
+  border: 1.5px solid #fff;
+  border-radius: 999px;
+  color: var(--ink-primary);
+  white-space: nowrap;
 }
 
-.enemy-slot .enemy-hp-bar {
+.scene-battle .enemy-preview {
   position: absolute;
-  top: 26px;
-  left: 50%;
-  transform: translateX(-50%);
-  margin-top: 0;
+  top: 80px;
+  right: -10px;
+  min-height: 12px;
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  text-align: right;
+  z-index: 21;
 }
 
-.enemy-slot .enemy-status-row {
+.enemy-slot .enemy-status-row--bottom {
   position: absolute;
-  top: 38px;
+  bottom: 28px;
   left: 50%;
   transform: translateX(-50%);
-  margin-top: 0;
   display: inline-flex;
-  max-width: 130px;
+  max-width: 126px;
   justify-content: center;
   flex-wrap: wrap;
+  gap: 4px;
   z-index: 20;
 }
 
-.enemy-slot .enemy-meta {
+.enemy-tooltip {
   position: absolute;
-  top: 54px;
-  left: 50%;
-  transform: translateX(-50%);
-  min-height: 0;
-  white-space: nowrap;
+  top: 72px;
+  left: calc(100% - 8px);
+  min-width: 132px;
+  max-width: 168px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--paper-cream) 92%, white 8%);
+  border: 1.5px solid #fff;
+  border-radius: 6px;
+  box-shadow: var(--shadow-m);
+  color: var(--ink-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(6px, 0);
+  transition: opacity 140ms ease, transform 140ms ease;
+  z-index: 24;
+}
+
+.enemy-tooltip-line + .enemy-tooltip-line {
+  margin-top: 4px;
+}
+
+.enemy-unit:hover .enemy-tooltip,
+.enemy-unit:focus .enemy-tooltip,
+.enemy-unit:focus-visible .enemy-tooltip {
+  opacity: 1;
+  transform: translate(10px, 0);
 }
 
 .scene-battle .enemy-area.target-mode .enemy-unit {

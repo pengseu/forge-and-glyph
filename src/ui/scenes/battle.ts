@@ -236,6 +236,60 @@ export function buildBattleHudSections(input: BattleHudSectionsInput): string {
   `
 }
 
+export type BattleEnemySlotHtmlInput = {
+  idx: number
+  enemyName: string
+  spriteSrc: string
+  hp: number
+  maxHp: number
+  hpPercent: number
+  armor: number
+  intentText: string
+  intentHint: string
+  intentClass: string
+  intentToneClass: string
+  passiveText: string
+  enemyStatusHtml: string
+  justDied: boolean
+}
+
+export function buildBattleEnemySlotHtml(input: BattleEnemySlotHtmlInput): string {
+  const enemySlotClass = input.justDied ? 'enemy-slot enemy-slot--dying' : 'enemy-slot'
+  const tooltipLines = [input.intentHint, input.passiveText]
+    .filter((text) => text.trim().length > 0)
+    .map((text) => `<div class="enemy-tooltip-line">${text}</div>`)
+    .join('')
+
+  return `
+    <div class="${enemySlotClass}">
+      <div class="enemy-intent ${input.intentClass} ${input.intentToneClass}" title="${input.intentHint}">${input.intentText}</div>
+      <div class="enemy-vitals">
+        <div class="hp-bar enemy-hp-bar">
+          <div class="hp-bar-fill" style="width: ${input.hpPercent}%"></div>
+          <div class="hp-bar-text">${input.hp}/${input.maxHp}</div>
+        </div>
+        ${input.armor > 0 ? `<div class="enemy-meta enemy-meta--armor">🛡️ ${input.armor}</div>` : ''}
+      </div>
+      <div
+        class="enemy-unit ${input.justDied ? 'is-defeated' : ''}"
+        data-enemy-idx="${input.idx}"
+        tabindex="${input.hp > 0 ? '0' : '-1'}"
+        role="button"
+        aria-label="${input.enemyName}"
+        aria-disabled="${input.hp > 0 ? 'false' : 'true'}"
+      >
+        <div class="enemy-sprite" data-enemy-name="${input.enemyName}">
+          <img src="${input.spriteSrc}" alt="${input.enemyName}" loading="lazy" />
+        </div>
+        <div class="enemy-preview" data-preview-idx="${input.idx}"></div>
+        ${input.enemyStatusHtml ? `<div class="status-row enemy-status-row enemy-status-row--bottom">${input.enemyStatusHtml}</div>` : ''}
+        <div class="enemy-name">${input.enemyName}</div>
+        ${tooltipLines ? `<div class="enemy-tooltip" role="tooltip">${tooltipLines}</div>` : ''}
+      </div>
+    </div>
+  `
+}
+
 export function resolveHandFanStyle(index: number, cardCount: number): {
   rotateDeg: number
   offsetY: number
@@ -610,38 +664,22 @@ export function renderBattle(
       if (enemy.weakened > 0) enemyStatusBadges.push(`<span class="status-badge status-debuff">😵${enemy.weakened}</span>`)
       if (enemy.vulnerable > 0) enemyStatusBadges.push(`<span class="status-badge status-debuff">💀${enemy.vulnerable}</span>`)
     }
-    const enemyStatus = enemyStatusBadges.join('')
-    const enemySlotClass = justDied ? 'enemy-slot enemy-slot--dying' : 'enemy-slot'
-
-    return `
-      <div class="${enemySlotClass}">
-        <div class="enemy-intent ${intentClass} ${intentToneClass}" title="${intentHint}">${intentText}</div>
-        <div
-          class="enemy-unit ${justDied ? 'is-defeated' : ''}"
-          data-enemy-idx="${idx}"
-          tabindex="${enemy.hp > 0 ? '0' : '-1'}"
-          role="button"
-          aria-label="${enemyDef.name}"
-          aria-disabled="${enemy.hp > 0 ? 'false' : 'true'}"
-        >
-          <div class="enemy-sprite" data-enemy-name="${enemyDef.name}">
-            <img src="${enemyDef.sprite}" alt="${enemyDef.name}" loading="lazy" />
-          </div>
-          <div class="enemy-name">${enemyDef.name}</div>
-          ${passiveText ? `<div class="enemy-passive">${passiveText}</div>` : ''}
-          <div class="hp-bar enemy-hp-bar">
-            <div class="hp-bar-fill" style="width: ${hpPercent}%"></div>
-            <div class="hp-bar-text">${enemy.hp}/${enemy.maxHp}</div>
-          </div>
-          <div class="enemy-meta">
-            ${enemy.armor > 0 ? `🛡️ ${enemy.armor}` : ' '}
-          </div>
-          <div class="enemy-preview" data-preview-idx="${idx}"></div>
-          ${enemyStatus ? `<div class="status-row enemy-status-row">${enemyStatus}</div>` : ''}
-        </div>
-        <div class="enemy-intent-hint">${intentHint}</div>
-      </div>
-    `
+    return buildBattleEnemySlotHtml({
+      idx,
+      enemyName: enemyDef.name,
+      spriteSrc: enemyDef.sprite,
+      hp: enemy.hp,
+      maxHp: enemy.maxHp,
+      hpPercent,
+      armor: enemy.armor,
+      intentText,
+      intentHint,
+      intentClass,
+      intentToneClass,
+      passiveText,
+      enemyStatusHtml: enemyStatusBadges.join(''),
+      justDied,
+    })
   }).join('')
 
   // Build hand cards HTML

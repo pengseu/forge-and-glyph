@@ -3,6 +3,7 @@ import type { GameCallbacks } from '../renderer'
 import { getCardDef } from '../../game/cards'
 import { canUpgrade, getEffectiveCardDef, upgradeCard } from '../../game/campfire'
 import { toWebpAsset } from '../../assets'
+import { buildCardCostBadgeHtml, resolveReadableCostLabel } from '../card-cost'
 
 type CampfireView = 'menu' | 'upgrade'
 type CampfireOptionId = 'rest' | 'upgrade' | 'continue'
@@ -183,11 +184,11 @@ function renderUpgradeView(
     el.appendChild(name)
 
     const cost = document.createElement('div')
-    cost.className = `card-cost ${effectiveDef.costType}`
-    cost.textContent = effectiveDef.costType === 'free'
-      ? '免费'
-      : `${effectiveDef.cost} ${effectiveDef.costType === 'stamina' ? '体力' : '魔力'}`
-    el.appendChild(cost)
+    cost.innerHTML = buildCardCostBadgeHtml({
+      costType: effectiveDef.costType,
+      costLabel: resolveReadableCostLabel(effectiveDef.cost, effectiveDef.costType),
+    })
+    el.appendChild(cost.firstElementChild as HTMLElement)
 
     const desc = document.createElement('div')
     desc.className = 'card-desc'

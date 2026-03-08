@@ -156,6 +156,26 @@ function normalizeEnemyIntentText(intentText: string): string {
   return intentText.replace(/^[^\d+-]+/, '').trim()
 }
 
+export function resolveEnemyIntentDetailTitle(intentText: string, intentHint: string): string {
+  if (intentHint.includes('被击败')) return '倒下'
+  if (intentHint.includes('冻结')) return '冻结'
+  if (intentHint.includes('随机指定3种卡')) return '凝视'
+  if (intentHint.includes('召唤')) return '召唤'
+  if (intentHint.includes('诅咒')) return '诅咒'
+  if (intentHint.includes('护甲') && intentHint.includes('力量')) return '强化防御'
+  if (intentHint.includes('护甲') && intentHint.includes('伤害')) return '护甲 / 攻击'
+  if (intentHint.includes('回复') && intentHint.includes('伤害')) return '吸血攻击'
+  if (intentHint.includes('灼烧') && intentHint.includes('伤害')) return '灼烧攻击'
+  if (intentHint.includes('虚弱') && intentHint.includes('伤害')) return '虚弱攻击'
+  if (intentHint.includes('中毒')) return '中毒'
+  if (intentHint.includes('虚弱')) return '虚弱'
+  if (intentHint.includes('护甲')) return '护甲'
+  if (intentHint.includes('力量')) return '强化'
+  if (intentHint.includes('伤害')) return '攻击'
+  const cleaned = intentText.replace(/[🗡️🛡️💪☠️😵🕯️👥📢👁️🔥❤️🧊✂️]+/g, '').trim()
+  return cleaned || '行动'
+}
+
 export function buildBattleEnemyStatusDetailHtml(key: string, value = 0): string {
   const iconSrc = resolveBattleEnemyStatusIconSrc(key)
   const label = BATTLE_ENEMY_STATUS_LABEL_MAP[key as BattleEnemyStatusIconKey]
@@ -389,6 +409,7 @@ export type BattleEnemySlotHtmlInput = {
   passiveText: string
   enemyStatusHtml: string
   enemyStatusDetailHtml?: string
+  intentDetailTitle?: string
   justDied: boolean
 }
 
@@ -397,6 +418,8 @@ export function buildBattleEnemySlotHtml(input: BattleEnemySlotHtmlInput): strin
   const intentIconSrc = resolveBattleEnemyIntentIconSrc(input.intentToneClass)
   const detailStatusHtml = input.enemyStatusDetailHtml ?? ''
   const intentLabel = normalizeEnemyIntentText(input.intentText) || input.intentText
+  const intentDetailTitle = input.intentDetailTitle ?? resolveEnemyIntentDetailTitle(input.intentText, input.intentHint)
+  const intentAriaTitle = `${intentDetailTitle}｜${input.intentHint}`
   const armorIconSrc = toWebpAsset('/assets/icon/护甲.png')
   const hpIconSrc = '/assets/icon/敌人血量.png'
   const passiveHtml = input.passiveText.trim().length > 0
@@ -411,7 +434,7 @@ export function buildBattleEnemySlotHtml(input: BattleEnemySlotHtmlInput): strin
       </div>
       <div class="enemy-detail-intent">
         <span class="enemy-detail-intent-icon"><img class="img-contain" src="${intentIconSrc}" alt="" loading="lazy" /></span>
-        <span class="enemy-detail-intent-text">${input.intentHint}</span>
+        <span class="enemy-detail-intent-copy"><span class="enemy-detail-intent-title enemy-detail-intent-title--${input.intentToneClass.replace('enemy-intent--', '')}">${intentDetailTitle}</span><span class="enemy-detail-intent-text">${input.intentHint}</span></span>
       </div>
       ${detailStatusHtml ? `<div class="enemy-detail-status-list">${detailStatusHtml}</div>` : '<div class="enemy-detail-empty">无状态</div>'}
       ${passiveHtml}
@@ -420,7 +443,7 @@ export function buildBattleEnemySlotHtml(input: BattleEnemySlotHtmlInput): strin
 
   return `
     <div class="${enemySlotClass}">
-      <div class="enemy-intent ${input.intentClass} ${input.intentToneClass}" title="${input.intentHint}"><span class="enemy-intent-icon"><img class="img-contain" src="${intentIconSrc}" alt="" loading="lazy" /></span><span class="enemy-intent-text">${intentLabel}</span></div>
+      <div class="enemy-intent ${input.intentClass} ${input.intentToneClass}" title="${intentAriaTitle}" aria-label="${intentAriaTitle}"><span class="enemy-intent-icon"><img class="img-contain" src="${intentIconSrc}" alt="" loading="lazy" /></span><span class="enemy-intent-text">${intentLabel}</span></div>
       <div class="enemy-vitals">
         <div class="hp-bar enemy-hp-bar">
           <div class="hp-bar-fill" style="width: ${input.hpPercent}%"></div>
@@ -494,12 +517,14 @@ export type BattleHandCardHtmlInput = {
 
 export function buildBattleHandCardInnerHtml(input: BattleHandCardHtmlInput): string {
   return `
-    <div class="battle-card-head">
-      <div class="card-name battle-card-name">${input.name}</div>
-      <div class="battle-card-divider" aria-hidden="true"></div>
-    </div>
     ${buildCardCostBadgeHtml({ costType: input.costType, costLabel: input.costLabel })}
-    <div class="battle-card-desc card-desc">${decorateKeywords(input.description)}</div>
+    <div class="battle-card-body">
+      <div class="battle-card-head">
+        <div class="card-name battle-card-name">${input.name}</div>
+        <div class="battle-card-divider" aria-hidden="true"></div>
+      </div>
+      <div class="battle-card-desc card-desc">${decorateKeywords(input.description)}</div>
+    </div>
   `
 }
 
@@ -923,6 +948,8 @@ export function renderBattle(
       intentToneClass = 'enemy-intent--combo'
     }
 
+    const intentDetailTitle = resolveEnemyIntentDetailTitle(intentText, intentHint)
+
     const enemyStatusBadges: string[] = []
     const enemyStatusDetails: string[] = []
     if (!justDied) {
@@ -966,6 +993,7 @@ export function renderBattle(
       passiveText,
       enemyStatusHtml: enemyStatusBadges.join(''),
       enemyStatusDetailHtml: enemyStatusDetails.join(''),
+      intentDetailTitle,
       justDied,
     })
   }).join('')

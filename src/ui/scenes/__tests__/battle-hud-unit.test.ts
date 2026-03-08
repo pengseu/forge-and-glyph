@@ -17,6 +17,7 @@ import {
   buildBattlePlayerStatusBadgeHtml,
   buildBattleEnchantMetaText,
   buildBattleEnchantFeedbackText,
+  resolveEnemyIntentDetailTitle,
 } from '../battle'
 
 describe('battle hud helpers', () => {
@@ -68,6 +69,12 @@ describe('battle hud helpers', () => {
     expect(buildBattleEnchantFeedbackText(['烈焰触发', '雷电弹射'])).toBe('效果触发：烈焰触发 · 雷电弹射')
     expect(buildBattleEnchantFeedbackText([])).toBe('')
   })
+
+  it('should resolve human-readable enemy intent detail titles', () => {
+    expect(resolveEnemyIntentDetailTitle('18', '将造成 18 点伤害')).toBe('攻击')
+    expect(resolveEnemyIntentDetailTitle('10护 / 18伤', '将先获得 10 护甲，再造成 18 伤害')).toBe('护甲 / 攻击')
+    expect(resolveEnemyIntentDetailTitle('召唤×2', '将尝试召唤 2 个单位')).toBe('召唤')
+  })
   it('should build enemy slot html with lighter top area and tooltip details', () => {
     const html = buildBattleEnemySlotHtml({
       idx: 0,
@@ -84,6 +91,7 @@ describe('battle hud helpers', () => {
       passiveText: '⚡闪避：单次≤4伤害无效',
       enemyStatusHtml: '<span class="status-badge">🔥2</span><span class="status-badge status-debuff">😵1</span>',
       enemyStatusDetailHtml: '<div class="enemy-detail-status">灼烧</div>',
+      intentDetailTitle: '攻击',
       justDied: false,
     })
 
@@ -104,6 +112,10 @@ describe('battle hud helpers', () => {
     expect(html).toContain('生命')
     expect(html).toContain('class="enemy-detail-armor-icon"')
     expect(html).toContain('class="enemy-detail-intent"')
+    expect(html).toContain('title="攻击｜将造成 8 点伤害"')
+    expect(html).toContain('enemy-detail-intent-title--attack')
+    expect(html).toContain('enemy-detail-intent-title')
+    expect(html).toContain('攻击')
     expect(html).toContain('class="enemy-detail-status-list"')
     expect(html).not.toContain('enemy-hp-frame')
     expect(html).not.toContain('enemy-nameplate')
@@ -203,7 +215,7 @@ describe('battle hud helpers', () => {
 
 
 
-  it('should build battle hand card inner html with stitch divider and readable copy blocks', () => {
+  it('should build battle hand card inner html with dedicated body blocks for hover expansion', () => {
     const html = buildBattleHandCardInnerHtml({
       name: '火花',
       costLabel: '✦1',
@@ -211,6 +223,7 @@ describe('battle hud helpers', () => {
       description: '造成4点伤害，施加1层灼烧',
     })
 
+    expect(html).toContain('class="battle-card-body"')
     expect(html).toContain('class="battle-card-head"')
     expect(html).toContain('class="battle-card-divider"')
     expect(html).toContain('class="battle-card-desc card-desc"')

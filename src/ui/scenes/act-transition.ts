@@ -2,6 +2,7 @@ import { getCardDef } from '../../game/cards'
 import { getIntermissionChoices } from '../../game/act'
 import type { IntermissionChoiceId } from '../../game/act'
 import type { CardDef, RunState } from '../../game/types'
+import { buildCardCostBadgeHtml, resolveReadableCostLabel } from '../card-cost'
 
 type ActTransitionMode = 'none' | 'knowledge_pick' | 'knowledge_remove' | 'foresight_pick' | 'deep_purify'
 
@@ -106,7 +107,7 @@ export function renderActTransition(
   if (mode === 'knowledge_pick' || mode === 'foresight_pick') {
     const cardsHtml = cardOptions.map((card) => `
       <article class="card card--showcase ${resolveCardTypeClass(card)} act-transition-card" data-card-id="${card.id}" tabindex="0" role="button">
-        <div class="card-cost">${card.cost}</div>
+        ${buildCardCostBadgeHtml({ costType: card.costType, costLabel: resolveReadableCostLabel(card.cost, card.costType) })}
         <div class="card-name">${card.name}</div>
         <div class="card-divider"></div>
         <div class="card-type">${card.rarity}</div>
@@ -146,7 +147,7 @@ export function renderActTransition(
     const def = getCardDef(card.defId)
     return `
       <article class="card card--hand ${resolveCardTypeClass(def)} act-remove-card" data-card-uid="${card.uid}" ${canRemove ? '' : 'aria-disabled="true"'}>
-        <div class="card-cost">${def.cost}</div>
+        ${buildCardCostBadgeHtml({ costType: def.costType, costLabel: resolveReadableCostLabel(def.cost, def.costType) })}
         <div class="card-name">${def.name}${card.upgraded ? '+' : ''}</div>
         <div class="card-divider"></div>
         <div class="card-type">${def.category}</div>

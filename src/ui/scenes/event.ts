@@ -1,4 +1,5 @@
 import type { EventDef } from '../../game/types'
+import { toWebpAsset } from '../../assets'
 
 export function buildEventNameHint(title: string): string {
   return `当前随机事件：${title}`
@@ -15,7 +16,7 @@ export function resolveEventTextureKind(eventId: string): EventTextureKind {
 }
 
 function resolveEventArtPath(eventId: string): string {
-  return `/assets/scenes/events/${eventId}.png`
+  return toWebpAsset(`/assets/scenes/events/${eventId}.png`)
 }
 
 export function renderEvent(

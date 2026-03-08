@@ -13,4 +13,10 @@ describe('campfire ui helpers', () => {
     expect(options.map((option) => option.id)).toEqual(['rest', 'upgrade', 'continue'])
     expect(options[0]?.disabled).toBe(false)
   })
+
+
+  it('should use plain-text menu titles without emoji prefixes', () => {
+    const options = resolveCampfireMenuOptions(52, 80)
+    expect(options.map((option) => option.title)).toEqual(['休息', '升级卡牌', '继续旅程'])
+  })
 })

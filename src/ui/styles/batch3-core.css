@@ -22,7 +22,7 @@
       transparent 1px,
       transparent 40px
     ),
-    url('/assets/textures/tex-kraft-base.png');
+    url('/assets/textures/tex-kraft-base.webp');
   background-size: 40px 40px, 40px 40px, 512px 512px;
   background-blend-mode: multiply, multiply, multiply;
   animation: scene-fade-in 300ms var(--ease-smooth) both;
@@ -88,6 +88,55 @@
   min-height: 0;
 }
 
+#style-lab-preview.is-live-preview {
+  padding: 0;
+  overflow: hidden;
+  background: rgba(238, 230, 213, 0.92);
+}
+
+.style-lab-live-shell {
+  width: 100%;
+  height: 100%;
+  min-height: 720px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.style-lab-live-viewport {
+  width: 100%;
+  height: 100%;
+  min-height: 720px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.style-lab-live-stage {
+  --live-stage-scale: 1;
+  width: var(--live-stage-width);
+  height: var(--live-stage-height);
+  position: relative;
+  flex: 0 0 auto;
+  transform: scale(var(--live-stage-scale));
+  transform-origin: center center;
+}
+
+.style-lab-live-stage-content {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 3px solid #fff;
+  box-shadow: var(--shadow-xl);
+  background-color: var(--paper-warm);
+  background-image: url('/assets/textures/tex-kraft-base.webp');
+  background-size: 512px 512px;
+  background-repeat: repeat;
+  background-blend-mode: multiply;
+}
+
 .style-lab-scene {
   width: 100%;
   height: 100%;
@@ -143,7 +192,7 @@
   border-radius: 3px;
   background:
     linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.25)),
-    url('/assets/scenes/title-forest.png') center/cover no-repeat;
+    url('/assets/scenes/title-forest.webp') center/cover no-repeat;
   position: absolute;
   inset: 0;
   opacity: 0.5;
@@ -212,7 +261,7 @@
   display: grid;
   grid-template-columns: 35% 65%;
   gap: var(--space-3);
-  min-height: 180px;
+  height: 180px;
 }
 
 .mock-player-zone,
@@ -334,7 +383,7 @@
   gap: var(--space-5);
   padding: var(--space-5) var(--space-4);
   background-color: var(--paper-warm);
-  background-image: url('/assets/textures/tex-kraft-warm.png');
+  background-image: url('/assets/textures/tex-kraft-warm.webp');
   background-size: 512px 512px;
   animation: scene-fade-in 300ms var(--ease-smooth) both;
 }
@@ -452,7 +501,7 @@
   display: block;
   overflow: hidden;
   background-color: var(--paper-warm);
-  background-image: url('/assets/textures/tex-kraft-warm.png');
+  background-image: url('/assets/textures/tex-kraft-warm.webp');
   background-size: 512px 512px;
   animation: scene-fade-in 300ms var(--ease-smooth) both;
 }
@@ -538,7 +587,7 @@
 
 .campfire-option {
   width: 220px;
-  min-height: 180px;
+  height: 180px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -614,7 +663,7 @@
   border: 2px solid #fff;
   border-radius: 3px;
   padding: var(--space-3);
-  background: var(--paper-cream);
+  background: transparent;
   box-shadow: var(--shadow-s);
   cursor: default;
   transition: transform 150ms var(--ease-smooth), box-shadow 150ms var(--ease-smooth), opacity 150ms var(--ease-smooth);
@@ -651,7 +700,7 @@
   gap: var(--space-3);
   padding: var(--space-4);
   background-color: var(--paper-aged);
-  background-image: url('/assets/textures/tex-cardboard.png');
+  background-image: url('/assets/textures/tex-cardboard.webp');
   background-size: 512px 512px;
   animation: scene-fade-in 300ms var(--ease-smooth) both;
 }
@@ -680,16 +729,19 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .shop-tab {
+  min-width: 92px;
   border: 2px solid #fff;
-  border-radius: 3px;
-  background: var(--paper-dark);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper-dark) 90%, white 10%);
   color: var(--ink-primary);
-  padding: 6px 12px;
+  padding: 7px 16px;
   font-family: var(--font-display);
   font-size: 14px;
+  letter-spacing: 0.4px;
   cursor: pointer;
   transition: all 150ms var(--ease-smooth);
 }
@@ -701,8 +753,10 @@
 
 .shop-tab.is-active {
   background: var(--paper-cream);
+  color: var(--ink-primary);
   border-color: var(--color-gold);
   transform: translateY(-1px);
+  box-shadow: 0 0 0 2px rgba(180, 144, 73, 0.12), var(--shadow-s);
 }
 
 .shop-panel {
@@ -715,18 +769,27 @@
 }
 
 .shop-cards-grid {
+  height: 100%;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  gap: var(--space-3);
   flex-wrap: wrap;
+  align-content: flex-start;
+  gap: var(--space-3);
+  overflow: auto;
 }
 
 .shop-card-tile {
+  width: 184px;
+  flex: 0 0 184px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   gap: var(--space-2);
+  padding: 14px 12px;
+  border: 2px solid #fff;
+  border-radius: 3px;
+  background: var(--paper-cream);
+  box-shadow: var(--shadow-s);
 }
 
 .shop-card-tile .card {
@@ -750,32 +813,60 @@
 }
 
 .shop-materials-grid {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-3);
-  flex-wrap: wrap;
+  align-items: stretch;
 }
 
 .shop-material-item {
-  min-width: 200px;
-  border: 2px solid #fff;
-  border-radius: 3px;
-  background: var(--paper-cream);
-  box-shadow: var(--shadow-s);
-  padding: var(--space-3);
+  min-height: 250px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: flex-start;
+  gap: 8px;
+  text-align: center;
+  padding: 14px 12px;
 }
 
 .shop-material-item.is-sold {
-  opacity: 0.5;
+  opacity: 0.58;
+}
+
+.shop-material-art {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.shop-material-art img {
+  width: 100%;
+  height: 100%;
 }
 
 .shop-material-name {
+  color: var(--ink-primary);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.shop-material-effect {
+  min-height: 42px;
   color: var(--ink-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.shop-material-count {
+  margin-top: auto;
+  color: var(--ink-secondary);
+  font-family: var(--font-number);
 }
 
 .scene-shop-v3 .is-unaffordable {
@@ -909,16 +1000,19 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .inventory-tab {
+  min-width: 92px;
   border: 2px solid #fff;
-  border-radius: 3px;
-  background: var(--paper-aged);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper-aged) 92%, white 8%);
   color: var(--ink-secondary);
-  padding: 6px 12px;
+  padding: 7px 16px;
   font-family: var(--font-display);
   font-size: 14px;
+  letter-spacing: 0.4px;
   cursor: pointer;
   transition: all 150ms var(--ease-smooth);
 }
@@ -932,6 +1026,7 @@
   background: var(--paper-cream);
   color: var(--ink-primary);
   border-color: var(--color-gold);
+  box-shadow: 0 0 0 2px rgba(180, 144, 73, 0.12), var(--shadow-s);
 }
 
 .inventory-main {
@@ -1055,16 +1150,66 @@
 .inventory-cards-grid {
   height: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
-  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+  gap: var(--space-3);
   overflow: auto;
   padding-right: 2px;
+  align-content: start;
 }
 
 .inventory-card {
-  width: 80px;
-  height: 112px;
+  width: 140px;
+  height: 196px;
   justify-self: center;
+  cursor: default;
+}
+
+.inventory-card:hover {
+  transform: translateY(-2px);
+}
+
+.inventory-card .card-name {
+  margin-top: 16px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inventory-card .card-type {
+  margin-top: 0;
+}
+
+.inventory-card .card-desc {
+  padding: 0 8px;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.inventory-card-stack-count {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 28px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(248, 241, 223, 0.96);
+  border: 1px solid rgba(132, 104, 68, 0.28);
+  color: var(--ink-primary);
+  font-family: var(--font-number);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: var(--shadow-s);
+  z-index: 2;
+}
+
+.inventory-card .card-cost.hybrid {
+  background: linear-gradient(135deg, #a85a3e 0%, #3e5a7c 100%);
 }
 
 .inventory-materials-grid {
@@ -1078,26 +1223,54 @@
 .inventory-material-item {
   border: 2px solid #fff;
   border-radius: 3px;
-  background: var(--paper-cream);
-  min-height: 96px;
+  background: linear-gradient(180deg, rgba(252, 247, 238, 0.98), rgba(239, 228, 206, 0.94));
+  height: 180px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
+  justify-content: flex-start;
+  gap: 6px;
   text-align: center;
+  padding: 10px 8px;
+  box-shadow: var(--shadow-s);
 }
 
-.inventory-material-icon {
-  font-size: 22px;
+.inventory-material-art {
+  width: 60px;
+  height: 60px;
+  flex: 0 0 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.inventory-material-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
 }
 
 .inventory-material-name {
   color: var(--ink-primary);
   font-size: 12px;
+  line-height: 1.25;
+}
+
+.inventory-material-effect {
+  height: 48px;
+  color: var(--ink-secondary);
+  font-size: 10px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .inventory-material-count {
+  margin-top: auto;
   color: var(--ink-secondary);
   font-family: var(--font-number);
 }
@@ -1129,8 +1302,8 @@
   background-color: var(--paper-warm);
   background-image:
     linear-gradient(rgba(217, 201, 163, 0.3), rgba(217, 201, 163, 0.3)),
-    url('/assets/textures/tex-cardboard.png'),
-    url('/assets/textures/tex-kraft-warm.png');
+    url('/assets/textures/tex-cardboard.webp'),
+    url('/assets/textures/tex-kraft-warm.webp');
   background-size: cover, 512px 512px, 512px 512px;
   background-blend-mode: multiply, multiply, normal;
   animation: scene-fade-in 300ms var(--ease-smooth) both;
@@ -1269,8 +1442,39 @@
 }
 
 .forge-material-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 6px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--paper-base);
   color: var(--ink-primary);
   font-size: 12px;
+}
+
+.forge-material-tag-art {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.forge-material-tag-art img {
+  width: 100%;
+  height: 100%;
+}
+
+.forge-material-tag-name {
+  color: var(--ink-primary);
+}
+
+.forge-material-tag-count {
+  font-family: var(--font-number);
+  color: var(--ink-secondary);
 }
 
 /* Batch 3: enchant */
@@ -1281,7 +1485,7 @@
   gap: var(--space-3);
   padding: var(--space-4);
   background-color: var(--paper-cool);
-  background-image: url('/assets/textures/tex-kraft-cool.png');
+  background-image: url('/assets/textures/tex-kraft-cool.webp');
   background-size: 512px 512px;
   animation: scene-fade-in 300ms var(--ease-smooth) both;
 }
@@ -1453,19 +1657,19 @@
 
 .scene-event--warm {
   background: var(--paper-warm);
-  background-image: url('/assets/textures/tex-kraft-warm.png');
+  background-image: url('/assets/textures/tex-kraft-warm.webp');
   background-size: 512px 512px;
 }
 
 .scene-event--cool {
   background: var(--paper-cool);
-  background-image: url('/assets/textures/tex-kraft-cool.png');
+  background-image: url('/assets/textures/tex-kraft-cool.webp');
   background-size: 512px 512px;
 }
 
 .scene-event--dark {
   background: var(--paper-dark);
-  background-image: url('/assets/textures/tex-kraft-dark.png');
+  background-image: url('/assets/textures/tex-kraft-dark.webp');
   background-size: 512px 512px;
 }
 
@@ -1582,7 +1786,7 @@
   justify-content: center;
   padding: var(--space-4);
   background: var(--paper-cool);
-  background-image: url('/assets/textures/tex-kraft-cool.png');
+  background-image: url('/assets/textures/tex-kraft-cool.webp');
   background-size: 512px 512px;
   animation: scene-fade-in 300ms var(--ease-smooth) both;
 }

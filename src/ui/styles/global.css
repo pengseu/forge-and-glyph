@@ -19,7 +19,7 @@ body {
   background-color: var(--paper-base);
   color: var(--ink-primary);
   font-family: var(--font-body);
-  background-image: url('/assets/textures/tex-kraft-base.png');
+  background-image: url('/assets/textures/tex-kraft-base.webp');
   background-size: 512px 512px;
   background-repeat: repeat;
   background-blend-mode: multiply;

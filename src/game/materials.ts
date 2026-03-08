@@ -1,5 +1,6 @@
 import type { MaterialBag, MaterialId, NodeType } from './types'
 import { random } from './random'
+import { toWebpAsset } from '../assets'
 
 export const MATERIAL_DEFS: Record<MaterialId, { name: string; icon: string }> = {
   iron_ingot: { name: '铁锭', icon: '🪨' },
@@ -68,9 +69,17 @@ export function addMaterial(
   }
 }
 
+export function getMaterialName(materialId: MaterialId): string {
+  return MATERIAL_DEFS[materialId].name
+}
+
 export function formatMaterial(materialId: MaterialId): string {
   const def = MATERIAL_DEFS[materialId]
   return `${def.icon} ${def.name}`
+}
+
+export function getMaterialIconSrc(materialId: MaterialId): string {
+  return toWebpAsset(`/assets/ui/materials/${materialId}.png`)
 }
 
 export function getBattleMaterialEffectText(materialId: MaterialId): string {

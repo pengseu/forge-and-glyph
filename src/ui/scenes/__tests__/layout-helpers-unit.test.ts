@@ -1,35 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import { buildHandCardStyleVars, resolveHandFanStyle } from '../battle'
+import { buildHandCardStyleVars, resolveFlatHandLayout } from '../battle'
 import { buildMapCurvePath } from '../map'
 
 describe('layout helpers', () => {
-  it('should keep single hand card centered with no rotation', () => {
-    expect(resolveHandFanStyle(0, 1)).toEqual({
-      rotateDeg: 0,
-      offsetY: 0,
-      marginLeft: 0,
+  it('should keep a single hand card at the starting edge with full step width', () => {
+    expect(resolveFlatHandLayout(1)).toEqual({
+      maxWidth: 600,
+      cardWidth: 120,
+      step: 120,
+      cards: [{ left: 0, z: 100 }],
     })
   })
 
-  it('should spread multiple hand cards into a fan', () => {
-    const left = resolveHandFanStyle(0, 5)
-    const middle = resolveHandFanStyle(2, 5)
-    const right = resolveHandFanStyle(4, 5)
-    expect(left.rotateDeg).toBeLessThan(0)
-    expect(right.rotateDeg).toBeGreaterThan(0)
-    expect(middle.rotateDeg).toBe(0)
-    expect(left.offsetY).toBeGreaterThan(middle.offsetY)
-    expect(right.offsetY).toBeGreaterThan(middle.offsetY)
-    expect(left.marginLeft).toBe(0)
-    expect(right.marginLeft).toBe(-20)
+  it('should compress step only when the hand would overflow 600px', () => {
+    const roomy = resolveFlatHandLayout(4)
+    const crowded = resolveFlatHandLayout(8)
+
+    expect(roomy.step).toBe(120)
+    expect(crowded.step).toBeLessThan(roomy.step)
+    expect(crowded.cards.at(-1)?.left).toBeLessThanOrEqual(600 - crowded.cardWidth)
   })
 
-  it('should output css variable style for hand fan cards', () => {
-    const style = buildHandCardStyleVars(1, resolveHandFanStyle(1, 5))
-    expect(style).toContain('--fan-rotate:')
-    expect(style).toContain('--fan-offset-y:')
-    expect(style).toContain('--fan-margin-left:')
-    expect(style).toContain('--fan-z:')
+  it('should output css variable style for flat hand cards', () => {
+    const style = buildHandCardStyleVars(1, resolveFlatHandLayout(5))
+    expect(style).toContain('--flat-left:')
+    expect(style).toContain('--card-z:')
+    expect(style).toContain('--flat-step:')
     expect(style).not.toContain('transform:')
   })
 

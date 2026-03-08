@@ -87,6 +87,18 @@
   font-size: 32px;
 }
 
+.damage-number-badge {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.damage-number-inline-value {
+  vertical-align: middle;
+}
+
 @keyframes floatUp {
   0% {
     opacity: 1;

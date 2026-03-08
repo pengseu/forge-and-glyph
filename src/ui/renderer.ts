@@ -18,10 +18,17 @@ import type { IntermissionChoiceId } from '../game/act'
 
 let lastRenderedScene: GameState['scene'] | null = null
 
+export function shouldAnimateSceneTransition(previousScene: GameState['scene'] | null, nextScene: GameState['scene']): boolean {
+  if (previousScene === null) return false
+  if (previousScene === 'title' && nextScene === 'weapon_select') return false
+  return previousScene !== nextScene
+}
+
 export function resolveBossAutoDropHint(nodeType: NodeType | null | undefined, act: 1 | 2 | 3): string | null {
   if (nodeType !== 'boss_battle') return null
-  if (act === 1) return '已自动获得：👑 地精王冠碎片 ×1'
-  return '已自动获得：Boss 专属材料'
+  if (act === 1) return '已自动获得：地精王冠碎片 ×1'
+  if (act === 2) return '已自动获得：暗影水晶 ×1'
+  return '已自动获得：深渊之心 ×1'
 }
 
 export interface GameCallbacks {
@@ -81,7 +88,7 @@ export function render(
   callbacks: GameCallbacks,
   prevBattle?: import('../game/types').BattleState | null,
 ): void {
-  const sceneChanged = lastRenderedScene !== null && lastRenderedScene !== state.scene
+  const sceneChanged = shouldAnimateSceneTransition(lastRenderedScene, state.scene)
   const previousSceneClone = sceneChanged && container.firstElementChild
     ? (container.firstElementChild.cloneNode(true) as HTMLElement)
     : null

@@ -1,8 +1,10 @@
 import { getCardDef } from '../../game/cards'
-import type { CardCategory, RunState } from '../../game/types'
+import type { CardCategory, CardInstance, MaterialId, RunState } from '../../game/types'
 import { describeWeaponEffect, getWeaponDef } from '../../game/weapons'
 import type { GameCallbacks } from '../renderer'
-import { formatMaterial } from '../../game/materials'
+import { MATERIAL_DEFS, getBattleMaterialEffectText, getMaterialIconSrc } from '../../game/materials'
+import { toWebpAsset } from '../../assets'
+import { buildCardCostBadgeHtml, resolveReadableCostLabel } from '../card-cost'
 
 export type InventoryTab = 'weapons' | 'cards' | 'materials'
 
@@ -14,6 +16,16 @@ export function normalizeInventoryTab(tab: string | null | undefined): Inventory
   return 'weapons'
 }
 
+export function buildInventoryTabsHtml(currentTab: InventoryTab): string {
+  return `
+    <nav class="inventory-tabs" aria-label="背包分类">
+      <button class="inventory-tab ${currentTab === 'weapons' ? 'is-active' : ''}" data-inventory-tab="weapons" aria-selected="${currentTab === 'weapons' ? 'true' : 'false'}">武器</button>
+      <button class="inventory-tab ${currentTab === 'cards' ? 'is-active' : ''}" data-inventory-tab="cards" aria-selected="${currentTab === 'cards' ? 'true' : 'false'}">卡组</button>
+      <button class="inventory-tab ${currentTab === 'materials' ? 'is-active' : ''}" data-inventory-tab="materials" aria-selected="${currentTab === 'materials' ? 'true' : 'false'}">材料</button>
+    </nav>
+  `
+}
+
 function resolveCardTypeClass(category: CardCategory, id: string): string {
   if (id.startsWith('curse_')) return 'card--curse'
   if (category === 'combat') return 'card--attack'
@@ -22,7 +34,72 @@ function resolveCardTypeClass(category: CardCategory, id: string): string {
 }
 
 function resolveWeaponAsset(defId: string): string {
-  return `/assets/weapons/${defId}.png`
+  return toWebpAsset(`/assets/weapons/${defId}.png`)
+}
+
+export function resolveInventoryMaterialName(materialId: MaterialId): string {
+  return MATERIAL_DEFS[materialId].name
+}
+
+export function buildInventoryMaterialItemHtml(materialId: MaterialId, count: number): string {
+  const name = resolveInventoryMaterialName(materialId)
+  const effectText = getBattleMaterialEffectText(materialId)
+  return `
+      <article class="inventory-material-item" title="${effectText || name}">
+        <div class="inventory-material-art" data-material-name="${name}">
+          <img class="img-contain" src="${getMaterialIconSrc(materialId)}" alt="" loading="lazy" />
+        </div>
+        <div class="inventory-material-name">${name}</div>
+        <div class="inventory-material-effect">${effectText}</div>
+        <div class="inventory-material-count">×${count}</div>
+      </article>
+    `
+}
+
+export type InventoryCardStack = {
+  defId: string
+  upgraded: boolean
+  count: number
+}
+
+function resolveInventoryCardTypeLabel(category: CardCategory): string {
+  if (category === 'combat') return '攻击'
+  if (category === 'spell') return '法术'
+  return '技巧'
+}
+
+export function buildInventoryCardStacks(deck: CardInstance[]): InventoryCardStack[] {
+  const stackMap = new Map<string, InventoryCardStack>()
+  const stacks: InventoryCardStack[] = []
+  for (const card of deck) {
+    const upgraded = Boolean(card.upgraded)
+    const key = `${card.defId}::${upgraded ? '1' : '0'}`
+    const existing = stackMap.get(key)
+    if (existing) {
+      existing.count += 1
+      continue
+    }
+    const stack = { defId: card.defId, upgraded, count: 1 }
+    stackMap.set(key, stack)
+    stacks.push(stack)
+  }
+  return stacks
+}
+
+export function buildInventoryCardItemHtml(stack: InventoryCardStack): string {
+  const def = getCardDef(stack.defId)
+  const name = `${def.name}${stack.upgraded ? '+' : ''}`
+  return `
+      <article class="card card--showcase inventory-card ${resolveCardTypeClass(def.category, def.id)}">
+        ${buildCardCostBadgeHtml({ costType: def.costType, costLabel: resolveReadableCostLabel(def.cost, def.costType) })}
+        <div class="inventory-card-stack-count">×${stack.count}</div>
+        <div class="card-name">${name}</div>
+        <div class="card-divider"></div>
+        <div class="card-type">${resolveInventoryCardTypeLabel(def.category)}</div>
+        <div class="card-desc">${def.description}</div>
+        ${stack.upgraded ? '<div class="card-upgraded">+</div>' : ''}
+      </article>
+    `
 }
 
 export function renderInventory(
@@ -59,27 +136,12 @@ export function renderInventory(
     `
   }).join('')
 
-  const cardsHtml = run.deck.map((card) => {
-    const def = getCardDef(card.defId)
-    return `
-      <article class="card card--hand inventory-card ${resolveCardTypeClass(def.category, def.id)}">
-        <div class="card-cost">${def.cost}</div>
-        <div class="card-name">${def.name}${card.upgraded ? '+' : ''}</div>
-        <div class="card-divider"></div>
-        <div class="card-type">${def.category === 'combat' ? '攻击' : def.category === 'spell' ? '法术' : '技巧'}</div>
-      </article>
-    `
-  }).join('')
+  const cardStacks = buildInventoryCardStacks(run.deck)
+  const cardsHtml = cardStacks.map((stack) => buildInventoryCardItemHtml(stack)).join('')
 
-  const materialsHtml = Object.entries(run.materials).map(([id, count]) => {
-    return `
-      <article class="inventory-material-item">
-        <div class="inventory-material-icon">📦</div>
-        <div class="inventory-material-name">${formatMaterial(id as keyof RunState['materials'])}</div>
-        <div class="inventory-material-count">×${count}</div>
-      </article>
-    `
-  }).join('')
+  const materialsHtml = Object.entries(run.materials)
+    .map(([id, count]) => buildInventoryMaterialItemHtml(id as MaterialId, count))
+    .join('')
 
   let attackCount = 0
   let defendCount = 0
@@ -95,15 +157,11 @@ export function renderInventory(
     <div class="scene-inventory scene-inventory-v3">
       <section class="panel inventory-panel">
         <header class="inventory-header">
-          <h2 class="inventory-title">📌 背包</h2>
-          <button class="btn btn-ghost btn-sm" id="btn-close-inventory">✕</button>
+          <h2 class="inventory-title">背包</h2>
+          <button class="btn btn-ghost btn-sm" id="btn-close-inventory">关闭</button>
         </header>
 
-        <nav class="inventory-tabs" aria-label="背包分类">
-          <button class="inventory-tab ${currentInventoryTab === 'weapons' ? 'is-active' : ''}" data-inventory-tab="weapons" aria-selected="${currentInventoryTab === 'weapons' ? 'true' : 'false'}">⚔️ 武器</button>
-          <button class="inventory-tab ${currentInventoryTab === 'cards' ? 'is-active' : ''}" data-inventory-tab="cards" aria-selected="${currentInventoryTab === 'cards' ? 'true' : 'false'}">🃏 卡组</button>
-          <button class="inventory-tab ${currentInventoryTab === 'materials' ? 'is-active' : ''}" data-inventory-tab="materials" aria-selected="${currentInventoryTab === 'materials' ? 'true' : 'false'}">📦 材料</button>
-        </nav>
+        ${buildInventoryTabsHtml(currentInventoryTab)}
 
         <div class="inventory-main">
           <section class="inventory-view ${currentInventoryTab === 'weapons' ? '' : 'is-hidden'}" data-inventory-view="weapons">
@@ -136,6 +194,7 @@ export function renderInventory(
           <span>攻击 ${attackCount}</span>
           <span>法术 ${defendCount}</span>
           <span>技巧 ${skillCount}</span>
+          <span>去重后 ${cardStacks.length} 种</span>
         </footer>
       </section>
     </div>
@@ -166,7 +225,7 @@ export function renderInventory(
     })
   })
 
-  container.querySelectorAll<HTMLImageElement>('.inventory-weapon-thumb img, .inventory-detail-art img').forEach((imgEl) => {
+  container.querySelectorAll<HTMLImageElement>('.inventory-weapon-thumb img, .inventory-detail-art img, .inventory-material-art img').forEach((imgEl) => {
     const wrapper = imgEl.parentElement as HTMLElement | null
     if (!wrapper) return
     const name = wrapper.dataset.weaponName ?? imgEl.alt ?? '武器'

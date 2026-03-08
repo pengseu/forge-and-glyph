@@ -12,19 +12,19 @@ describe('battle targeting helpers', () => {
 
   it('summon intent should be shown as heavy attack when summon slots are full', () => {
     const preview = resolveSummonIntentPreview(2, 1, 2)
-    expect(preview.intentText).toBe('🗡️ 18')
+    expect(preview.intentText).toBe('18')
     expect(preview.intentClass).toBe('intent-attack')
   })
 
   it('summon intent should keep summon preview when slots remain', () => {
     const preview = resolveSummonIntentPreview(1, 2, 0)
-    expect(preview.intentText).toBe('👥 召唤')
+    expect(preview.intentText).toBe('召唤×2')
     expect(preview.intentClass).toBe('intent-buff')
   })
 
   it('goblin king phase2 preview should show scaled double strike', () => {
     const preview = resolveGoblinKingPhase2Preview(1, 0)
-    expect(preview.intentText).toBe('🗡️ 20')
+    expect(preview.intentText).toBe('20')
     expect(preview.intentClass).toBe('intent-attack')
   })
 })

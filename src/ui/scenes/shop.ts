@@ -1,8 +1,9 @@
 import type { RunState, ShopMaterialOffer, ShopOffer } from '../../game/types'
 import type { GameCallbacks } from '../renderer'
 import { getCardDef } from '../../game/cards'
-import { formatMaterial } from '../../game/materials'
+import { getBattleMaterialEffectText, getMaterialIconSrc, getMaterialName } from '../../game/materials'
 import { getShopServicePricingByAct } from '../../game/shop'
+import { buildCardCostBadgeHtml, resolveReadableCostLabel } from '../card-cost'
 
 export type ShopTab = 'cards' | 'materials' | 'services'
 
@@ -13,12 +14,61 @@ export function normalizeShopTab(tab: string | null | undefined): ShopTab {
   return 'cards'
 }
 
+export function buildShopTabsHtml(currentTab: ShopTab): string {
+  return `
+    <nav class="shop-tabs" aria-label="商店分类">
+      <button class="shop-tab ${currentTab === 'cards' ? 'is-active' : ''}" data-shop-tab="cards" aria-selected="${currentTab === 'cards' ? 'true' : 'false'}">卡牌</button>
+      <button class="shop-tab ${currentTab === 'materials' ? 'is-active' : ''}" data-shop-tab="materials" aria-selected="${currentTab === 'materials' ? 'true' : 'false'}">材料</button>
+      <button class="shop-tab ${currentTab === 'services' ? 'is-active' : ''}" data-shop-tab="services" aria-selected="${currentTab === 'services' ? 'true' : 'false'}">服务</button>
+    </nav>
+  `
+}
+
+export function buildShopTitleText(): string {
+  return '旅途商店'
+}
+
+export function buildShopGoldText(gold: number): string {
+  return `余额：${gold}`
+}
+
+export function buildShopServiceTitle(kind: 'heal' | 'remove' | 'transform'): string {
+  if (kind === 'heal') return '治疗'
+  if (kind === 'remove') return '删卡'
+  return '变卡'
+}
+
+export function buildShopPriceText(price: number): string {
+  return `${price} 金币`
+}
+
+export function buildShopLeaveText(): string {
+  return '离开商店'
+}
+
 function resolveCardTypeClass(cardId: string): string {
   const card = getCardDef(cardId)
   if (card.id.startsWith('curse_')) return 'card--curse'
   if (card.category === 'combat') return 'card--attack'
   if (card.category === 'spell') return 'card--skill'
   return 'card--power'
+}
+
+export function buildShopMaterialOfferHtml(offer: ShopMaterialOffer, idx: number, gold: number): string {
+  const affordable = gold >= offer.price
+  const qty = offer.quantity ?? 1
+  const canBuy = !offer.sold && affordable
+  return `
+    <article class="panel shop-material-item ${offer.sold ? 'is-sold' : ''}">
+      <div class="shop-material-art"><img class="img-contain" src="${getMaterialIconSrc(offer.materialId)}" alt="" loading="lazy" /></div>
+      <div class="shop-material-name">${getMaterialName(offer.materialId)}</div>
+      <div class="shop-material-effect">${getBattleMaterialEffectText(offer.materialId)}</div>
+      <div class="shop-material-count">×${qty}</div>
+      <button class="btn btn-md ${canBuy ? '' : 'is-unaffordable'}" data-buy-material-idx="${idx}" ${canBuy ? '' : 'disabled'}>
+        ${offer.sold ? '已购' : buildShopPriceText(offer.price)}
+      </button>
+    </article>
+  `
 }
 
 export function renderShop(
@@ -37,7 +87,7 @@ export function renderShop(
     return `
       <article class="shop-card-tile ${soldClass}" data-offer-idx="${index}">
         <div class="card card--showcase ${resolveCardTypeClass(offer.cardId)}">
-          <div class="card-cost">${card.cost}</div>
+          ${buildCardCostBadgeHtml({ costType: card.costType, costLabel: resolveReadableCostLabel(card.cost, card.costType) })}
           <div class="card-name">${card.name}</div>
           <div class="card-divider"></div>
           <div class="card-type">${card.category === 'combat' ? '攻击' : card.category === 'spell' ? '法术' : '技巧'}</div>
@@ -45,7 +95,7 @@ export function renderShop(
           ${offer.sold ? '<div class="shop-sold-mask">已售罄</div>' : ''}
         </div>
         <button class="btn btn-md shop-buy-btn ${canBuy ? '' : 'is-unaffordable'}" data-buy-card-idx="${index}" ${canBuy ? '' : 'disabled'}>
-          💰 ${offer.price}
+          ${buildShopPriceText(offer.price)}
         </button>
       </article>
     `
@@ -60,19 +110,7 @@ export function renderShop(
     `
   }).join('')
 
-  const materialHtml = materialOffers.map((offer, idx) => {
-    const affordable = run.gold >= offer.price
-    const qty = offer.quantity ?? 1
-    const canBuy = !offer.sold && affordable
-    return `
-      <article class="shop-material-item ${offer.sold ? 'is-sold' : ''}">
-        <div class="shop-material-name">📦 ${formatMaterial(offer.materialId)} ×${qty}</div>
-        <button class="btn btn-md ${canBuy ? '' : 'is-unaffordable'}" data-buy-material-idx="${idx}" ${canBuy ? '' : 'disabled'}>
-          ${offer.sold ? '已购' : `💰 ${offer.price}`}
-        </button>
-      </article>
-    `
-  }).join('')
+  const materialHtml = materialOffers.map((offer, idx) => buildShopMaterialOfferHtml(offer, idx, run.gold)).join('')
 
   const transformCards = run.deck.map(card => {
     const def = getCardDef(card.defId)
@@ -86,14 +124,10 @@ export function renderShop(
   container.innerHTML = `
     <div class="scene-shop scene-shop-v3">
       <header class="shop-header">
-        <h2 class="shop-title">🏪 旅途商店</h2>
-        <div class="shop-gold">💰 余额: ${run.gold}</div>
+        <h2 class="shop-title">${buildShopTitleText()}</h2>
+        <div class="shop-gold">${buildShopGoldText(run.gold)}</div>
       </header>
-      <nav class="shop-tabs" aria-label="商店分类">
-        <button class="shop-tab ${currentShopTab === 'cards' ? 'is-active' : ''}" data-shop-tab="cards" aria-selected="${currentShopTab === 'cards' ? 'true' : 'false'}">🃏 卡牌</button>
-        <button class="shop-tab ${currentShopTab === 'materials' ? 'is-active' : ''}" data-shop-tab="materials" aria-selected="${currentShopTab === 'materials' ? 'true' : 'false'}">📦 材料</button>
-        <button class="shop-tab ${currentShopTab === 'services' ? 'is-active' : ''}" data-shop-tab="services" aria-selected="${currentShopTab === 'services' ? 'true' : 'false'}">🔧 服务</button>
-      </nav>
+      ${buildShopTabsHtml(currentShopTab)}
       <section class="shop-panel ${currentShopTab === 'cards' ? '' : 'is-hidden'}" data-shop-panel="cards">
         <div class="shop-cards-grid">
           ${cardsHtml || '<div class="shop-empty">暂无可购买卡牌</div>'}
@@ -107,30 +141,30 @@ export function renderShop(
       <section class="shop-panel ${currentShopTab === 'services' ? '' : 'is-hidden'}" data-shop-panel="services">
         <div class="shop-services-grid">
           <article class="panel shop-service-item">
-            <h3 class="shop-service-title">❤️ 治疗</h3>
+            <h3 class="shop-service-title">${buildShopServiceTitle('heal')}</h3>
             <p class="shop-service-desc">回复${Math.floor(servicePricing.healPercent * 100)}%HP</p>
-            <button class="btn btn-md" id="btn-shop-heal" ${run.playerHp >= run.playerMaxHp || run.gold < servicePricing.healPrice ? 'disabled' : ''}>💰 ${servicePricing.healPrice}</button>
+            <button class="btn btn-md" id="btn-shop-heal" ${run.playerHp >= run.playerMaxHp || run.gold < servicePricing.healPrice ? 'disabled' : ''}>${buildShopPriceText(servicePricing.healPrice)}</button>
           </article>
           <article class="panel shop-service-item">
-            <h3 class="shop-service-title">✂️ 删卡</h3>
+            <h3 class="shop-service-title">${buildShopServiceTitle('remove')}</h3>
             <p class="shop-service-desc">选择一张卡移除</p>
             <div class="shop-card-list ${run.gold < servicePricing.removePrice ? 'is-disabled' : ''}">
               ${removableCards}
             </div>
-            <div class="shop-service-price">💰 ${servicePricing.removePrice}</div>
+            <div class="shop-service-price">${buildShopPriceText(servicePricing.removePrice)}</div>
           </article>
           <article class="panel shop-service-item">
-            <h3 class="shop-service-title">🌀 变卡</h3>
+            <h3 class="shop-service-title">${buildShopServiceTitle('transform')}</h3>
             <p class="shop-service-desc">${servicePricing.transformPrice ? '选择一张卡随机变换' : '本幕无此服务'}</p>
             <div class="shop-card-list ${!servicePricing.transformPrice || run.gold < servicePricing.transformPrice ? 'is-disabled' : ''}">
               ${servicePricing.transformPrice ? transformCards : '<span class="shop-empty-inline">未开放</span>'}
             </div>
-            ${servicePricing.transformPrice ? `<div class="shop-service-price">💰 ${servicePricing.transformPrice}</div>` : ''}
+            ${servicePricing.transformPrice ? `<div class="shop-service-price">${buildShopPriceText(servicePricing.transformPrice)}</div>` : ''}
           </article>
         </div>
       </section>
       <footer class="shop-footer">
-        <button class="btn btn-md" id="btn-shop-leave">🚪 离开商店</button>
+        <button class="btn btn-md" id="btn-shop-leave">${buildShopLeaveText()}</button>
       </footer>
     </div>
   `

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { rollMaterialRewardByAct } from '../materials'
+import { getMaterialIconSrc, rollMaterialRewardByAct } from '../materials'
 
 describe('material drops by act', () => {
+
+  it('should resolve material icons to webp assets', () => {
+    expect(getMaterialIconSrc('iron_ingot')).toBe('/assets/ui/materials/iron_ingot.webp')
+  })
   it('act1 elite should drop elemental essence only', () => {
     const drop = rollMaterialRewardByAct('elite_battle', 1, () => 0.9)
     expect(drop).toEqual({ elemental_essence: 1 })

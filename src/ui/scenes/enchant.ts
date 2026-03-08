@@ -1,10 +1,21 @@
 import type { EnchantmentId, RunState } from '../../game/types'
 import type { GameCallbacks } from '../renderer'
-import { ENCHANTMENTS, getEnchantmentDef, getTriggeredResonances } from '../../game/enchantments'
+import { ENCHANTMENTS, getTriggeredResonances } from '../../game/enchantments'
 import { getWeaponDef } from '../../game/weapons'
+import { toWebpAsset } from '../../assets'
 
 function resolveWeaponAsset(defId: string): string {
-  return `/assets/weapons/${defId}.png`
+  return toWebpAsset(`/assets/weapons/${defId}.png`)
+}
+
+function resolveEnchantmentShortLabel(enchantmentId: EnchantmentId): string {
+  if (enchantmentId === 'flame') return '烈'
+  if (enchantmentId === 'frost') return '冰'
+  if (enchantmentId === 'thunder') return '雷'
+  if (enchantmentId === 'soul') return '魂'
+  if (enchantmentId === 'void') return '虚'
+  if (enchantmentId === 'bless') return '祝'
+  return '渊'
 }
 
 function resolveSlotClass(enchantmentId: EnchantmentId | undefined): string {
@@ -23,7 +34,7 @@ export function renderEnchant(
   const essence = run.materials.elemental_essence
   const slots = weapon?.enchantments ?? []
 
-  const resonanceHints = getTriggeredResonances(slots).map((r) => `✨共鸣：${r.name}`)
+  const resonanceHints = getTriggeredResonances(slots).map((r) => `共鸣：${r.name}`)
 
   const enchantHtml = ENCHANTMENTS.map((enchant) => {
     if (!weapon) return ''
@@ -31,7 +42,7 @@ export function renderEnchant(
       return `
         <article class="enchant-option-item" data-enchant-id="${enchant.id}">
           <div class="enchant-option-main">
-            <div class="enchant-option-name">${enchant.icon} ${enchant.name}</div>
+            <div class="enchant-option-name">${enchant.name}</div>
             <div class="enchant-option-desc">${enchant.desc}</div>
           </div>
           <button class="btn btn-sm" data-enchant-id="${enchant.id}" ${essence < 1 ? 'disabled' : ''}>附魔</button>
@@ -41,7 +52,7 @@ export function renderEnchant(
     return `
       <article class="enchant-option-item" data-enchant-id="${enchant.id}">
         <div class="enchant-option-main">
-          <div class="enchant-option-name">${enchant.icon} ${enchant.name}</div>
+          <div class="enchant-option-name">${enchant.name}</div>
           <div class="enchant-option-desc">${enchant.desc}</div>
         </div>
         <div class="enchant-option-actions">
@@ -56,7 +67,7 @@ export function renderEnchant(
     ? `
       <div class="scene-enchant scene-enchant-v3">
         <header class="enchant-header">
-          <h2 class="enchant-title">🔮 附魔台</h2>
+          <h2 class="enchant-title">附魔台</h2>
         </header>
 
         <section class="enchant-main">
@@ -68,7 +79,7 @@ export function renderEnchant(
             <div class="enchant-slots">
               ${[0, 1, 2].map((index) => {
                 const enchantId = slots[index]
-                const label = enchantId ? `${getEnchantmentDef(enchantId).icon}` : '+'
+                const label = enchantId ? resolveEnchantmentShortLabel(enchantId) : '+'
                 return `<span class="enchant-slot ${resolveSlotClass(enchantId)}">${label}</span>`
               }).join('')}
             </div>
@@ -83,16 +94,16 @@ export function renderEnchant(
 
         <footer class="enchant-footer">
           <div class="enchant-essence">元素精华：${essence}</div>
-          <button class="btn btn-md" id="btn-leave-enchant">← 返回地图</button>
+          <button class="btn btn-md" id="btn-leave-enchant">返回地图</button>
         </footer>
       </div>
     `
     : `
       <div class="scene-enchant scene-enchant-v3">
         <section class="panel enchant-empty-panel">
-          <h2 class="enchant-title">🔮 附魔台</h2>
+          <h2 class="enchant-title">附魔台</h2>
           <p>未装备武器，无法附魔。</p>
-          <button class="btn btn-md" id="btn-leave-enchant">← 返回地图</button>
+          <button class="btn btn-md" id="btn-leave-enchant">返回地图</button>
         </section>
       </div>
     `

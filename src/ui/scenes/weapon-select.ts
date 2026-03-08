@@ -1,4 +1,5 @@
 import { describeWeaponEffect, getWeaponDef } from '../../game/weapons'
+import { toWebpAsset } from '../../assets'
 
 type StartingWeaponId = 'iron_longsword' | 'iron_staff'
 
@@ -20,12 +21,12 @@ export function resolveStartingWeaponPreview(weaponId: StartingWeaponId): Starti
   if (weaponId === 'iron_staff') {
     return {
       id: weaponId,
-      icon: '🔮',
+      icon: '',
       title: def.name,
       role: '法术流',
       normalAttackText: `普攻：${def.normalAttack.damage}伤害`,
       effectText: describeWeaponEffect(def.effect),
-      sprite: '/assets/weapons/iron_staff.png',
+      sprite: toWebpAsset('/assets/weapons/iron_staff.png'),
       buttonId: 'btn-pick-staff',
       buttonLabel: '选择法杖',
       archClass: 'staff',
@@ -33,12 +34,12 @@ export function resolveStartingWeaponPreview(weaponId: StartingWeaponId): Starti
   }
   return {
     id: weaponId,
-    icon: '⚔️',
+    icon: '',
     title: def.name,
     role: '战技流',
     normalAttackText: `普攻：${def.normalAttack.damage}伤害`,
     effectText: describeWeaponEffect(def.effect),
-    sprite: '/assets/weapons/iron_longsword.png',
+    sprite: toWebpAsset('/assets/weapons/iron_longsword.png'),
     buttonId: 'btn-pick-longsword',
     buttonLabel: '选择长剑',
     archClass: 'sword',
@@ -51,7 +52,7 @@ function renderWeaponOption(weapon: StartingWeaponPreview): string {
       <div class="weapon-option-art" data-weapon-name="${weapon.title}">
         <img src="${weapon.sprite}" alt="${weapon.title}" loading="lazy" />
       </div>
-      <h3 class="weapon-option-name">${weapon.icon} ${weapon.title}</h3>
+      <h3 class="weapon-option-name">${weapon.title}</h3>
       <ul class="weapon-option-stats">
         <li>${weapon.role}</li>
         <li>${weapon.normalAttackText}</li>

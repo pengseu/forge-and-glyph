@@ -10,7 +10,8 @@
     "test": "vitest --run",
     "balance:report": "./node_modules/.bin/vite-node --script scripts/generate-balance-report.ts",
     "assets:check": "./node_modules/.bin/vite-node --script scripts/assets-manifest-sync.ts",
-    "assets:sync": "./node_modules/.bin/vite-node --script scripts/assets-manifest-sync.ts --apply"
+    "assets:sync": "./node_modules/.bin/vite-node --script scripts/assets-manifest-sync.ts --apply",
+    "assets:webp": "node scripts/generate-webp-assets.mjs"
   },
   "devDependencies": {
     "typescript": "~5.9.3",

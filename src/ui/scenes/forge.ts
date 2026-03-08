@@ -1,10 +1,30 @@
 import { getCardDef } from '../../game/cards'
 import { ENCHANTMENTS, getEnchantmentDef, getTriggeredResonances } from '../../game/enchantments'
 import { FORGE_RECIPES, isRecipeUnlocked, resolveRecipeCost } from '../../game/forge'
-import { formatMaterial } from '../../game/materials'
+import { getMaterialIconSrc, getMaterialName } from '../../game/materials'
 import type { EnchantmentId, RunState } from '../../game/types'
 import { describeWeaponEffect, getWeaponDef } from '../../game/weapons'
 import type { GameCallbacks } from '../renderer'
+
+export function buildForgeMaterialTagHtml(materialId: keyof RunState['materials'], count: number): string {
+  return `<span class="forge-material-tag"><span class="forge-material-tag-art"><img class="img-contain" src="${getMaterialIconSrc(materialId)}" alt="" loading="lazy" /></span><span class="forge-material-tag-name">${getMaterialName(materialId)}</span><span class="forge-material-tag-count">×${count}</span></span>`
+}
+
+export function buildForgeTitleText(): string {
+  return '铁匠工坊'
+}
+
+export function buildForgeActionTitle(kind: 'craft' | 'enchant' | 'upgrade' | 'remove'): string {
+  if (kind === 'craft') return '锻造'
+  if (kind === 'enchant') return '附魔'
+  if (kind === 'upgrade') return '升级卡牌'
+  return '精简卡组'
+}
+
+export function buildForgeEnchantButtonLabel(name: string, replaceIndex?: number): string {
+  return replaceIndex === undefined ? name : `${name}→槽${replaceIndex + 1}`
+}
+
 
 export function renderForge(
   container: HTMLElement,
@@ -20,7 +40,7 @@ export function renderForge(
     const canPayAnyEssence = (effective.anyEssenceCost ?? 0) <= totalEssence
     const canCraft = unlocked && canPayFixedCost && canPayAnyEssence
     const fixedCostText = Object.entries(effective.cost)
-      .map(([k, v]) => `${formatMaterial(k as keyof RunState['materials'])}×${v}`)
+      .map(([k, v]) => `${getMaterialName(k as keyof RunState['materials'])}×${v}`)
       .join(' + ')
     const costText = [fixedCostText, effective.anyEssenceCost ? `任意精华×${effective.anyEssenceCost}` : '']
       .filter(Boolean)
@@ -38,17 +58,17 @@ export function renderForge(
 
   const weapon = run.equippedWeapon
   const enchantSlots = weapon?.enchantments ?? []
-  const resonanceHints = getTriggeredResonances(enchantSlots).map((r) => `✨ ${r.name}`).join(' · ')
+  const resonanceHints = getTriggeredResonances(enchantSlots).map((r) => r.name).join(' · ')
 
   const enchantHtml = ENCHANTMENTS.map((enchant) => {
     if (!weapon) return ''
     if (enchantSlots.length < 2) {
-      return `<button class="btn btn-sm" data-forge-enchant="${enchant.id}" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${enchant.icon}${enchant.name}</button>`
+      return `<button class="btn btn-sm" data-forge-enchant="${enchant.id}" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${buildForgeEnchantButtonLabel(enchant.name)}</button>`
     }
     return `
       <div class="forge-enchant-row">
-        <button class="btn btn-sm" data-forge-enchant="${enchant.id}" data-replace-idx="0" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${enchant.icon}${enchant.name}→槽1</button>
-        <button class="btn btn-sm" data-forge-enchant="${enchant.id}" data-replace-idx="1" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${enchant.icon}${enchant.name}→槽2</button>
+        <button class="btn btn-sm" data-forge-enchant="${enchant.id}" data-replace-idx="0" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${buildForgeEnchantButtonLabel(enchant.name, 0)}</button>
+        <button class="btn btn-sm" data-forge-enchant="${enchant.id}" data-replace-idx="1" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${buildForgeEnchantButtonLabel(enchant.name, 1)}</button>
       </div>
     `
   }).join('')
@@ -74,7 +94,7 @@ export function renderForge(
         const id = enchantSlots[i]
         if (!id) return '[空]'
         const def = getEnchantmentDef(id)
-        return `${def.icon}${def.name}`
+        return def.name
       })
       .join(' / ')
     : '未装备武器'
@@ -82,32 +102,32 @@ export function renderForge(
   container.innerHTML = `
     <div class="scene-forge scene-forge-v3">
       <header class="forge-header">
-        <h2 class="forge-title">⚒️ 铁匠工坊</h2>
+        <h2 class="forge-title">${buildForgeTitleText()}</h2>
         <p class="forge-subtitle">选择一项工艺，仅此一次</p>
       </header>
 
       <section class="forge-action-grid">
         <article class="panel forge-action-panel">
-          <h3>🔨 锻造</h3>
+          <h3>${buildForgeActionTitle('craft')}</h3>
           <p>消耗材料锻造新武器</p>
           <div class="forge-action-list">${recipesHtml || '<div class="forge-empty">暂无配方</div>'}</div>
         </article>
 
         <article class="panel forge-action-panel">
-          <h3>✨ 附魔</h3>
+          <h3>${buildForgeActionTitle('enchant')}</h3>
           <p>当前武器：${weapon ? getWeaponDef(weapon.defId).name : '无'} · 槽位：${slotText}</p>
           <div class="forge-resonance-hint">${resonanceHints || '暂无共鸣'}</div>
           <div class="forge-action-list">${enchantHtml || '<div class="forge-empty">未装备武器</div>'}</div>
         </article>
 
         <article class="panel forge-action-panel">
-          <h3>⬆️ 升级卡牌</h3>
+          <h3>${buildForgeActionTitle('upgrade')}</h3>
           <p>选择一张卡牌升级</p>
           <div class="forge-compact-list">${upgradeHtml || '<div class="forge-empty">无可升级卡牌</div>'}</div>
         </article>
 
         <article class="panel forge-action-panel">
-          <h3>✂️ 精简卡组</h3>
+          <h3>${buildForgeActionTitle('remove')}</h3>
           <p>移除一张卡牌</p>
           <div class="forge-compact-list">${removeHtml || '<div class="forge-empty">无可移除卡牌</div>'}</div>
         </article>
@@ -115,7 +135,7 @@ export function renderForge(
 
       <footer class="forge-footer">
         <div class="forge-material-bar">
-          ${Object.entries(run.materials).map(([key, value]) => `<span class="forge-material-tag">${formatMaterial(key as keyof RunState['materials'])} ×${value}</span>`).join('')}
+          ${Object.entries(run.materials).map(([key, value]) => buildForgeMaterialTagHtml(key as keyof RunState['materials'], value)).join('')}
         </div>
         <button class="btn btn-md" id="btn-leave-forge">返回地图</button>
       </footer>

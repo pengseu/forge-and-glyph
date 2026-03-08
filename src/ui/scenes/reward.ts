@@ -1,13 +1,96 @@
-import type { CardDef, MaterialBag } from '../../game/types'
+import type { CardDef, MaterialBag, MaterialId } from '../../game/types'
 import type { GameCallbacks } from '../renderer'
 import { describeWeaponEffect, getWeaponDef } from '../../game/weapons'
-import { formatMaterial } from '../../game/materials'
+import { getBattleMaterialEffectText, getMaterialIconSrc, getMaterialName } from '../../game/materials'
+import { buildCardCostBadgeHtml, resolveReadableCostLabel } from '../card-cost'
 
 function resolveCardTypeClass(card: CardDef): string {
   if (card.id.startsWith('curse_')) return 'card--curse'
   if (card.category === 'combat') return 'card--attack'
   if (card.category === 'spell') return 'card--skill'
   return 'card--power'
+}
+
+function resolveBossAutoDropMaterialId(act: 1 | 2 | 3): MaterialId {
+  if (act === 1) return 'goblin_crown_fragment'
+  if (act === 2) return 'shadow_crystal'
+  return 'abyss_heart'
+}
+
+function buildRewardMaterialCardHtml(materialId: MaterialId, count: number, compact = false): string {
+  const effectText = getBattleMaterialEffectText(materialId)
+  return `
+    <article class="reward-material-card ${compact ? 'reward-material-card--compact' : ''}" title="${getMaterialName(materialId)}｜${effectText || getMaterialName(materialId)}">
+      <div class="reward-material-art"><img class="img-contain" src="${getMaterialIconSrc(materialId)}" alt="" loading="lazy" /></div>
+      <div class="reward-material-name">${getMaterialName(materialId)}</div>
+      <div class="reward-material-effect">${effectText || '剧情 / 锻造用途材料'}</div>
+      <div class="reward-material-count">×${count}</div>
+    </article>
+  `
+}
+
+export function buildRewardMaterialListHtml(materialRewards: Partial<MaterialBag>): string {
+  const materialEntries = Object.entries(materialRewards).filter(([, value]) => (value ?? 0) > 0) as Array<[MaterialId, number]>
+  if (materialEntries.length === 0) return ''
+  return materialEntries.map(([materialId, count]) => buildRewardMaterialCardHtml(materialId, count)).join('')
+}
+
+export function buildRewardMaterialChoiceHtml(materialRewards: Partial<MaterialBag>): string {
+  const materialListHtml = buildRewardMaterialListHtml(materialRewards)
+  if (!materialListHtml) return ''
+  return `
+    <div class="reward-choice reward-choice--materials" data-choice-kind="materials">
+      <div class="reward-choice-option reward-choice-material" data-choice-key="materials" tabindex="0" role="button" aria-label="材料奖励">
+        <div class="reward-choice-material-title">材料奖励</div>
+        <div class="reward-choice-material-list">${materialListHtml}</div>
+      </div>
+    </div>
+  `
+}
+
+export function buildRewardChoiceStripHtml(cardsHtml: string, materialChoiceHtml: string): string {
+  const content = [cardsHtml, materialChoiceHtml].filter(Boolean).join('')
+  return `<div class="reward-choice-strip">${content}</div>`
+}
+
+export function buildRewardBossAutoDropHtml(act: 1 | 2 | 3, bossAutoDropHint: string): string {
+  const materialId = resolveBossAutoDropMaterialId(act)
+  return `
+    <div class="reward-drop-item reward-drop-item--auto reward-boss-drop-hint">
+      <div class="reward-drop-title">自动获得</div>
+      <div class="reward-boss-drop-copy">${bossAutoDropHint}</div>
+      <div class="reward-boss-drop-card-wrap">${buildRewardMaterialCardHtml(materialId, 1, true)}</div>
+    </div>
+  `
+}
+
+export function buildRewardTitleText(): string {
+  return '战斗胜利'
+}
+
+export function buildRewardSkipText(gold: number): string {
+  return `跳过，获得 ${gold} 金币`
+}
+
+export function buildRewardWeaponDropHtml(droppedWeaponId: string): string {
+  const weaponDef = getWeaponDef(droppedWeaponId)
+  return `
+    <div class="reward-drop-item reward-drop-item--weapon">
+      <div class="reward-drop-title">已收入背包</div>
+      <div class="reward-drop-desc">${weaponDef.name} · ${describeWeaponEffect(weaponDef.effect)}</div>
+      <button class="btn btn-md" id="btn-equip-weapon">立即装备</button>
+    </div>
+  `
+}
+
+export function buildRewardSupplementRowHtml(autoDropHtml: string, weaponHtml: string): string {
+  const blocks = [
+    autoDropHtml ? `<div class="reward-supplement-col reward-supplement-col--auto">${autoDropHtml}</div>` : '',
+    weaponHtml ? `<div class="reward-supplement-col reward-supplement-col--weapon">${weaponHtml}</div>` : '',
+  ].filter(Boolean)
+  if (blocks.length === 0) return ''
+  const rowClass = blocks.length === 1 ? 'reward-supplement-row reward-supplement-row--single' : 'reward-supplement-row'
+  return `<div class="${rowClass}">${blocks.join('')}</div>`
 }
 
 export function renderReward(
@@ -27,8 +110,8 @@ export function renderReward(
 
   const cardsHtml = candidateCards.map((card, idx) => `
     <div class="reward-choice" data-choice-index="${idx}">
-      <div class="card card--showcase ${resolveCardTypeClass(card)} reward-card" data-card-id="${card.id}" tabindex="0" role="button" aria-label="${card.name}">
-        <div class="card-cost">${card.cost}</div>
+      <div class="card card--showcase ${resolveCardTypeClass(card)} reward-card reward-choice-option" data-card-id="${card.id}" data-choice-key="card:${card.id}" tabindex="0" role="button" aria-label="${card.name}">
+        ${buildCardCostBadgeHtml({ costType: card.costType, costLabel: resolveReadableCostLabel(card.cost, card.costType) })}
         <div class="card-name">${card.name}</div>
         <div class="card-divider"></div>
         <div class="card-type">${card.category === 'combat' ? '攻击' : card.category === 'spell' ? '法术' : '技巧'}</div>
@@ -37,45 +120,26 @@ export function renderReward(
     </div>
   `).join('')
 
-  const materialEntries = Object.entries(materialRewards).filter(([, v]) => (v ?? 0) > 0)
-  const materialHtml = materialEntries.length > 0
-    ? `
-      <div class="reward-drop-item">
-        <div class="reward-drop-title">材料奖励</div>
-        <div class="reward-drop-desc">${materialEntries.map(([k, v]) => `${formatMaterial(k as keyof MaterialBag)}×${v}`).join(' · ')}</div>
-        <button class="btn btn-md" id="btn-take-material">领取材料</button>
-      </div>
-    `
-    : ''
+  const materialChoiceHtml = buildRewardMaterialChoiceHtml(materialRewards)
 
-  let weaponHtml = ''
-  if (droppedWeaponId) {
-    const weaponDef = getWeaponDef(droppedWeaponId)
-    weaponHtml = `
-      <div class="reward-drop-item">
-        <div class="reward-drop-title">武器掉落</div>
-        <div class="reward-drop-desc">${weaponDef.name} · ${describeWeaponEffect(weaponDef.effect)}</div>
-        <button class="btn btn-md" id="btn-equip-weapon">装备</button>
-      </div>
-    `
-  }
+  const autoDropHtml = bossAutoDropHint ? buildRewardBossAutoDropHtml(act, bossAutoDropHint) : ''
+
+  const weaponHtml = droppedWeaponId ? buildRewardWeaponDropHtml(droppedWeaponId) : ''
 
   container.innerHTML = `
     <div class="scene-reward scene-reward-v2">
       <div class="reward-overlay">
         <div class="reward-panel panel">
-          <h2 class="panel-title reward-title">🎉 战斗胜利</h2>
+          <h2 class="panel-title reward-title">${buildRewardTitleText()}</h2>
           <div class="reward-rule-hint">${materialRuleHint}</div>
-          ${bossAutoDropHint ? `<div class="reward-boss-drop-hint">🏆 ${bossAutoDropHint}</div>` : ''}
           <div class="reward-divider"></div>
-          <div class="reward-cards">${cardsHtml}</div>
+          <div class="reward-cards">${buildRewardChoiceStripHtml(cardsHtml, materialChoiceHtml)}</div>
           <div class="reward-divider"></div>
           <div class="reward-drops">
-            ${materialHtml}
-            ${weaponHtml}
+            ${buildRewardSupplementRowHtml(autoDropHtml, weaponHtml)}
           </div>
           <div class="reward-actions">
-            <button class="btn btn-ghost btn-md" id="btn-skip">跳过 → 获得 25💰</button>
+            <button class="btn btn-ghost btn-md" id="btn-skip">${buildRewardSkipText(25)}</button>
           </div>
         </div>
       </div>
@@ -83,9 +147,9 @@ export function renderReward(
   `
 
   let lockedSelection = false
-  const setSelectedCard = (selectedId: string): void => {
-    container.querySelectorAll<HTMLElement>('.reward-card').forEach((el) => {
-      const isSelected = el.dataset.cardId === selectedId
+  const setSelectedChoice = (selectedKey: string): void => {
+    container.querySelectorAll<HTMLElement>('.reward-choice-option').forEach((el) => {
+      const isSelected = el.dataset.choiceKey === selectedKey
       el.classList.toggle('is-selected', isSelected)
       el.classList.toggle('is-dimmed', !isSelected)
     })
@@ -98,7 +162,7 @@ export function renderReward(
       const cardId = el.dataset.cardId
       if (!cardId) return
       lockedSelection = true
-      setSelectedCard(cardId)
+      setSelectedChoice(`card:${cardId}`)
       window.setTimeout(() => {
         callbacks.onSelectCard(cardId)
       }, 120)
@@ -112,6 +176,25 @@ export function renderReward(
     })
   })
 
+  const materialChoiceEl = container.querySelector<HTMLElement>('.reward-choice-material')
+  if (materialChoiceEl) {
+    const chooseMaterial = (): void => {
+      if (lockedSelection) return
+      lockedSelection = true
+      setSelectedChoice('materials')
+      window.setTimeout(() => {
+        callbacks.onSelectMaterialReward()
+      }, 120)
+    }
+    materialChoiceEl.addEventListener('click', chooseMaterial)
+    materialChoiceEl.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        chooseMaterial()
+      }
+    })
+  }
+
   const equipBtn = container.querySelector('#btn-equip-weapon')
   if (equipBtn && droppedWeaponId) {
     equipBtn.addEventListener('click', () => {
@@ -123,7 +206,4 @@ export function renderReward(
     callbacks.onSkipReward()
   })
 
-  container.querySelector('#btn-take-material')?.addEventListener('click', () => {
-    callbacks.onSelectMaterialReward()
-  })
 }

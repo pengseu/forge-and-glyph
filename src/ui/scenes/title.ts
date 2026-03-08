@@ -1,3 +1,5 @@
+import { toWebpAsset } from '../../assets'
+
 export function renderTitle(
   container: HTMLElement,
   onStart: () => void,
@@ -22,14 +24,14 @@ export function renderTitle(
   container.innerHTML = `
     <div class="scene-title">
       <div class="title-bg">
-        <img src="/assets/scenes/title-forest.png" alt="森林背景" loading="lazy" />
+        <img src="${toWebpAsset('/assets/scenes/title-forest.png')}" alt="森林背景" loading="lazy" />
       </div>
       <div class="title-content">
         <h1>锻铸与咒印</h1>
         <p class="subtitle">Forge & Glyph</p>
         <div class="title-actions">
-          <button class="btn btn-primary btn-lg" id="btn-start">⚔️ 开始冒险</button>
-          <button class="btn btn-md" id="btn-style-lab">🎨 样式工坊</button>
+          <button class="btn btn-primary btn-lg" id="btn-start">开始冒险</button>
+          <button class="btn btn-md" id="btn-style-lab">样式工坊</button>
           <button class="btn btn-ghost btn-sm" id="btn-continue" ${hasAutoSave ? '' : 'disabled'}>继续冒险</button>
         </div>
       </div>

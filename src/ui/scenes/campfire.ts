@@ -2,6 +2,7 @@ import type { RunState } from '../../game/types'
 import type { GameCallbacks } from '../renderer'
 import { getCardDef } from '../../game/cards'
 import { canUpgrade, getEffectiveCardDef, upgradeCard } from '../../game/campfire'
+import { toWebpAsset } from '../../assets'
 
 type CampfireView = 'menu' | 'upgrade'
 type CampfireOptionId = 'rest' | 'upgrade' | 'continue'
@@ -20,21 +21,21 @@ export function resolveCampfireMenuOptions(playerHp: number, playerMaxHp: number
   return [
     {
       id: 'rest',
-      title: '❤️ 休息',
+      title: '休息',
       desc: '恢复30%HP',
       buttonLabel: `休息 (${playerHp}/${playerMaxHp})`,
       disabled: playerHp >= playerMaxHp,
     },
     {
       id: 'upgrade',
-      title: '⬆️ 升级卡牌',
+      title: '升级卡牌',
       desc: '选择一张卡牌升级',
       buttonLabel: '选择卡牌',
       disabled: false,
     },
     {
       id: 'continue',
-      title: '➡️ 继续旅程',
+      title: '继续旅程',
       desc: '返回地图',
       buttonLabel: '出发',
       disabled: false,
@@ -54,7 +55,7 @@ export function renderCampfire(
   wrapper.className = `scene-campfire scene-campfire-v3 ${currentView === 'upgrade' ? 'scene-campfire--upgrade' : ''}`
   wrapper.innerHTML = `
     <div class="campfire-bg" data-art-name="篝火场景背景">
-      <img src="/assets/scenes/campfire.png" alt="篝火场景背景" loading="lazy" />
+      <img src="${toWebpAsset('/assets/scenes/campfire.png')}" alt="篝火场景背景" loading="lazy" />
     </div>
     <div class="campfire-content"></div>
   `
@@ -102,7 +103,7 @@ function renderMenu(
 
   content.innerHTML = `
     <header class="campfire-header">
-      <h2 class="campfire-title">🔥 篝火休憩</h2>
+      <h2 class="campfire-title">篝火休憩</h2>
       <p class="campfire-subtitle">在温暖中恢复力量…</p>
     </header>
     <div class="campfire-option-grid">
@@ -178,7 +179,7 @@ function renderUpgradeView(
 
     const name = document.createElement('div')
     name.className = 'card-name'
-    name.textContent = effectiveDef.name + (isUpgraded ? ' ✦' : '')
+    name.textContent = effectiveDef.name + (isUpgraded ? '（已升级）' : '')
     el.appendChild(name)
 
     const cost = document.createElement('div')

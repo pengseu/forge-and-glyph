@@ -52,7 +52,7 @@ import { setRandomSource } from './game/random'
 import { deserializeGameState, serializeGameState } from './game/state-codec'
 import { clearAuto, listSlotSummaries, loadAuto, loadSlot, saveAuto, saveSlot, type SavePayload } from './game/save'
 import { createDefaultSettings, loadSettings, saveSettings } from './game/settings'
-import { applyAudioSettings, playSfx, startBgmForAct, stopBgm } from './game/audio'
+import { applyAudioSettings, playSfx, startBgmForScene, stopBgm } from './game/audio'
 import { ACT1_TUTORIAL_GUIDES, applyGuideQueue } from './game/guides'
 import { render } from './ui/renderer'
 
@@ -214,8 +214,6 @@ function applySavePayload(payload: SavePayload): void {
     skipTutorial: restored.skipTutorial,
     audio: { ...restored.audio },
   }
-  if (gameState.audio.muted || !gameState.run) stopBgm()
-  else startBgmForAct(gameState.run.act)
   prevBattle = restored.battle
 }
 
@@ -404,6 +402,7 @@ function handleBattleVictory(newBattle: BattleState): void {
   if (currentNode.type === 'boss_battle') {
     newRun = addMaterialReward(newRun, rollMaterialRewardByAct('boss_battle', newRun.act, runtimeRng.next))
     droppedWeaponId = getBossLegendaryWeaponByAct(newRun.act)
+    newRun = addWeaponToInventory(newRun, droppedWeaponId)
     if (!(newRun.unlockedBlueprints ?? []).includes(droppedWeaponId)) {
       newRun = { ...newRun, unlockedBlueprints: [...(newRun.unlockedBlueprints ?? []), droppedWeaponId] }
     }
@@ -411,6 +410,7 @@ function handleBattleVictory(newBattle: BattleState): void {
     const hasLongsword = newRun.weaponInventory.some(w => w.defId === 'iron_longsword' || w.defId === 'steel_longsword')
     if (!hasLongsword && runtimeRng.chance(0.3)) {
       droppedWeaponId = 'iron_longsword'
+      newRun = addWeaponToInventory(newRun, droppedWeaponId)
     }
   }
 
@@ -492,6 +492,18 @@ function logBattleDiff(prev: BattleState, next: BattleState): void {
   }
 }
 
+function syncBgmForCurrentScene(): void {
+  if (gameState.audio.muted) {
+    stopBgm()
+    return
+  }
+  const bossBattle = gameState.scene === 'battle' && !!gameState.run && isBossNode(gameState.run)
+  startBgmForScene(gameState.scene, {
+    boss: bossBattle,
+    result: gameState.scene === 'result' ? gameState.lastResult : null,
+  })
+}
+
 function update() {
   refreshSaveUiState()
   const beforeGuideState = gameState
@@ -499,6 +511,7 @@ function update() {
   if (hasGuideProgressChanged(beforeGuideState, gameState)) {
     saveGuideProgressFromState(gameState)
   }
+  syncBgmForCurrentScene()
   const clearIntermissionState = {
     intermissionMode: 'none' as const,
     intermissionCardOptions: [] as import('./game/types').CardDef[],
@@ -508,7 +521,6 @@ function update() {
     const nextRun = advanceToNextAct(run, runtimeRng.next)
     pushGlobalLog(`进入第 ${nextRun.act} 幕`)
     gameState = { ...gameState, run: nextRun, scene: 'map', ...clearIntermissionState }
-    if (!gameState.audio.muted) startBgmForAct(nextRun.act)
     update()
   }
 
@@ -554,7 +566,6 @@ function update() {
         stats: { turns: 0, remainingHp: 0, runReport: initRunReport(), finalSnapshot: null },
       }
       pushGlobalLog('开始新的一局冒险')
-      if (!settings.audio.muted) startBgmForAct(1)
       update()
     },
     onContinueGame: () => {
@@ -607,8 +618,6 @@ function update() {
       settings = { ...settings, audio: nextAudio }
       saveSettings(settings)
       applyAudioSettings(nextAudio)
-      if (muted) stopBgm()
-      else if (gameState.run) startBgmForAct(gameState.run.act)
       update()
     },
     onSetAudioVolume: (channel, value) => {
@@ -1010,9 +1019,15 @@ function update() {
     },
     onEquipWeapon: (weaponDefId: string) => {
       if (!gameState.run) return
-      let newRun = addWeaponToInventory(gameState.run, weaponDefId)
-      const newWeapon = newRun.weaponInventory[newRun.weaponInventory.length - 1]
-      newRun = equipWeapon(newRun, newWeapon.uid)
+      let newRun = gameState.run
+      const matchingWeapon = [...newRun.weaponInventory].reverse().find((weapon) => weapon.defId === weaponDefId)
+      if (matchingWeapon) {
+        newRun = equipWeapon(newRun, matchingWeapon.uid)
+      } else {
+        newRun = addWeaponToInventory(newRun, weaponDefId)
+        const newWeapon = newRun.weaponInventory[newRun.weaponInventory.length - 1]
+        if (newWeapon) newRun = equipWeapon(newRun, newWeapon.uid)
+      }
       gameState = { ...gameState, run: newRun, droppedWeaponId: null }
       update()
     },

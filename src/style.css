@@ -202,18 +202,18 @@ h3,
 
 .target-mode .enemy-unit {
   cursor: pointer;
-  border-color: #f0a500;
+  border-color: #e94560;
   animation: target-glow 1s ease-in-out infinite;
 }
 
 .target-mode .enemy-unit:hover {
   transform: scale(1.05);
-  border-color: #e94560;
+  border-color: #ff6b6b;
 }
 
 @keyframes target-glow {
-  0%, 100% { box-shadow: 0 0 4px #f0a500; }
-  50% { box-shadow: 0 0 12px #f0a500; }
+  0%, 100% { box-shadow: 0 0 4px #e94560; }
+  50% { box-shadow: 0 0 12px #e94560; }
 }
 
 .target-hint {
@@ -408,7 +408,7 @@ h3,
   width: 120px;
   min-height: 160px;
   padding: 12px 10px;
-  background: #1a1a2e;
+  background: transparent;
   border: 2px solid #0f3460;
   cursor: pointer;
   transition: transform 0.15s, border-color 0.15s;
@@ -420,7 +420,7 @@ h3,
 
 .card:hover { transform: translateY(-4px); border-color: #e94560; }
 .card.disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-.card.selected { border-color: #f0a500; background: #2a2a3e; transform: translateY(-4px); }
+.card.selected { border-color: #f0a500; background: transparent; transform: translateY(-4px); }
 .card:focus-visible {
   outline: 2px solid #f0a500;
   outline-offset: 2px;
@@ -539,25 +539,13 @@ h3,
   position: absolute;
   width: 60px;
   height: 60px;
-  background: #1a1a2e;
-  border: 2px solid #0f3460;
-  border-radius: 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: not-allowed;
-  transition: all 0.2s;
-}
-
-.map-node.accessible, .map-node.current {
-  cursor: pointer;
-  border-color: #e94560;
+  background: transparent;
+  border: none;
 }
 
 .map-node.accessible:hover {
   transform: scale(1.1);
-  background: #2a2a3e;
+  background: transparent;
 }
 
 .map-node:focus-visible {
@@ -566,7 +554,7 @@ h3,
 }
 
 .map-node.current {
-  background: #e94560;
+  background: transparent;
   color: #fff;
 }
 
@@ -626,7 +614,7 @@ h3,
   width: 150px;
   min-height: 170px;
   padding: 14px;
-  background: #1a1a2e;
+  background: transparent;
   border: 2px solid #0f3460;
   cursor: pointer;
   transition: all 0.2s;
@@ -639,7 +627,7 @@ h3,
 .reward-card:hover {
   transform: translateY(-4px);
   border-color: #e94560;
-  background: #2a2a3e;
+  background: transparent;
 }
 
 .reward-card:focus-visible {
@@ -692,7 +680,7 @@ h3,
 .campfire-card {
   width: 110px;
   padding: 8px;
-  background: #1a1a2e;
+  background: transparent;
   border: 2px solid #0f3460;
   cursor: pointer;
   transition: transform 0.15s, border-color 0.15s;
@@ -719,7 +707,7 @@ h3,
 .weapon-drop {
   margin-top: 16px;
   padding: 12px;
-  background: #1a1a2e;
+  background: transparent;
   border: 2px solid #f0a500;
   text-align: center;
 }
@@ -853,7 +841,7 @@ h3,
 .shop-card {
   width: 170px;
   min-height: 190px;
-  background: #1a1a2e;
+  background: transparent;
   border: 2px solid #0f3460;
   padding: 12px;
   display: flex;

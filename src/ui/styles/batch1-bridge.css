@@ -2,7 +2,7 @@
 
 #app {
   background-color: var(--paper-warm);
-  background-image: url('/assets/textures/tex-kraft-base.png');
+  background-image: url('/assets/textures/tex-kraft-base.webp');
   background-size: 512px 512px;
   background-repeat: repeat;
   background-blend-mode: multiply;
@@ -43,10 +43,15 @@
 .reward-card,
 .shop-card,
 .campfire-card,
-.map-node,
 .weapon-drop {
-  background: var(--paper-cream);
+  background: transparent;
   border-color: #fff;
+  color: var(--ink-primary);
+}
+
+.map-node {
+  background: transparent;
+  border-color: transparent;
   color: var(--ink-primary);
 }
 

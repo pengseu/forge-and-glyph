@@ -12,7 +12,7 @@
   font-size: 15px;
   line-height: 1;
   background-color: var(--paper-cream);
-  background-image: url('/assets/textures/tex-washi.png');
+  background-image: url('/assets/textures/tex-washi.webp');
   background-size: 128px 128px;
   background-blend-mode: soft-light;
   color: var(--ink-primary);

@@ -14,7 +14,7 @@ export function showDamageFloat(
   } else if (type === 'heal') {
     el.textContent = `+${value}`
   } else if (type === 'poison') {
-    el.textContent = `🐍${value}`
+    el.innerHTML = `<span class="damage-number-badge"><img class="img-contain" src="/assets/icon/中毒.webp" alt="" /></span><span class="damage-number-inline-value">${value}</span>`
   } else {
     el.textContent = `+${value}`
   }

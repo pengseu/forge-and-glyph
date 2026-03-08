@@ -87,7 +87,7 @@ export function renderActTransition(
     container.innerHTML = `
       <div class="scene-act-transition scene-act-transition-v3">
         <div class="panel act-transition-panel-v3">
-          <h2 class="act-transition-title">📖 第 ${run.act} 幕结束</h2>
+          <h2 class="act-transition-title">第 ${run.act} 幕结束</h2>
           <p class="act-transition-subtitle">新的篇章即将展开…进入第 ${nextAct} 幕前请选择一项增益。</p>
           <div class="act-transition-choice-grid">${choicesHtml}</div>
         </div>
@@ -117,7 +117,7 @@ export function renderActTransition(
     container.innerHTML = `
       <div class="scene-act-transition scene-act-transition-v3">
         <div class="panel act-transition-panel-v3">
-          <h2 class="act-transition-title">📖 第 ${run.act} 幕结束</h2>
+          <h2 class="act-transition-title">第 ${run.act} 幕结束</h2>
           <p class="act-transition-subtitle">${meta.title} · ${meta.subtitle}</p>
           <div class="act-transition-pick-grid">${cardsHtml}</div>
         </div>
@@ -159,7 +159,7 @@ export function renderActTransition(
   container.innerHTML = `
     <div class="scene-act-transition scene-act-transition-v3">
       <div class="panel act-transition-panel-v3">
-        <h2 class="act-transition-title">📖 第 ${run.act} 幕结束</h2>
+        <h2 class="act-transition-title">第 ${run.act} 幕结束</h2>
         <p class="act-transition-subtitle">${meta.title}</p>
         <div class="act-transition-remove-hint">${remainingHint}</div>
         <div class="act-transition-remove-grid">${cardsHtml}</div>

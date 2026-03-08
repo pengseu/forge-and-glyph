@@ -29,6 +29,14 @@ describe('meta profile', () => {
     expect(profile.unlockedBlueprints).toEqual([])
   })
 
+  it('initializes secret cycle progress defaults', () => {
+    const profile = createDefaultMetaProfile()
+    expect(profile.secretCycle.highestUnlockedTier).toBe(0)
+    expect(profile.secretCycle.highestClearedTier).toBe(-1)
+    expect(profile.secretCycle.hiddenBossClearCount).toBe(0)
+    expect(profile.secretCycle.unlockedStarterWeapons).toEqual([])
+  })
+
   it('saves and reloads profile', () => {
     const storage = makeMemoryStorage()
     const profile = {
@@ -147,7 +155,7 @@ describe('legacy event', () => {
   })
 
   it('legacy equip should add and equip weapon, and mark seen', () => {
-    const run = createRunState({ legacyWeaponDefId: 'mythic_ant_swarm_dagger', unlockedBlueprints: [], blueprintMastery: {} })
+    const run = createRunState({ legacyWeaponDefId: 'mythic_ant_swarm_dagger', unlockedBlueprints: [], blueprintMastery: {}, cycleTier: 0 })
     const next = resolveLegacyWeaponChoice(run, 'legacy_equip')
     expect(next.weaponInventory.some((w) => w.defId === 'steel_dagger')).toBe(true)
     expect(next.equippedWeapon?.defId).toBe('steel_dagger')
@@ -160,6 +168,7 @@ describe('legacy event', () => {
       unlockedBlueprints: [],
       blueprintMastery: {},
       legacyWeaponEnchantments: ['flame', 'void', 'soul'],
+      cycleTier: 0,
     })
     const one = resolveLegacyWeaponChoice(run, 'legacy_equip')
     expect(one.equippedWeapon?.enchantments).toEqual(['flame'])
@@ -173,7 +182,7 @@ describe('legacy event', () => {
   })
 
   it('legacy salvage should grant resources, and mark seen', () => {
-    const run = createRunState({ legacyWeaponDefId: 'mythic_ant_swarm_dagger', unlockedBlueprints: [], blueprintMastery: {} })
+    const run = createRunState({ legacyWeaponDefId: 'mythic_ant_swarm_dagger', unlockedBlueprints: [], blueprintMastery: {}, cycleTier: 0 })
     const next = resolveLegacyWeaponChoice(run, 'legacy_salvage')
     expect(next.materials.steel_ingot).toBeGreaterThanOrEqual(2)
     expect(next.legacyEventSeen).toBe(true)

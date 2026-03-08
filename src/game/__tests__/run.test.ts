@@ -25,6 +25,7 @@ import { getNodeById } from '../map'
 function makeRunState(overrides: Partial<RunState> = {}): RunState {
   return {
     act: 1,
+    cycleTier: 0,
     currentNodeId: 'node_0',
     visitedNodes: new Set(),
     deck: [],
@@ -40,6 +41,7 @@ function makeRunState(overrides: Partial<RunState> = {}): RunState {
     bonusMaxMana: 0,
     nextBattleEnemyStrengthBonus: 0,
     materials: { ...EMPTY_MATERIAL_BAG },
+    secretState: { hiddenRouteEntered: false, pendingStage: 'none' },
     ...overrides,
   }
 }

@@ -8,7 +8,17 @@ export function buildEventNameHint(title: string): string {
 export type EventTextureKind = 'warm' | 'cool' | 'dark'
 
 export function resolveEventTextureKind(eventId: string): EventTextureKind {
-  const darkIds = new Set(['shadow_altar', 'cursed_chest', 'abyss_rift', 'ancient_guardian'])
+  const darkIds = new Set([
+    'shadow_altar',
+    'cursed_chest',
+    'abyss_rift',
+    'ancient_guardian',
+    'secret_thanks_first',
+    'secret_epilogue',
+    'ordinary_recognition',
+    'secret_reentry',
+    'secret_transition',
+  ])
   const coolIds = new Set(['forge_spirit', 'wandering_smith', 'ancient_library', 'trial_choice', 'sanctum_choice'])
   if (darkIds.has(eventId)) return 'dark'
   if (coolIds.has(eventId)) return 'cool'
@@ -17,6 +27,15 @@ export function resolveEventTextureKind(eventId: string): EventTextureKind {
 
 function resolveEventArtPath(eventId: string): string {
   return toWebpAsset(`/assets/scenes/events/${eventId}.png`)
+}
+
+export function buildEventBodyHtml(eventDef: EventDef): string {
+  if (eventDef.body && eventDef.body.length > 0) {
+    return eventDef.body.map((block) => `
+      <p class="event-desc event-desc-block ${block.tone ? `event-desc--${block.tone}` : ''}">${block.text}</p>
+    `).join('')
+  }
+  return `<p class="event-desc">${eventDef.description}</p>`
 }
 
 export function renderEvent(
@@ -31,18 +50,19 @@ export function renderEvent(
     </button>
   `).join('')
 
-  const textureKind = resolveEventTextureKind(eventDef.id)
+  const textureKind = eventDef.presentation === 'abyss' ? 'dark' : resolveEventTextureKind(eventDef.id)
+  const eventNameHint = eventDef.presentation === 'abyss' ? '门在注视你' : buildEventNameHint(eventDef.title)
 
   container.innerHTML = `
-    <div class="scene-event scene-event-v3 scene-event--${textureKind}">
+    <div class="scene-event scene-event-v3 scene-event--${textureKind} ${eventDef.presentation === 'abyss' ? 'scene-event--abyss' : ''}">
       <section class="panel event-panel-v3">
         <div class="event-art" data-event-title="${eventDef.title}">
           <img src="${resolveEventArtPath(eventDef.id)}" alt="${eventDef.title}" loading="lazy" />
         </div>
         <h2 class="event-title">${eventDef.title}</h2>
         <div class="event-divider"></div>
-        <div class="event-name-hint">${buildEventNameHint(eventDef.title)}</div>
-        <p class="event-desc">${eventDef.description}</p>
+        <div class="event-name-hint">${eventNameHint}</div>
+        <div class="event-body">${buildEventBodyHtml(eventDef)}</div>
         <div class="event-options">${optionsHtml}</div>
       </section>
     </div>

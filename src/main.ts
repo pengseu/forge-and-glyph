@@ -51,6 +51,7 @@ import { createSeededRng, hashSeed } from './game/rng'
 import { setRandomSource } from './game/random'
 import { deserializeGameState, serializeGameState } from './game/state-codec'
 import { clearAuto, listSlotSummaries, loadAuto, loadSlot, saveAuto, saveSlot, type SavePayload } from './game/save'
+import { applyFirstSecretClearRewards, createSecretEpilogueEvent, createSecretThanksEvent, FIRST_SECRET_BOSS_ID } from './game/secret-cycle'
 import { createDefaultSettings, loadSettings, saveSettings } from './game/settings'
 import { applyAudioSettings, playSfx, startBgmForScene, stopBgm } from './game/audio'
 import { ACT1_TUTORIAL_GUIDES, applyGuideQueue } from './game/guides'
@@ -79,6 +80,8 @@ let gameState: GameState = {
     hp: slot.hp,
     gold: slot.gold,
   })),
+  selectedCycleTier: 0,
+  highestUnlockedCycleTier: metaProfile.secretCycle.highestUnlockedTier,
   challengeUnlocked: metaProfile.unlockFlags.challengeMode,
   challengeModeEnabled: settings.challengeModeEnabled && metaProfile.unlockFlags.challengeMode,
   skipTutorial: settings.skipTutorial,
@@ -126,6 +129,8 @@ function refreshSaveUiState(): void {
     rngState: runtimeRng.getState(),
     hasAutoSave: loadAuto() !== null,
     saveSlots: listSlotSummaries().map(toStateSlotSummary),
+    selectedCycleTier: Math.min(gameState.selectedCycleTier, metaProfile.secretCycle.highestUnlockedTier),
+    highestUnlockedCycleTier: metaProfile.secretCycle.highestUnlockedTier,
     challengeUnlocked: metaProfile.unlockFlags.challengeMode,
   }
   if (!metaProfile.unlockFlags.challengeMode && gameState.challengeModeEnabled) {
@@ -209,6 +214,8 @@ function applySavePayload(payload: SavePayload): void {
     rngState: payload.rngState,
     hasAutoSave: loadAuto() !== null,
     saveSlots: listSlotSummaries().map(toStateSlotSummary),
+    selectedCycleTier: Math.min(restored.selectedCycleTier, metaProfile.secretCycle.highestUnlockedTier),
+    highestUnlockedCycleTier: metaProfile.secretCycle.highestUnlockedTier,
     challengeUnlocked: metaProfile.unlockFlags.challengeMode,
     challengeModeEnabled: restored.challengeModeEnabled && metaProfile.unlockFlags.challengeMode,
     skipTutorial: restored.skipTutorial,
@@ -418,6 +425,46 @@ function handleBattleVictory(newBattle: BattleState): void {
   pushGlobalLog(`战斗胜利：${currentNode.id}，${newBattle.turn} 回合`)
   playSfx('victory')
 
+  if (newRun.secretState?.pendingStage === 'first_hidden_boss') {
+    const epilogueRun: import('./game/types').RunState = {
+      ...newRun,
+      secretState: { hiddenRouteEntered: true, pendingStage: 'epilogue' },
+    }
+    gameState = {
+      ...gameState,
+      run: epilogueRun,
+      battle: null,
+      currentEvent: createSecretEpilogueEvent(),
+      activeTrialModifier: null,
+      scene: 'event',
+      rewardCards: [],
+      rewardMaterials: {},
+      droppedWeaponId: null,
+      stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
+    }
+    return
+  }
+
+  if (currentNode.type === 'boss_battle' && newRun.act === 3 && newRun.cycleTier === 0 && metaProfile.secretCycle.hiddenBossClearCount === 0 && !newRun.secretState?.hiddenRouteEntered) {
+    const runWithSecret: import('./game/types').RunState = {
+      ...completeNode(newRun, newRun.currentNodeId),
+      secretState: { hiddenRouteEntered: true, pendingStage: 'first_hidden_boss' },
+    }
+    gameState = {
+      ...gameState,
+      run: runWithSecret,
+      battle: null,
+      currentEvent: createSecretThanksEvent(),
+      activeTrialModifier: null,
+      scene: 'event',
+      rewardCards: [],
+      rewardMaterials: {},
+      droppedWeaponId: null,
+      stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
+    }
+    return
+  }
+
   gameState = {
     ...gameState,
     run: newRun,
@@ -429,6 +476,73 @@ function handleBattleVictory(newBattle: BattleState): void {
     rewardMaterials,
     droppedWeaponId,
     stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
+  }
+}
+
+function startSecretBossBattle(run: import('./game/types').RunState): void {
+  const weaponDefId = run.equippedWeapon?.defId ?? undefined
+  const weaponEnchantments = run.equippedWeapon?.enchantments ?? []
+  let battle = createBattleState([FIRST_SECRET_BOSS_ID], run.deck, weaponDefId, run.materials, weaponEnchantments)
+  if (gameState.challengeModeEnabled) {
+    battle = { ...battle, enemies: scaleEnemyHp(battle.enemies, 1.2) }
+  }
+  battle = {
+    ...battle,
+    player: {
+      ...battle.player,
+      hp: run.playerHp,
+      maxHp: run.playerMaxHp,
+      strength: battle.player.strength + run.bonusStrength,
+      wisdom: battle.player.wisdom + run.bonusWisdom,
+      maxMana: battle.player.maxMana + run.bonusMaxMana,
+      mana: battle.player.mana + run.bonusMaxMana,
+    },
+    enemies: battle.enemies.map((enemy) => ({
+      ...enemy,
+      strength: enemy.strength + run.nextBattleEnemyStrengthBonus,
+    })),
+  }
+  battle = startTurn(battle)
+  beginBattleReport('secret_gate', 'boss_battle', [FIRST_SECRET_BOSS_ID])
+  pushBattleLog('system', battle.turn, `门后的存在正在逼近，玩家 HP ${battle.player.hp}/${battle.player.maxHp}`)
+  gameState = {
+    ...gameState,
+    run: {
+      ...run,
+      nextBattleEnemyStrengthBonus: 0,
+      secretState: { hiddenRouteEntered: true, pendingStage: 'first_hidden_boss' },
+    },
+    battle,
+    currentEvent: null,
+    scene: 'battle',
+  }
+}
+
+function finalizeSecretVictory(run: import('./game/types').RunState): void {
+  const readyRun: import('./game/types').RunState = {
+    ...run,
+    secretState: { hiddenRouteEntered: true, pendingStage: 'none' },
+  }
+  metaProfile = applyFirstSecretClearRewards(metaProfile)
+  finalizeRun('victory', readyRun, readyRun.playerHp)
+  clearAuto()
+  gameState = {
+    ...gameState,
+    scene: 'result',
+    run: null,
+    battle: null,
+    currentEvent: null,
+    activeTrialModifier: null,
+    intermissionMode: 'none',
+    intermissionCardOptions: [],
+    intermissionRemoveRemaining: 0,
+    rewardCards: [],
+    rewardMaterials: {},
+    shopOffers: [],
+    shopMaterialOffers: [],
+    droppedWeaponId: null,
+    lastResult: 'victory',
+    stats: { ...gameState.stats },
   }
 }
 
@@ -566,6 +680,11 @@ function update() {
         stats: { turns: 0, remainingHp: 0, runReport: initRunReport(), finalSnapshot: null },
       }
       pushGlobalLog('开始新的一局冒险')
+      update()
+    },
+    onSelectCycleTier: (tier: number) => {
+      if (tier < 0 || tier > gameState.highestUnlockedCycleTier) return
+      gameState = { ...gameState, selectedCycleTier: tier }
       update()
     },
     onContinueGame: () => {
@@ -1223,6 +1342,21 @@ function update() {
     onEventChoose: (optionId) => {
       if (!gameState.run || !gameState.currentEvent) return
       pushGlobalLog(`事件【${gameState.currentEvent.title}】选择：${optionId}`)
+
+      if (gameState.currentEvent.id === 'secret_thanks_first') {
+        if (optionId !== 'touch_gate') return
+        startSecretBossBattle(gameState.run)
+        update()
+        return
+      }
+
+      if (gameState.currentEvent.id === 'secret_epilogue') {
+        if (optionId !== 'accept_echo') return
+        finalizeSecretVictory(gameState.run)
+        update()
+        return
+      }
+
       if (gameState.currentEvent.id === 'trial_choice') {
         const node = gameState.run.mapNodes.find(n => n.id === gameState.run!.currentNodeId)
         if (!node || node.type !== 'trial' || !node.enemyIds || node.enemyIds.length === 0) return

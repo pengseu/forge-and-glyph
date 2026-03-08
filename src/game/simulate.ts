@@ -358,7 +358,7 @@ export function simulateSingleRun(
   const prevRandom = Math.random
   Math.random = seeded.next
   try {
-    let run = createRunState({ unlockedBlueprints: [], blueprintMastery: {}, legacyWeaponDefId: null }, seeded.next)
+    let run = createRunState({ unlockedBlueprints: [], blueprintMastery: {}, legacyWeaponDefId: null, cycleTier: 0 }, seeded.next)
     const starter = skillTier === 'expert' ? 'iron_staff' : seeded.chance(0.5) ? 'iron_longsword' : 'iron_staff'
     run = addWeaponToInventory(run, starter)
     run = equipWeapon(run, run.weaponInventory[0].uid)

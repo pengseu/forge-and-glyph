@@ -30,6 +30,8 @@ function makePayload(seedText: string, act: 1 | 2 | 3): SavePayload {
       rngState: 111,
       hasAutoSave: true,
       saveSlots: [],
+      selectedCycleTier: 0,
+      highestUnlockedCycleTier: 0,
       challengeUnlocked: false,
       challengeModeEnabled: false,
       skipTutorial: false,
@@ -41,6 +43,7 @@ function makePayload(seedText: string, act: 1 | 2 | 3): SavePayload {
       scene: 'map',
       run: {
         act,
+        cycleTier: 0,
         currentNodeId: 'x',
         visitedNodes: ['x'],
         deck: [],
@@ -55,6 +58,7 @@ function makePayload(seedText: string, act: 1 | 2 | 3): SavePayload {
         bonusWisdom: 0,
         bonusMaxMana: 0,
         nextBattleEnemyStrengthBonus: 0,
+        secretState: { hiddenRouteEntered: false, pendingStage: 'none' },
         materials: {
           iron_ingot: 0,
           steel_ingot: 0,
@@ -102,6 +106,15 @@ function makePayload(seedText: string, act: 1 | 2 | 3): SavePayload {
         extraStarters: false,
         firstDeathBonusClaimed: false,
       },
+      secretCycle: {
+        highestUnlockedTier: 0,
+        highestClearedTier: -1,
+        hiddenBossClearCount: 0,
+        secretEntrySeenCount: 0,
+        unlockedTitles: [],
+        unlockedStarterWeapons: [],
+        latestSummaryByTier: {},
+      },
       lastRunAt: null,
     },
   }
@@ -131,4 +144,26 @@ describe('save system', () => {
     expect(slot2?.hp).toBe(55)
     expect(slot2?.gold).toBe(66)
   })
+})
+
+
+it('persists meta secret cycle data alongside saves', () => {
+  const storage = createMemoryStorage()
+  const payload = makePayload('seed-secret', 1)
+  payload.metaProfile = {
+    ...payload.metaProfile,
+    secretCycle: {
+      highestUnlockedTier: 1,
+      highestClearedTier: 0,
+      hiddenBossClearCount: 1,
+      secretEntrySeenCount: 1,
+      unlockedTitles: ['超越者'],
+      unlockedStarterWeapons: ['rift_blade'],
+      latestSummaryByTier: {},
+    },
+  }
+  saveAuto(payload, storage)
+  const loaded = loadAuto(storage)!
+  expect(loaded.metaProfile.secretCycle.highestUnlockedTier).toBe(1)
+  expect(loaded.metaProfile.secretCycle.unlockedStarterWeapons).toContain('rift_blade')
 })

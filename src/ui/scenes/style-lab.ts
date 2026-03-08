@@ -86,6 +86,7 @@ function buildNoopCallbacks(): GameCallbacks {
   const noop = () => {}
   return {
     onStartGame: noop,
+    onSelectCycleTier: noop as (tier: number) => void,
     onContinueGame: noop,
     onOpenStyleLab: noop,
     onCloseStyleLab: noop,

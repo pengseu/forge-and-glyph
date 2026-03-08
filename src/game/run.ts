@@ -9,12 +9,13 @@ import { RUN_BASE_CONFIG, resolveBattleGoldRange } from './config'
 import { random } from './random'
 
 export function createRunState(
-  seed?: Pick<RunState, 'unlockedBlueprints' | 'blueprintMastery' | 'legacyWeaponDefId' | 'legacyWeaponEnchantments'>,
+  seed?: Partial<Pick<RunState, 'unlockedBlueprints' | 'blueprintMastery' | 'legacyWeaponDefId' | 'legacyWeaponEnchantments' | 'cycleTier'>>,
   rng: () => number = random,
 ): RunState {
   const mapNodes = generateMap(rng)
   return {
     act: 1,
+    cycleTier: Math.max(0, Math.floor(Number(seed?.cycleTier ?? 0))),
     currentNodeId: mapNodes[0].id,
     visitedNodes: new Set(),
     deck: createStarterDeck(),
@@ -37,6 +38,7 @@ export function createRunState(
     legacyEventSeen: false,
     replicaEliteKills: {},
     completedReplicaInheritanceBlueprints: [],
+    secretState: { hiddenRouteEntered: false, pendingStage: 'none' },
   }
 }
 

@@ -33,6 +33,7 @@ export function resolveBossAutoDropHint(nodeType: NodeType | null | undefined, a
 
 export interface GameCallbacks {
   onStartGame: () => void
+  onSelectCycleTier: (tier: number) => void
   onContinueGame: () => void
   onOpenStyleLab: () => void
   onCloseStyleLab: () => void
@@ -106,6 +107,7 @@ export function render(
         callbacks.onToggleMute,
         callbacks.onSetAudioVolume,
         callbacks.onResetGuides,
+        callbacks.onSelectCycleTier,
         state.hasAutoSave,
         state.saveSlots.map((slot) => ({
           slot: slot.slot,
@@ -114,6 +116,8 @@ export function render(
           hp: slot.hp,
           gold: slot.gold,
         })),
+        state.highestUnlockedCycleTier,
+        state.highestUnlockedCycleTier > 0,
         state.challengeUnlocked,
         state.challengeModeEnabled,
         state.skipTutorial,
@@ -121,6 +125,7 @@ export function render(
         state.audio.master,
         state.audio.sfx,
         state.audio.bgm,
+        state.selectedCycleTier,
       )
       break
     case 'style_lab':

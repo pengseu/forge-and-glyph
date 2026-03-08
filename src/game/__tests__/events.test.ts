@@ -84,6 +84,7 @@ describe('events', () => {
       legacyWeaponDefId: 'mythic_ant_swarm_dagger',
       unlockedBlueprints: [],
       blueprintMastery: {},
+      cycleTier: 0,
     })
     const equip = resolveEventOption(run, {
       id: 'legacy_echo',

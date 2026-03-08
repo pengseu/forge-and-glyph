@@ -5,6 +5,30 @@ import { random } from './random'
 
 const META_KEY = 'fg_meta_profile_v1'
 
+export interface ChampionSummary {
+  version: 1
+  weaponDefId: string
+  enchantments: EnchantmentId[]
+  primaryArchetype: string | null
+  secondaryArchetype: string | null
+  signatureTraitA: string | null
+  signatureTraitB: string | null
+  epitaph: string
+  clearedCycleTier: number
+  usedRiftBlade: boolean
+  capturedAt: number
+}
+
+export interface SecretCycleProgress {
+  highestUnlockedTier: number
+  highestClearedTier: number
+  hiddenBossClearCount: number
+  secretEntrySeenCount: number
+  unlockedTitles: string[]
+  unlockedStarterWeapons: string[]
+  latestSummaryByTier: Record<string, ChampionSummary>
+}
+
 export interface MetaProfile {
   version: 1
   adventureTokens: number
@@ -25,12 +49,25 @@ export interface MetaProfile {
     extraStarters: boolean
     firstDeathBonusClaimed: boolean
   }
+  secretCycle: SecretCycleProgress
   lastRunAt: number | null
 }
 
 export interface StorageLike {
   getItem: (key: string) => string | null
   setItem: (key: string, value: string) => void
+}
+
+export function createDefaultSecretCycleProgress(): SecretCycleProgress {
+  return {
+    highestUnlockedTier: 0,
+    highestClearedTier: -1,
+    hiddenBossClearCount: 0,
+    secretEntrySeenCount: 0,
+    unlockedTitles: [],
+    unlockedStarterWeapons: [],
+    latestSummaryByTier: {},
+  }
 }
 
 export function createDefaultMetaProfile(): MetaProfile {
@@ -54,6 +91,7 @@ export function createDefaultMetaProfile(): MetaProfile {
       extraStarters: false,
       firstDeathBonusClaimed: false,
     },
+    secretCycle: createDefaultSecretCycleProgress(),
     lastRunAt: null,
   }
 }
@@ -116,6 +154,46 @@ function normalizeBlueprintProgress(
     }
   }
   return out
+}
+
+function normalizeChampionSummary(value: unknown): ChampionSummary | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as Record<string, unknown>
+  return {
+    version: 1,
+    weaponDefId: typeof row.weaponDefId === 'string' ? row.weaponDefId : 'iron_longsword',
+    enchantments: normalizeEnchantmentList(row.enchantments),
+    primaryArchetype: typeof row.primaryArchetype === 'string' ? row.primaryArchetype : null,
+    secondaryArchetype: typeof row.secondaryArchetype === 'string' ? row.secondaryArchetype : null,
+    signatureTraitA: typeof row.signatureTraitA === 'string' ? row.signatureTraitA : null,
+    signatureTraitB: typeof row.signatureTraitB === 'string' ? row.signatureTraitB : null,
+    epitaph: typeof row.epitaph === 'string' ? row.epitaph : '',
+    clearedCycleTier: Math.max(0, Math.floor(Number(row.clearedCycleTier ?? 0))),
+    usedRiftBlade: !!row.usedRiftBlade,
+    capturedAt: Math.max(0, Math.floor(Number(row.capturedAt ?? 0))),
+  }
+}
+
+function normalizeSecretCycleProgress(value: unknown): SecretCycleProgress {
+  const base = createDefaultSecretCycleProgress()
+  if (!value || typeof value !== 'object') return base
+  const row = value as Record<string, unknown>
+  const latestSummaryByTier: Record<string, ChampionSummary> = {}
+  if (row.latestSummaryByTier && typeof row.latestSummaryByTier === 'object') {
+    for (const [tier, raw] of Object.entries(row.latestSummaryByTier as Record<string, unknown>)) {
+      const normalized = normalizeChampionSummary(raw)
+      if (normalized) latestSummaryByTier[tier] = normalized
+    }
+  }
+  return {
+    highestUnlockedTier: Math.max(0, Math.floor(Number(row.highestUnlockedTier ?? base.highestUnlockedTier))),
+    highestClearedTier: Math.max(-1, Math.floor(Number(row.highestClearedTier ?? base.highestClearedTier))),
+    hiddenBossClearCount: Math.max(0, Math.floor(Number(row.hiddenBossClearCount ?? base.hiddenBossClearCount))),
+    secretEntrySeenCount: Math.max(0, Math.floor(Number(row.secretEntrySeenCount ?? base.secretEntrySeenCount))),
+    unlockedTitles: uniqueStrings(row.unlockedTitles),
+    unlockedStarterWeapons: uniqueStrings(row.unlockedStarterWeapons),
+    latestSummaryByTier,
+  }
 }
 
 function normalizeMilestones(value: unknown): Record<string, { progress: number; target: number; unlocked: boolean }> {
@@ -226,6 +304,7 @@ export function loadMetaProfile(storage?: StorageLike): MetaProfile {
         extraStarters: !!parsed.unlockFlags?.extraStarters,
         firstDeathBonusClaimed: !!parsed.unlockFlags?.firstDeathBonusClaimed,
       },
+      secretCycle: normalizeSecretCycleProgress(parsed.secretCycle),
       lastRunAt: typeof parsed.lastRunAt === 'number' ? parsed.lastRunAt : base.lastRunAt,
     }
   } catch {
@@ -296,6 +375,7 @@ export function applyRunResultToMeta(
       ...profile.unlockFlags,
       firstDeathBonusClaimed: profile.unlockFlags.firstDeathBonusClaimed || payload.result === 'defeat',
     },
+    secretCycle: { ...profile.secretCycle },
     lastRunAt: Date.now(),
   }
   for (const blueprintId of payload.unlockedBlueprints ?? []) {

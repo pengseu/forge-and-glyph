@@ -297,6 +297,8 @@ export type EventOptionId =
   | 'trial_flame'
   | 'trial_speed'
   | 'trial_endure'
+  | 'touch_gate'
+  | 'accept_echo'
 
 export interface EventOptionDef {
   id: EventOptionId
@@ -324,8 +326,15 @@ export interface EventDef {
     | 'last_caravan'
     | 'sanctum_choice'
     | 'trial_choice'
+    | 'secret_thanks_first'
+    | 'secret_epilogue'
+    | 'ordinary_recognition'
+    | 'secret_reentry'
+    | 'secret_transition'
   title: string
   description: string
+  presentation?: 'default' | 'abyss'
+  body?: Array<{ text: string; tone?: 'normal' | 'corrupt' | 'whisper' }>
   options: EventOptionDef[]
 }
 
@@ -383,6 +392,8 @@ export interface GameState {
     hp: number | null
     gold: number | null
   }>
+  selectedCycleTier: number
+  highestUnlockedCycleTier: number
   challengeUnlocked: boolean
   challengeModeEnabled: boolean
   skipTutorial: boolean
@@ -450,6 +461,7 @@ export interface MapNode {
 
 export interface RunState {
   act: 1 | 2 | 3
+  cycleTier: number
   currentNodeId: string
   visitedNodes: Set<string>
   deck: CardInstance[]
@@ -472,6 +484,10 @@ export interface RunState {
   legacyEventSeen?: boolean
   replicaEliteKills?: Record<string, number>
   completedReplicaInheritanceBlueprints?: string[]
+  secretState?: {
+    hiddenRouteEntered: boolean
+    pendingStage: 'none' | 'first_hidden_boss' | 'epilogue' | 'echo' | 'true_boss'
+  }
 }
 
 export interface RewardState {
@@ -502,3 +518,4 @@ export type EnemyType =
   | 'abyss_knight'
   | 'fate_weaver'
   | 'abyss_lord'
+  | 'gate_warden'

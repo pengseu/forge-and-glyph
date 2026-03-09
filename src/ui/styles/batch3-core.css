@@ -1392,6 +1392,45 @@
   font-size: 11px;
 }
 
+.forge-enchant-detail {
+  border: 2px solid rgba(94, 71, 47, 0.22);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 241, 0.96), rgba(240, 227, 200, 0.9)),
+    url('/assets/textures/tex-kraft-base.webp');
+  background-size: cover, 512px 512px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 92px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.forge-enchant-detail-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+
+.forge-enchant-detail-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--ink-primary);
+}
+
+.forge-enchant-detail-desc,
+.forge-enchant-detail-resonance {
+  font-size: 12px;
+  color: var(--ink-secondary);
+  line-height: 1.5;
+}
+
+.forge-enchant-detail-resonance {
+  color: #7a3e20;
+}
+
 .forge-enchant-row {
   display: flex;
   gap: var(--space-1);

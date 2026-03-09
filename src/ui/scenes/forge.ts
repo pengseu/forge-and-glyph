@@ -25,6 +25,32 @@ export function buildForgeEnchantButtonLabel(name: string, replaceIndex?: number
   return replaceIndex === undefined ? name : `${name}→槽${replaceIndex + 1}`
 }
 
+export function buildForgeEnchantDetailHtml(name: string, description: string, resonanceHint?: string): string {
+  return `
+    <div class="forge-enchant-detail" data-forge-enchant-detail>
+      <div class="forge-enchant-detail-label">附魔预览</div>
+      <div class="forge-enchant-detail-name">${name}</div>
+      <div class="forge-enchant-detail-desc">${description}</div>
+      <div class="forge-enchant-detail-resonance">${resonanceHint || '暂无可触发共鸣'}</div>
+    </div>
+  `
+}
+
+function resolveForgeEnchantResonanceHint(
+  currentSlots: EnchantmentId[],
+  enchantId: EnchantmentId,
+  replaceIndex?: number,
+): string | undefined {
+  const nextSlots = [...currentSlots]
+  if (replaceIndex === undefined) {
+    nextSlots.push(enchantId)
+  } else {
+    nextSlots[replaceIndex] = enchantId
+  }
+  const resonanceNames = getTriggeredResonances(nextSlots).map((resonance) => resonance.name)
+  if (resonanceNames.length === 0) return undefined
+  return `可形成共鸣：${resonanceNames.join(' · ')}`
+}
 
 export function renderForge(
   container: HTMLElement,
@@ -62,13 +88,14 @@ export function renderForge(
 
   const enchantHtml = ENCHANTMENTS.map((enchant) => {
     if (!weapon) return ''
+    const resonanceHint = resolveForgeEnchantResonanceHint(enchantSlots, enchant.id)
     if (enchantSlots.length < 2) {
-      return `<button class="btn btn-sm" data-forge-enchant="${enchant.id}" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${buildForgeEnchantButtonLabel(enchant.name)}</button>`
+      return `<button class="btn btn-sm" data-forge-enchant="${enchant.id}" data-enchant-name="${enchant.name}" data-enchant-desc="${enchant.desc}" data-enchant-resonance="${resonanceHint ?? ''}" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${buildForgeEnchantButtonLabel(enchant.name)}</button>`
     }
     return `
       <div class="forge-enchant-row">
-        <button class="btn btn-sm" data-forge-enchant="${enchant.id}" data-replace-idx="0" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${buildForgeEnchantButtonLabel(enchant.name, 0)}</button>
-        <button class="btn btn-sm" data-forge-enchant="${enchant.id}" data-replace-idx="1" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${buildForgeEnchantButtonLabel(enchant.name, 1)}</button>
+        <button class="btn btn-sm" data-forge-enchant="${enchant.id}" data-replace-idx="0" data-enchant-name="${enchant.name}" data-enchant-desc="${enchant.desc}" data-enchant-resonance="${resolveForgeEnchantResonanceHint(enchantSlots, enchant.id, 0) ?? ''}" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${buildForgeEnchantButtonLabel(enchant.name, 0)}</button>
+        <button class="btn btn-sm" data-forge-enchant="${enchant.id}" data-replace-idx="1" data-enchant-name="${enchant.name}" data-enchant-desc="${enchant.desc}" data-enchant-resonance="${resolveForgeEnchantResonanceHint(enchantSlots, enchant.id, 1) ?? ''}" ${run.materials.elemental_essence < 1 ? 'disabled' : ''}>${buildForgeEnchantButtonLabel(enchant.name, 1)}</button>
       </div>
     `
   }).join('')
@@ -98,6 +125,9 @@ export function renderForge(
       })
       .join(' / ')
     : '未装备武器'
+  const defaultEnchantDetailHtml = weapon
+    ? buildForgeEnchantDetailHtml('附魔预览', '悬停或聚焦任意附魔，查看具体效果。', resonanceHints ? `当前共鸣：${resonanceHints}` : '暂无共鸣')
+    : buildForgeEnchantDetailHtml('未装备武器', '装备武器后才可查看附魔效果。')
 
   container.innerHTML = `
     <div class="scene-forge scene-forge-v3">
@@ -117,6 +147,7 @@ export function renderForge(
           <h3>${buildForgeActionTitle('enchant')}</h3>
           <p>当前武器：${weapon ? getWeaponDef(weapon.defId).name : '无'} · 槽位：${slotText}</p>
           <div class="forge-resonance-hint">${resonanceHints || '暂无共鸣'}</div>
+          ${defaultEnchantDetailHtml}
           <div class="forge-action-list">${enchantHtml || '<div class="forge-empty">未装备武器</div>'}</div>
         </article>
 
@@ -157,6 +188,25 @@ export function renderForge(
       const replaceIndex = el.dataset.replaceIdx ? Number(el.dataset.replaceIdx) : undefined
       callbacks.onForgeEnchant(id, replaceIndex)
     })
+
+    const updateDetail = () => {
+      const detailRoot = container.querySelector<HTMLElement>('[data-forge-enchant-detail]')
+      if (!detailRoot) return
+      detailRoot.outerHTML = buildForgeEnchantDetailHtml(
+        el.dataset.enchantName ?? '附魔预览',
+        el.dataset.enchantDesc ?? '暂无说明',
+        el.dataset.enchantResonance || undefined,
+      )
+    }
+    const resetDetail = () => {
+      const detailRoot = container.querySelector<HTMLElement>('[data-forge-enchant-detail]')
+      if (!detailRoot) return
+      detailRoot.outerHTML = defaultEnchantDetailHtml
+    }
+    el.addEventListener('mouseenter', updateDetail)
+    el.addEventListener('focus', updateDetail)
+    el.addEventListener('mouseleave', resetDetail)
+    el.addEventListener('blur', resetDetail)
   })
 
   container.querySelectorAll<HTMLElement>('[data-forge-upgrade]').forEach((el) => {

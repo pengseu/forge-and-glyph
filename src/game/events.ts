@@ -2,6 +2,7 @@ import { ALL_CARDS, getCardDef } from './cards'
 import { addMaterialReward } from './run'
 import { resolveLegacyWeaponChoice } from './meta'
 import type { EventDef, EventOptionId, MaterialId, RunState } from './types'
+import { getMaterialName } from './materials'
 import { random } from './random'
 
 const ACT1_EVENTS: Array<{ def: EventDef; weight: number }> = [
@@ -341,6 +342,37 @@ function buildCardRewardNotice(cardIds: string[]): string | undefined {
   return `已获得 ${cardIds.length} 张卡牌`
 }
 
+function buildGoldRewardNotice(gold: number): string | undefined {
+  if (gold <= 0) return undefined
+  return `已获得 ${gold} 金币`
+}
+
+function buildHealNotice(hp: number): string | undefined {
+  if (hp <= 0) return undefined
+  return `已恢复 ${hp} HP`
+}
+
+function buildMaterialRewardNotice(materials: Partial<Record<MaterialId, number>>): string | undefined {
+  const parts = (Object.entries(materials) as Array<[MaterialId, number | undefined]>)
+    .filter(([, count]) => (count ?? 0) > 0)
+    .map(([materialId, count]) => `${getMaterialName(materialId)}×${count}`)
+  if (parts.length === 0) return undefined
+  return `已获得 ${parts.join('、')}`
+}
+
+function buildCombinedRewardNotice(parts: Array<string | undefined>): string | undefined {
+  const compact = parts
+    .filter((part): part is string => Boolean(part))
+    .map((part) => part.replace(/^已获得\s*/, '').replace(/^已恢复\s*/, '恢复 '))
+  if (compact.length === 0) return undefined
+  if (compact.length === 1) {
+    const [single] = compact
+    if (single.startsWith('恢复 ')) return `已${single}`
+    return `已获得 ${single}`
+  }
+  return `已获得 ${compact.join('、')}`
+}
+
 export function createTempleEvent(): EventDef {
   return {
     id: 'sanctum_choice',
@@ -399,7 +431,10 @@ export function resolveEventOption(
 
   if (event.id === 'abandoned_camp' && optionId === 'search_camp') {
     if (rng() < 0.5) {
-      return { run: addMaterialReward(run, { iron_ingot: 2 }) }
+      return {
+        run: addMaterialReward(run, { iron_ingot: 2 }),
+        uiNotice: buildMaterialRewardNotice({ iron_ingot: 2 }),
+      }
     }
     return { run, triggerBattleEnemyIds: ['goblin_scout', 'mushroom_creature'] }
   }
@@ -410,15 +445,16 @@ export function resolveEventOption(
         ...run,
         playerHp: Math.min(run.playerMaxHp, run.playerHp + 8),
       },
+      uiNotice: buildHealNotice(8),
     }
   }
 
   if (event.id === 'traveler') {
-    if (optionId === 'traveler_gold') return { run: { ...run, gold: run.gold + 25 } }
-    if (optionId === 'traveler_iron') return { run: addMaterialReward(run, { iron_ingot: 2 }) }
-    if (optionId === 'traveler_essence') return { run: addMaterialReward(run, { elemental_essence: 1 }) }
+    if (optionId === 'traveler_gold') return { run: { ...run, gold: run.gold + 25 }, uiNotice: buildGoldRewardNotice(25) }
+    if (optionId === 'traveler_iron') return { run: addMaterialReward(run, { iron_ingot: 2 }), uiNotice: buildMaterialRewardNotice({ iron_ingot: 2 }) }
+    if (optionId === 'traveler_essence') return { run: addMaterialReward(run, { elemental_essence: 1 }), uiNotice: buildMaterialRewardNotice({ elemental_essence: 1 }) }
     if (optionId === 'traveler_heal') {
-      return { run: { ...run, playerHp: Math.min(run.playerMaxHp, run.playerHp + 12) } }
+      return { run: { ...run, playerHp: Math.min(run.playerMaxHp, run.playerHp + 12) }, uiNotice: buildHealNotice(12) }
     }
   }
 
@@ -446,7 +482,7 @@ export function resolveEventOption(
 
   if (event.id === 'wandering_smith') {
     if (optionId === 'smith_upgrade') return { run: upgradeRandomCard(run, rng) }
-    if (optionId === 'smith_steel') return { run: addMaterialReward(run, { steel_ingot: 1 }) }
+    if (optionId === 'smith_steel') return { run: addMaterialReward(run, { steel_ingot: 1 }), uiNotice: buildMaterialRewardNotice({ steel_ingot: 1 }) }
   }
 
   if (event.id === 'shadow_altar') {
@@ -478,6 +514,10 @@ export function resolveEventOption(
           },
           { [essence]: 1 },
         ),
+        uiNotice: buildCombinedRewardNotice([
+          buildGoldRewardNotice(25),
+          buildMaterialRewardNotice({ [essence]: 1 }),
+        ]),
       }
     }
     if (optionId === 'traveler_rob') {
@@ -519,7 +559,7 @@ export function resolveEventOption(
       return { run: next, uiNotice: buildCardRewardNotice(gainedCardIds) }
     }
     if (optionId === 'rift_avoid') {
-      return { run: { ...run, playerHp: Math.min(run.playerMaxHp, run.playerHp + 20) } }
+      return { run: { ...run, playerHp: Math.min(run.playerMaxHp, run.playerHp + 20) }, uiNotice: buildHealNotice(20) }
     }
   }
 
@@ -530,7 +570,10 @@ export function resolveEventOption(
     return {
       run: next,
       triggerBattleEnemyIds: ['iron_golem'],
-      uiNotice: epic ? buildCardRewardNotice([epic]) : undefined,
+      uiNotice: buildCombinedRewardNotice([
+        buildMaterialRewardNotice({ guard_essence: 2 }),
+        epic ? buildCardRewardNotice([epic]) : undefined,
+      ]),
     }
   }
 
@@ -560,16 +603,17 @@ export function resolveEventOption(
           gold: run.gold + soldCount * 40,
           materials: nextMaterials,
         },
+        uiNotice: buildGoldRewardNotice(soldCount * 40),
       }
     }
     if (optionId === 'caravan_buy_steel_bundle') {
       if (run.gold < 60) return { run }
-      return { run: addMaterialReward({ ...run, gold: run.gold - 60 }, { steel_ingot: 2 }) }
+      return { run: addMaterialReward({ ...run, gold: run.gold - 60 }, { steel_ingot: 2 }), uiNotice: buildMaterialRewardNotice({ steel_ingot: 2 }) }
     }
     if (optionId === 'caravan_buy_essence_bundle') {
       if (run.gold < 50) return { run }
       const essence = randomEssenceId(rng)
-      return { run: addMaterialReward({ ...run, gold: run.gold - 50 }, { [essence]: 2 }) }
+      return { run: addMaterialReward({ ...run, gold: run.gold - 50 }, { [essence]: 2 }), uiNotice: buildMaterialRewardNotice({ [essence]: 2 }) }
     }
   }
 

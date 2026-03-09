@@ -68,6 +68,36 @@ describe('events', () => {
     expect(result.run.playerHp).toBe(30)
   })
 
+  it('returns a ui notice when abandoned camp grants materials', () => {
+    const run = createRunState()
+    const result = resolveEventOption(run, {
+      id: 'abandoned_camp',
+      title: 'x',
+      description: 'x',
+      options: [],
+    }, 'search_camp', () => 0)
+    expect(result.uiNotice).toBe('已获得 铁锭×2')
+  })
+
+  it('returns a ui notice for traveler gold and healing rewards', () => {
+    const run = { ...createRunState(), playerHp: 40, playerMaxHp: 60 }
+    const goldResult = resolveEventOption(run, {
+      id: 'traveler',
+      title: 'x',
+      description: 'x',
+      options: [],
+    }, 'traveler_gold', () => 0)
+    const healResult = resolveEventOption(run, {
+      id: 'traveler',
+      title: 'x',
+      description: 'x',
+      options: [],
+    }, 'traveler_heal', () => 0)
+
+    expect(goldResult.uiNotice).toBe('已获得 25 金币')
+    expect(healResult.uiNotice).toBe('已恢复 12 HP')
+  })
+
   it('forge spirit should upgrade one random non-upgraded card', () => {
     const run = createRunState()
     const result = resolveEventOption(run, {
@@ -124,5 +154,36 @@ describe('events', () => {
       options: [],
     }, 'library_take_two', () => 0)
     expect(result.uiNotice).toBe('已获得 2 张卡牌')
+  })
+
+  it('returns a mixed reward notice for injured traveler help', () => {
+    const run = createRunState()
+    const withIron = {
+      ...run,
+      materials: {
+        ...run.materials,
+        iron_ingot: 1,
+      },
+    }
+    const result = resolveEventOption(withIron, {
+      id: 'injured_traveler',
+      title: 'x',
+      description: 'x',
+      options: [],
+    }, 'traveler_help', () => 0)
+
+    expect(result.uiNotice).toBe('已获得 25 金币、元素精华×1')
+  })
+
+  it('includes material rewards in ancient guardian challenge notice', () => {
+    const run = createRunState()
+    const result = resolveEventOption(run, {
+      id: 'ancient_guardian',
+      title: 'x',
+      description: 'x',
+      options: [],
+    }, 'guardian_challenge', () => 0)
+
+    expect(result.uiNotice).toContain('守护精华×2')
   })
 })

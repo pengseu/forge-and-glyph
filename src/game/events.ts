@@ -1,4 +1,4 @@
-import { ALL_CARDS } from './cards'
+import { ALL_CARDS, getCardDef } from './cards'
 import { addMaterialReward } from './run'
 import { resolveLegacyWeaponChoice } from './meta'
 import type { EventDef, EventOptionId, MaterialId, RunState } from './types'
@@ -305,6 +305,40 @@ function upgradeOneRarityFromRandomCard(run: RunState, rng: () => number): RunSt
 export interface EventResolution {
   run: RunState
   triggerBattleEnemyIds?: string[]
+  uiNotice?: string
+}
+
+function buildCardRewardNotice(cardIds: string[]): string | undefined {
+  if (cardIds.length === 0) return undefined
+
+  const curseCount = cardIds.filter((cardId) => cardId.startsWith('curse_')).length
+  const rewardCardIds = cardIds.filter((cardId) => !cardId.startsWith('curse_'))
+
+  if (rewardCardIds.length === 1 && curseCount === 0) {
+    const cardDef = getCardDef(rewardCardIds[0])
+    const rarityLabel = cardDef.rarity === 'legendary'
+      ? '传奇'
+      : cardDef.rarity === 'epic'
+        ? '史诗'
+        : cardDef.rarity === 'rare'
+          ? '稀有'
+          : '普通'
+    return `已获得${rarityLabel}卡【${cardDef.name}】`
+  }
+
+  if (rewardCardIds.length === 1 && curseCount > 0) {
+    const cardDef = getCardDef(rewardCardIds[0])
+    const rarityLabel = cardDef.rarity === 'legendary'
+      ? '传奇'
+      : cardDef.rarity === 'epic'
+        ? '史诗'
+        : cardDef.rarity === 'rare'
+          ? '稀有'
+          : '普通'
+    return `已获得${rarityLabel}卡【${cardDef.name}】并加入${curseCount}张诅咒`
+  }
+
+  return `已获得 ${cardIds.length} 张卡牌`
 }
 
 export function createTempleEvent(): EventDef {
@@ -359,6 +393,7 @@ export function resolveEventOption(
     if (!rare) return { run }
     return {
       run: addCard({ ...run, playerHp: Math.max(1, run.playerHp - 8) }, rare, rng),
+      uiNotice: buildCardRewardNotice([rare]),
     }
   }
 
@@ -397,13 +432,16 @@ export function resolveEventOption(
   if (event.id === 'cursed_chest' && optionId === 'cursed_open') {
     const epic = pickRandomCardIdByRarity('epic', rng)
     let next = run
+    const gainedCardIds: string[] = []
     if (epic) {
       next = addCard(next, epic, rng)
+      gainedCardIds.push(epic)
     }
     next = addCard(next, 'curse_doubt', rng)
     next = addCard(next, 'curse_doubt', rng)
     next = addCard(next, 'curse_doubt', rng)
-    return { run: next }
+    gainedCardIds.push('curse_doubt', 'curse_doubt', 'curse_doubt')
+    return { run: next, uiNotice: buildCardRewardNotice(gainedCardIds) }
   }
 
   if (event.id === 'wandering_smith') {
@@ -458,19 +496,27 @@ export function resolveEventOption(
     const secondPool = ALL_CARDS.filter(card => card.rarity === 'rare' || card.rarity === 'epic' || card.rarity === 'common')
     const second = secondPool.length > 0 ? pickOne(secondPool, rng).id : null
     let next = run
+    const gainedCardIds: string[] = []
     if (rare) next = addCard(next, rare, rng)
+    if (rare) gainedCardIds.push(rare)
     if (second) next = addCard(next, second, rng)
-    return { run: next }
+    if (second) gainedCardIds.push(second)
+    return { run: next, uiNotice: buildCardRewardNotice(gainedCardIds) }
   }
 
   if (event.id === 'abyss_rift') {
     if (optionId === 'rift_gaze') {
       const legendary = pickRandomCardIdByRarity('legendary', rng)
       let next = run
-      if (legendary) next = addCard(next, legendary, rng)
+      const gainedCardIds: string[] = []
+      if (legendary) {
+        next = addCard(next, legendary, rng)
+        gainedCardIds.push(legendary)
+      }
       next = addCard(next, 'curse_pain', rng)
       next = addCard(next, 'curse_pain', rng)
-      return { run: next }
+      gainedCardIds.push('curse_pain', 'curse_pain')
+      return { run: next, uiNotice: buildCardRewardNotice(gainedCardIds) }
     }
     if (optionId === 'rift_avoid') {
       return { run: { ...run, playerHp: Math.min(run.playerMaxHp, run.playerHp + 20) } }
@@ -481,7 +527,11 @@ export function resolveEventOption(
     const epic = pickRandomCardIdByRarity('epic', rng)
     let next = addMaterialReward(run, { guard_essence: 2 })
     if (epic) next = addCard(next, epic, rng)
-    return { run: next, triggerBattleEnemyIds: ['iron_golem'] }
+    return {
+      run: next,
+      triggerBattleEnemyIds: ['iron_golem'],
+      uiNotice: epic ? buildCardRewardNotice([epic]) : undefined,
+    }
   }
 
   if (event.id === 'destiny_pool') {

@@ -22,6 +22,18 @@ describe('events', () => {
     expect(result.run.deck.length).toBe(run.deck.length + 1)
   })
 
+  it('returns a ui notice when mysterious merchant grants a rare card', () => {
+    const run = createRunState()
+    const result = resolveEventOption(run, {
+      id: 'mysterious_merchant',
+      title: 'x',
+      description: 'x',
+      options: [],
+    }, 'trade_hp_for_rare', () => 0)
+    expect(result.uiNotice).toContain('已获得')
+    expect(result.uiNotice).toContain('【')
+  })
+
   it('abandoned camp search should grant iron when rng < 0.5', () => {
     const run = createRunState()
     const result = resolveEventOption(run, {
@@ -101,5 +113,16 @@ describe('events', () => {
       options: [],
     }, 'legacy_salvage', () => 0)
     expect(salvage.run.materials.steel_ingot).toBeGreaterThanOrEqual(2)
+  })
+
+  it('summarizes multi-card event rewards in ui notices', () => {
+    const run = createRunState()
+    const result = resolveEventOption(run, {
+      id: 'ancient_library',
+      title: 'x',
+      description: 'x',
+      options: [],
+    }, 'library_take_two', () => 0)
+    expect(result.uiNotice).toBe('已获得 2 张卡牌')
   })
 })

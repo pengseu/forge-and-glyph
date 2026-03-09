@@ -38,13 +38,18 @@ export function buildEventBodyHtml(eventDef: EventDef): string {
   return `<p class="event-desc">${eventDef.description}</p>`
 }
 
+export function buildEventRewardNoticeHtml(rewardNotice: string): string {
+  return `<div class="event-name-hint event-reward-notice" role="status" aria-live="polite">${rewardNotice}</div>`
+}
+
 export function renderEvent(
   container: HTMLElement,
   eventDef: EventDef,
   onChoose: (optionId: EventDef['options'][number]['id']) => void,
+  rewardNotice?: string | null,
 ): void {
   const optionsHtml = eventDef.options.map(opt => `
-    <button class="btn btn-event" data-option-id="${opt.id}">
+    <button class="btn btn-event" data-option-id="${opt.id}" ${rewardNotice ? 'disabled' : ''}>
       <div class="event-option-title">${opt.label}</div>
       <div class="event-option-desc">${opt.description}</div>
     </button>
@@ -62,20 +67,23 @@ export function renderEvent(
         <h2 class="event-title">${eventDef.title}</h2>
         <div class="event-divider"></div>
         <div class="event-name-hint">${eventNameHint}</div>
+        ${rewardNotice ? buildEventRewardNoticeHtml(rewardNotice) : ''}
         <div class="event-body">${buildEventBodyHtml(eventDef)}</div>
         <div class="event-options">${optionsHtml}</div>
       </section>
     </div>
   `
 
-  container.querySelectorAll<HTMLElement>('.btn-event').forEach(el => {
-    el.addEventListener('click', () => {
-      container.querySelectorAll('.btn-event').forEach((btn) => btn.classList.remove('is-selected'))
-      el.classList.add('is-selected')
-      const optionId = el.dataset.optionId as EventDef['options'][number]['id']
-      onChoose(optionId)
+  if (!rewardNotice) {
+    container.querySelectorAll<HTMLElement>('.btn-event').forEach(el => {
+      el.addEventListener('click', () => {
+        container.querySelectorAll('.btn-event').forEach((btn) => btn.classList.remove('is-selected'))
+        el.classList.add('is-selected')
+        const optionId = el.dataset.optionId as EventDef['options'][number]['id']
+        onChoose(optionId)
+      })
     })
-  })
+  }
 
   container.querySelectorAll<HTMLImageElement>('.event-art img').forEach((imgEl) => {
     const wrapper = imgEl.closest<HTMLElement>('.event-art')

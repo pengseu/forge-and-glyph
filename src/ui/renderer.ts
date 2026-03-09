@@ -205,7 +205,7 @@ export function render(
       break
     case 'event':
       if (state.currentEvent) {
-        renderEvent(container, state.currentEvent, callbacks.onEventChoose)
+        renderEvent(container, state.currentEvent, callbacks.onEventChoose, state.eventRewardNotice)
       }
       break
     case 'act_transition':

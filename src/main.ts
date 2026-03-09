@@ -99,6 +99,7 @@ let gameState: GameState = {
   run: null,
   battle: null,
   currentEvent: null,
+  eventRewardNotice: null,
   activeTrialModifier: null,
   intermissionMode: 'none',
   intermissionCardOptions: [],
@@ -435,6 +436,7 @@ function handleBattleVictory(newBattle: BattleState): void {
       run: epilogueRun,
       battle: null,
       currentEvent: createSecretEpilogueEvent(),
+      eventRewardNotice: null,
       activeTrialModifier: null,
       scene: 'event',
       rewardCards: [],
@@ -455,6 +457,7 @@ function handleBattleVictory(newBattle: BattleState): void {
       run: runWithSecret,
       battle: null,
       currentEvent: createSecretThanksEvent(),
+      eventRewardNotice: null,
       activeTrialModifier: null,
       scene: 'event',
       rewardCards: [],
@@ -470,6 +473,7 @@ function handleBattleVictory(newBattle: BattleState): void {
     run: newRun,
     battle: null,
     currentEvent: null,
+    eventRewardNotice: null,
     activeTrialModifier: null,
     scene: 'reward',
     rewardCards,
@@ -514,6 +518,7 @@ function startSecretBossBattle(run: import('./game/types').RunState): void {
     },
     battle,
     currentEvent: null,
+    eventRewardNotice: null,
     scene: 'battle',
   }
 }
@@ -532,6 +537,7 @@ function finalizeSecretVictory(run: import('./game/types').RunState): void {
     run: null,
     battle: null,
     currentEvent: null,
+    eventRewardNotice: null,
     activeTrialModifier: null,
     intermissionMode: 'none',
     intermissionCardOptions: [],
@@ -558,6 +564,7 @@ function handleBattleDefeat(newBattle: BattleState): void {
     run: null,
     battle: null,
     currentEvent: null,
+    eventRewardNotice: null,
     activeTrialModifier: null,
     intermissionMode: 'none',
     intermissionCardOptions: [],
@@ -840,21 +847,21 @@ function update() {
           ? createLegacyWeaponEvent(newRun.legacyWeaponDefId)
           : rollEventByAct(newRun.act, runtimeRng.next)
         pushGlobalLog(`触发事件：${eventDef.title}`)
-        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef }
+        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef, eventRewardNotice: null }
         update()
         return
       }
       if (node.type === 'temple') {
         const eventDef = createTempleEvent()
         pushGlobalLog(`进入圣殿：${eventDef.title}`)
-        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef }
+        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef, eventRewardNotice: null }
         update()
         return
       }
       if (node.type === 'trial') {
         const eventDef = createTrialChoiceEvent()
         pushGlobalLog(`进入试炼：${eventDef.title}`)
-        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef }
+        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef, eventRewardNotice: null }
         update()
         return
       }
@@ -1341,6 +1348,7 @@ function update() {
     },
     onEventChoose: (optionId) => {
       if (!gameState.run || !gameState.currentEvent) return
+      if (gameState.eventRewardNotice) return
       pushGlobalLog(`事件【${gameState.currentEvent.title}】选择：${optionId}`)
 
       if (gameState.currentEvent.id === 'secret_thanks_first') {
@@ -1420,6 +1428,7 @@ function update() {
           run: nextRun,
           battle,
           currentEvent: null,
+          eventRewardNotice: null,
           activeTrialModifier: trialModifier,
           scene: 'battle',
         }
@@ -1463,14 +1472,32 @@ function update() {
         battle = startTurn(battle)
         beginBattleReport(nextRun.currentNodeId, 'event', resolved.triggerBattleEnemyIds)
         pushBattleLog('system', battle.turn, `事件战斗开始，玩家 HP ${battle.player.hp}/${battle.player.maxHp}`)
-        gameState = { ...gameState, run: nextRun, battle, currentEvent: null, scene: 'battle' }
+        gameState = { ...gameState, run: nextRun, battle, currentEvent: null, eventRewardNotice: null, scene: 'battle' }
         update()
         return
       }
 
       nextRun = completeNode(nextRun, nextRun.currentNodeId)
-      gameState = { ...gameState, run: nextRun, currentEvent: null, scene: 'map' }
+      if (!resolved.uiNotice) {
+        gameState = { ...gameState, run: nextRun, currentEvent: null, eventRewardNotice: null, scene: 'map' }
+        update()
+        return
+      }
+
+      const resolvedEventId = gameState.currentEvent.id
+      gameState = {
+        ...gameState,
+        run: nextRun,
+        currentEvent: gameState.currentEvent,
+        eventRewardNotice: resolved.uiNotice ?? null,
+        scene: 'event',
+      }
       update()
+      window.setTimeout(() => {
+        if (gameState.scene !== 'event' || gameState.currentEvent?.id !== resolvedEventId) return
+        gameState = { ...gameState, currentEvent: null, eventRewardNotice: null, scene: 'map' }
+        update()
+      }, 900)
     },
     onChooseIntermission: (choiceId) => {
       if (!gameState.run) return

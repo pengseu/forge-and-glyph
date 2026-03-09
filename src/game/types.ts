@@ -416,6 +416,7 @@ export interface GameState {
   run: RunState | null
   battle: BattleState | null
   currentEvent: EventDef | null
+  eventRewardNotice?: string | null
   activeTrialModifier: 'flame' | 'speed' | 'endure' | null
   intermissionMode: 'none' | 'knowledge_pick' | 'knowledge_remove' | 'foresight_pick' | 'deep_purify'
   intermissionCardOptions: CardDef[]

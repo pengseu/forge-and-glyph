@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildEventBodyHtml, buildEventNameHint, resolveEventTextureKind } from '../event'
+import { buildEventBodyHtml, buildEventNameHint, buildEventRewardNoticeHtml, resolveEventTextureKind } from '../event'
 
 describe('buildEventNameHint', () => {
   it('should include explicit random event prefix and title', () => {
@@ -32,6 +32,14 @@ describe('buildEventBodyHtml', () => {
     expect(html).toContain('event-desc-block')
     expect(html).toContain('感谢你玩到这里。')
     expect(html).toContain('门已经记住你了。')
+  })
+})
+
+describe('buildEventRewardNoticeHtml', () => {
+  it('renders event reward notice when provided', () => {
+    const html = buildEventRewardNoticeHtml('已获得稀有卡【冻结箭】')
+    expect(html).toContain('event-reward-notice')
+    expect(html).toContain('已获得稀有卡【冻结箭】')
   })
 })
 

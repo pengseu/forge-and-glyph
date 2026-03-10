@@ -299,6 +299,8 @@ export type EventOptionId =
   | 'trial_endure'
   | 'touch_gate'
   | 'accept_echo'
+  | 'continue'
+  | 'continue_forward'
 
 export interface EventOptionDef {
   id: EventOptionId
@@ -331,6 +333,10 @@ export interface EventDef {
     | 'ordinary_recognition'
     | 'secret_reentry'
     | 'secret_transition'
+    | 'act1_whisper'
+    | 'act2_whisper'
+    | 'act3_whisper'
+    | 'echo_whisper'
   title: string
   description: string
   presentation?: 'default' | 'abyss'
@@ -488,6 +494,7 @@ export interface RunState {
   secretState?: {
     hiddenRouteEntered: boolean
     pendingStage: 'none' | 'first_hidden_boss' | 'epilogue' | 'echo' | 'true_boss'
+    actWhispersSeen?: Set<number>
   }
 }
 

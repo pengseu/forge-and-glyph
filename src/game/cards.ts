@@ -1,6 +1,13 @@
 import type { CardDef, CardInstance } from './types'
 
 export const ALL_CARDS: CardDef[] = [
+  // === TEST MODE ===
+  {
+    id: 'test_instakill', name: '【测试】秒杀', cost: 0, costType: 'free',
+    category: 'spell', rarity: 'basic',
+    description: '对所有敌人造成9999伤害',
+    effects: [{ type: 'aoe_damage', value: 9999 }],
+  },
   // === BASIC (starter) ===
   {
     id: 'slash', name: '挥砍', cost: 1, costType: 'stamina',

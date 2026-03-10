@@ -47,6 +47,7 @@ export function buildTitleHtml(input: BuildTitleHtmlInput): string {
           <button class="btn btn-primary btn-lg" id="btn-start">开始冒险</button>
           <button class="btn btn-md" id="btn-style-lab">样式工坊</button>
           <button class="btn btn-ghost btn-sm" id="btn-continue" ${input.hasAutoSave ? '' : 'disabled'}>继续冒险</button>
+          <button class="btn btn-ghost btn-sm" id="btn-test-mode" style="background: rgba(255,0,0,0.1);">测试模式</button>
         </div>
         ${cyclePanelHtml}
       </div>
@@ -79,6 +80,7 @@ export function renderTitle(
   _sfxVolume: number,
   _bgmVolume: number,
   selectedCycleTier: number,
+  onTestMode?: () => void,
 ): void {
   container.innerHTML = buildTitleHtml({
     hasAutoSave,
@@ -89,6 +91,9 @@ export function renderTitle(
   container.querySelector('#btn-start')!.addEventListener('click', onStart)
   container.querySelector('#btn-continue')?.addEventListener('click', onContinue)
   container.querySelector('#btn-style-lab')?.addEventListener('click', onOpenStyleLab)
+  container.querySelector('#btn-test-mode')?.addEventListener('click', () => {
+    if (onTestMode) onTestMode()
+  })
   container.querySelectorAll<HTMLElement>('[data-cycle-tier]').forEach((el) => {
     el.addEventListener('click', () => {
       const raw = Number(el.dataset.cycleTier ?? 0)

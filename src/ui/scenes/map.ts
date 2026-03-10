@@ -168,7 +168,9 @@ export function buildMapNodeInfoSummary(node: MapNode, act: 1 | 2 | 3): MapNodeI
       return {
         title: `圣殿节点`,
         subtitle: `第 ${layer} 层 · 高价值抉择`,
-        detail: '圣殿提供重要而不可逆的选择，通常会显著影响本局后续强度曲线。',
+        detail: act === 3
+          ? '圣殿提供重要而不可逆的选择，通常会显著影响本局后续强度曲线。深处的石门上刻着你看不懂的文字，但你能感觉到，它在等待什么。'
+          : '圣殿提供重要而不可逆的选择，通常会显著影响本局后续强度曲线。',
         rewardHint: '主要收益：高价值强化或关键分支奖励。',
         stateHint: '进入后请仔细阅读选项说明，再做最终决定。',
       }
@@ -176,7 +178,11 @@ export function buildMapNodeInfoSummary(node: MapNode, act: 1 | 2 | 3): MapNodeI
       return {
         title: `宝库节点`,
         subtitle: `第 ${layer} 层 · 隐藏收益`,
-        detail: '宝库是高价值探索节点，通常意味着额外收益或路径奖励。',
+        detail: act === 2
+          ? '宝库是高价值探索节点，通常意味着额外收益或路径奖励。角落里有一扇半掩的门，门缝里传来低沉的回声。'
+          : act === 3
+            ? '宝库是高价值探索节点，通常意味着额外收益或路径奖励。墙壁上的裂缝里透出微弱的光，像是在呼唤着什么。'
+            : '宝库是高价值探索节点，通常意味着额外收益或路径奖励。',
         rewardHint: '主要收益：金币、材料或稀有掉落。',
         stateHint: '若当前能进入，通常值得优先查看。',
       }
@@ -430,9 +436,13 @@ export function renderMap(
     const visual = resolveNodeVisual(node.type)
     const statusClass: MapNodeStatus = isCompleted ? 'completed' : isCurrent ? 'current' : isAvailable ? 'available' : 'locked'
     const summary = buildMapNodeInfoSummary(node, state.act)
+
+    const isSecretBossNode = node.type === 'boss_battle' && state.act === 3 && state.cycleTier > 0
+    const secretClass = isSecretBossNode ? ' map-node--secret' : ''
+
     return `
       <div
-        class="map-node map-node--${visual.kind} map-node--${statusClass}"
+        class="map-node map-node--${visual.kind} map-node--${statusClass}${secretClass}"
         data-node-id="${node.id}"
         data-title="${summary.title}"
         data-subtitle="${summary.subtitle}"

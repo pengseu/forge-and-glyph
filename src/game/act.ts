@@ -242,5 +242,9 @@ export function advanceToNextAct(state: RunState, rng: () => number = random): R
     currentNodeId: nextMap[0]?.id ?? state.currentNodeId,
     visitedNodes: new Set(),
     turn: 0,
+    secretState: state.secretState ? {
+      ...state.secretState,
+      actWhispersSeen: state.secretState.actWhispersSeen ?? new Set(),
+    } : undefined,
   }
 }

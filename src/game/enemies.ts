@@ -279,6 +279,17 @@ export const ENEMIES: Record<string, EnemyDef> = {
       { type: 'attack', value: 28 },
     ],
   },
+  echo_champion: {
+    id: 'echo_champion',
+    name: '锻铸者残响',
+    sprite: enemySprite('echo_champion'),
+    maxHp: 180,
+    intents: [
+      { type: 'attack', value: 16 },
+      { type: 'defend_attack', defendValue: 10, attackValue: 12 },
+      { type: 'attack', value: 20 },
+    ],
+  },
 }
 
 export function getEnemyDef(id: string): EnemyDef {

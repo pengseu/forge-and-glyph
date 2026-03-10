@@ -37,6 +37,7 @@ export function resolveBossAutoDropHint(nodeType: NodeType | null | undefined, a
 
 export interface GameCallbacks {
   onStartGame: () => void
+  onTestMode: () => void
   onSelectCycleTier: (tier: number) => void
   onContinueGame: () => void
   onOpenStyleLab: () => void
@@ -130,6 +131,7 @@ export function render(
         state.audio.sfx,
         state.audio.bgm,
         state.selectedCycleTier,
+        callbacks.onTestMode,
       )
       break
     case 'style_lab':

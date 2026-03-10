@@ -2,7 +2,6 @@ import type { RunState } from '../../game/types'
 import type { GameCallbacks } from '../renderer'
 import { getCardDef } from '../../game/cards'
 import { canUpgrade, getEffectiveCardDef, upgradeCard } from '../../game/campfire'
-import { toWebpAsset } from '../../assets'
 import { buildCardCostBadgeHtml, resolveReadableCostLabel } from '../card-cost'
 
 type CampfireView = 'menu' | 'upgrade'

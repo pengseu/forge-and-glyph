@@ -52,7 +52,7 @@ import { createSeededRng, hashSeed } from './game/rng'
 import { setRandomSource } from './game/random'
 import { deserializeGameState, serializeGameState } from './game/state-codec'
 import { clearAuto, listSlotSummaries, loadAuto, loadSlot, saveAuto, saveSlot, type SavePayload } from './game/save'
-import { applyFirstSecretClearRewards, createSecretEpilogueEvent, createSecretThanksEvent, FIRST_SECRET_BOSS_ID } from './game/secret-cycle'
+import { applyFirstSecretClearRewards, createSecretEpilogueEvent, createSecretThanksEvent, createSecretTransitionEvent, createActWhisperEvent, createEchoWhisperEvent, generateEchoBoss, FIRST_SECRET_BOSS_ID } from './game/secret-cycle'
 import { createDefaultSettings, loadSettings, saveSettings } from './game/settings'
 import { applyAudioSettings, playSfx, startBgmForScene, stopBgm } from './game/audio'
 import { ACT1_TUTORIAL_GUIDES, applyGuideQueue } from './game/guides'
@@ -435,6 +435,49 @@ function handleBattleVictory(newBattle: BattleState): void {
   pushGlobalLog(`战斗胜利：${currentNode.id}，${newBattle.turn} 回合`)
   playSfx('victory')
 
+  if (newRun.secretState?.pendingStage === 'echo') {
+    const transitionRun: import('./game/types').RunState = {
+      ...newRun,
+      playerHp: newRun.playerMaxHp,
+      secretState: { hiddenRouteEntered: true, pendingStage: 'true_boss' },
+    }
+    gameState = {
+      ...gameState,
+      run: transitionRun,
+      battle: null,
+      currentEvent: createSecretTransitionEvent(),
+      eventRewardNotice: null,
+      activeTrialModifier: null,
+      scene: 'event',
+      rewardCards: [],
+      rewardMaterials: {},
+      droppedWeaponId: null,
+      stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
+    }
+    return
+  }
+
+  if (newRun.secretState?.pendingStage === 'true_boss') {
+    const epilogueRun: import('./game/types').RunState = {
+      ...newRun,
+      secretState: { hiddenRouteEntered: true, pendingStage: 'epilogue' },
+    }
+    gameState = {
+      ...gameState,
+      run: epilogueRun,
+      battle: null,
+      currentEvent: createSecretEpilogueEvent(),
+      eventRewardNotice: null,
+      activeTrialModifier: null,
+      scene: 'event',
+      rewardCards: [],
+      rewardMaterials: {},
+      droppedWeaponId: null,
+      stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
+    }
+    return
+  }
+
   if (newRun.secretState?.pendingStage === 'first_hidden_boss') {
     const epilogueRun: import('./game/types').RunState = {
       ...newRun,
@@ -456,7 +499,7 @@ function handleBattleVictory(newBattle: BattleState): void {
     return
   }
 
-  if (currentNode.type === 'boss_battle' && newRun.act === 3 && newRun.cycleTier === 0 && metaProfile.secretCycle.hiddenBossClearCount === 0 && !newRun.secretState?.hiddenRouteEntered) {
+  if (currentNode.type === 'boss_battle' && newRun.act === 3 && newRun.cycleTier === 0 && !newRun.secretState?.hiddenRouteEntered) {
     const runWithSecret: import('./game/types').RunState = {
       ...completeNode(newRun, newRun.currentNodeId),
       secretState: { hiddenRouteEntered: true, pendingStage: 'first_hidden_boss' },
@@ -466,6 +509,27 @@ function handleBattleVictory(newBattle: BattleState): void {
       run: runWithSecret,
       battle: null,
       currentEvent: createSecretThanksEvent(),
+      eventRewardNotice: null,
+      activeTrialModifier: null,
+      scene: 'event',
+      rewardCards: [],
+      rewardMaterials: {},
+      droppedWeaponId: null,
+      stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
+    }
+    return
+  }
+
+  if (currentNode.type === 'boss_battle' && newRun.act === 3 && newRun.cycleTier > 0 && !newRun.secretState?.hiddenRouteEntered) {
+    const runWithSecret: import('./game/types').RunState = {
+      ...completeNode(newRun, newRun.currentNodeId),
+      secretState: { hiddenRouteEntered: true, pendingStage: 'echo' },
+    }
+    gameState = {
+      ...gameState,
+      run: runWithSecret,
+      battle: null,
+      currentEvent: createEchoWhisperEvent(),
       eventRewardNotice: null,
       activeTrialModifier: null,
       scene: 'event',
@@ -524,6 +588,98 @@ function startSecretBossBattle(run: import('./game/types').RunState): void {
       ...run,
       nextBattleEnemyStrengthBonus: 0,
       secretState: { hiddenRouteEntered: true, pendingStage: 'first_hidden_boss' },
+    },
+    battle,
+    currentEvent: null,
+    eventRewardNotice: null,
+    scene: 'battle',
+  }
+}
+
+function startEchoBossBattle(run: import('./game/types').RunState): void {
+  const summary = metaProfile.secretCycle.latestSummaryByTier[String(run.cycleTier - 1)] ?? null
+  const echoBossDef = generateEchoBoss(summary, run.cycleTier)
+  const weaponDefId = run.equippedWeapon?.defId ?? undefined
+  const weaponEnchantments = run.equippedWeapon?.enchantments ?? []
+  let battle = createBattleState(['echo_champion'], run.deck, weaponDefId, run.materials, weaponEnchantments)
+  battle = {
+    ...battle,
+    enemies: [
+      {
+        ...battle.enemies[0],
+        maxHp: echoBossDef.maxHp,
+        hp: echoBossDef.maxHp,
+      },
+    ],
+  }
+  if (gameState.challengeModeEnabled) {
+    battle = { ...battle, enemies: scaleEnemyHp(battle.enemies, 1.2) }
+  }
+  battle = {
+    ...battle,
+    player: {
+      ...battle.player,
+      hp: run.playerHp,
+      maxHp: run.playerMaxHp,
+      strength: battle.player.strength + run.bonusStrength,
+      wisdom: battle.player.wisdom + run.bonusWisdom,
+      maxMana: battle.player.maxMana + run.bonusMaxMana,
+      mana: battle.player.mana + run.bonusMaxMana,
+    },
+    enemies: battle.enemies.map((enemy) => ({
+      ...enemy,
+      strength: enemy.strength + run.nextBattleEnemyStrengthBonus,
+    })),
+  }
+  battle = startTurn(battle)
+  beginBattleReport('echo_champion', 'boss_battle', ['echo_champion'])
+  pushBattleLog('system', battle.turn, `锻铸者残响出现，玩家 HP ${battle.player.hp}/${battle.player.maxHp}`)
+  gameState = {
+    ...gameState,
+    run: {
+      ...run,
+      nextBattleEnemyStrengthBonus: 0,
+      secretState: { hiddenRouteEntered: true, pendingStage: 'echo' },
+    },
+    battle,
+    currentEvent: null,
+    eventRewardNotice: null,
+    scene: 'battle',
+  }
+}
+
+function startTrueBossBattle(run: import('./game/types').RunState): void {
+  const weaponDefId = run.equippedWeapon?.defId ?? undefined
+  const weaponEnchantments = run.equippedWeapon?.enchantments ?? []
+  let battle = createBattleState([FIRST_SECRET_BOSS_ID], run.deck, weaponDefId, run.materials, weaponEnchantments)
+  if (gameState.challengeModeEnabled) {
+    battle = { ...battle, enemies: scaleEnemyHp(battle.enemies, 1.2) }
+  }
+  battle = {
+    ...battle,
+    player: {
+      ...battle.player,
+      hp: run.playerHp,
+      maxHp: run.playerMaxHp,
+      strength: battle.player.strength + run.bonusStrength,
+      wisdom: battle.player.wisdom + run.bonusWisdom,
+      maxMana: battle.player.maxMana + run.bonusMaxMana,
+      mana: battle.player.mana + run.bonusMaxMana,
+    },
+    enemies: battle.enemies.map((enemy) => ({
+      ...enemy,
+      strength: enemy.strength + run.nextBattleEnemyStrengthBonus,
+    })),
+  }
+  battle = startTurn(battle)
+  beginBattleReport('true_gate', 'boss_battle', [FIRST_SECRET_BOSS_ID])
+  pushBattleLog('system', battle.turn, `真正的守门者现身，玩家 HP ${battle.player.hp}/${battle.player.maxHp}`)
+  gameState = {
+    ...gameState,
+    run: {
+      ...run,
+      nextBattleEnemyStrengthBonus: 0,
+      secretState: { hiddenRouteEntered: true, pendingStage: 'true_boss' },
     },
     battle,
     currentEvent: null,
@@ -667,6 +823,32 @@ function update() {
   ): void => {
     const nextRun = advanceToNextAct(run, runtimeRng.next)
     pushGlobalLog(`进入第 ${nextRun.act} 幕`)
+
+    const actWhispersSeen = nextRun.secretState?.actWhispersSeen ?? new Set<number>()
+    const shouldShowWhisper = !actWhispersSeen.has(nextRun.act)
+
+    if (shouldShowWhisper) {
+      const whisperRun = {
+        ...nextRun,
+        secretState: {
+          ...nextRun.secretState,
+          hiddenRouteEntered: nextRun.secretState?.hiddenRouteEntered ?? false,
+          pendingStage: nextRun.secretState?.pendingStage ?? 'none' as const,
+          actWhispersSeen: new Set([...actWhispersSeen, nextRun.act]),
+        },
+      }
+      gameState = {
+        ...gameState,
+        run: whisperRun,
+        scene: 'event',
+        currentEvent: createActWhisperEvent(nextRun.act, nextRun.cycleTier),
+        eventRewardNotice: null,
+        ...clearIntermissionState,
+      }
+      update()
+      return
+    }
+
     const nextState = { run: nextRun, scene: 'map' as const, ...clearIntermissionState }
     if (rewardNotice) {
       showTransientRewardNotice(nextState, rewardNotice)
@@ -687,6 +869,7 @@ function update() {
         blueprintMastery: { ...metaProfile.blueprintMastery },
         legacyWeaponDefId: metaProfile.legacyWeaponDefId,
         legacyWeaponEnchantments: [...(metaProfile.legacyWeaponEnchantments ?? [])],
+        cycleTier: gameState.selectedCycleTier,
       }, runtimeRng.next)
       prevBattle = null
       gameState = {
@@ -719,6 +902,71 @@ function update() {
         stats: { turns: 0, remainingHp: 0, runReport: initRunReport(), finalSnapshot: null },
       }
       pushGlobalLog('开始新的一局冒险')
+      update()
+    },
+    onTestMode: () => {
+      const newSeedText = 'test_mode'
+      setRuntimeSeed(newSeedText)
+      clearAuto()
+      clearRewardNoticeTimer()
+      const run = createRunState({
+        unlockedBlueprints: [...metaProfile.unlockedBlueprints],
+        blueprintMastery: { ...metaProfile.blueprintMastery },
+        legacyWeaponDefId: null,
+        legacyWeaponEnchantments: [],
+        cycleTier: gameState.selectedCycleTier,
+      }, runtimeRng.next)
+
+      const testCardUid = `test_${Date.now()}`
+      const testDeck = [{
+        uid: testCardUid,
+        defId: 'test_instakill' as any,
+        upgraded: false,
+      }]
+
+      const testRun = {
+        ...run,
+        deck: testDeck,
+        playerHp: 999,
+        playerMaxHp: 999,
+        gold: 9999,
+      }
+
+      let newRun = addWeaponToInventory(testRun, 'iron_longsword')
+      const selected = newRun.weaponInventory[newRun.weaponInventory.length - 1]
+      newRun = equipWeapon(newRun, selected.uid)
+
+      prevBattle = null
+      gameState = {
+        ...gameState,
+        seedText: newSeedText,
+        rngState: runtimeRng.getState(),
+        challengeUnlocked: metaProfile.unlockFlags.challengeMode,
+        challengeModeEnabled: false,
+        skipTutorial: true,
+        tutorialStep: ACT1_TUTORIAL_GUIDES.length,
+        workshopGuideSeen: true,
+        guideFlags: {
+          resonance: true,
+          curse: true,
+          materialEmergency: true,
+          temple: true,
+        },
+        activeGuide: null,
+        audio: { ...settings.audio },
+        scene: 'map',
+        run: newRun,
+        currentEvent: null,
+        activeTrialModifier: null,
+        intermissionMode: 'none',
+        intermissionCardOptions: [],
+        intermissionRemoveRemaining: 0,
+        rewardMaterials: {},
+        shopOffers: [],
+        shopMaterialOffers: [],
+        stats: { turns: 0, remainingHp: 0, runReport: initRunReport(), finalSnapshot: null },
+      }
+      pushGlobalLog('进入测试模式')
       update()
     },
     onSelectCycleTier: (tier: number) => {
@@ -1395,9 +1643,30 @@ function update() {
       if (gameState.eventRewardNotice) return
       pushGlobalLog(`事件【${gameState.currentEvent.title}】选择：${optionId}`)
 
+      if (gameState.currentEvent.id === 'act1_whisper' || gameState.currentEvent.id === 'act2_whisper' || gameState.currentEvent.id === 'act3_whisper') {
+        if (optionId !== 'continue') return
+        gameState = { ...gameState, currentEvent: null, eventRewardNotice: null, scene: 'map' }
+        update()
+        return
+      }
+
       if (gameState.currentEvent.id === 'secret_thanks_first') {
         if (optionId !== 'touch_gate') return
         startSecretBossBattle(gameState.run)
+        update()
+        return
+      }
+
+      if (gameState.currentEvent.id === 'echo_whisper') {
+        if (optionId !== 'continue_forward') return
+        startEchoBossBattle(gameState.run)
+        update()
+        return
+      }
+
+      if (gameState.currentEvent.id === 'secret_transition') {
+        if (optionId !== 'continue_forward') return
+        startTrueBossBattle(gameState.run)
         update()
         return
       }

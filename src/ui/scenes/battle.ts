@@ -185,7 +185,7 @@ export function buildBattleEnemyAreaClass(livingEnemyCount: number, targetMode: 
 
 export function buildBattleSceneClass(act: 1 | 2 | 3, eldritch: boolean): string {
   const classes = ['scene-battle', `scene-battle--act${act}`]
-  if (act === 2) classes.push('scene-battle--layout-act1')
+  if (act === 2 || act === 3) classes.push('scene-battle--layout-act1')
   if (eldritch) classes.push('scene-battle--eldritch')
   return classes.join(' ')
 }

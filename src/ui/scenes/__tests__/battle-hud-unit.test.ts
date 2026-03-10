@@ -88,7 +88,7 @@ describe('battle hud helpers', () => {
 
   it('should build act 2 battle root class with shared act1 layout marker', () => {
     expect(buildBattleSceneClass(2, false)).toBe('scene-battle scene-battle--act2 scene-battle--layout-act1')
-    expect(buildBattleSceneClass(3, true)).toBe('scene-battle scene-battle--act3 scene-battle--eldritch')
+    expect(buildBattleSceneClass(3, true)).toBe('scene-battle scene-battle--act3 scene-battle--layout-act1 scene-battle--eldritch')
   })
 
   it('should build readable support intent displays for goblin shaman patterns', () => {

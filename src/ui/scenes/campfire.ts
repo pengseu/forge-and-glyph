@@ -23,7 +23,7 @@ export function resolveCampfireMenuOptions(playerHp: number, playerMaxHp: number
     {
       id: 'rest',
       title: '休息',
-      desc: '恢复30%HP',
+      desc: '恢复至满血',
       buttonLabel: `休息 (${playerHp}/${playerMaxHp})`,
       disabled: playerHp >= playerMaxHp,
     },

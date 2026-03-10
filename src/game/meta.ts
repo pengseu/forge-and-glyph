@@ -2,6 +2,7 @@ import { BOSS_LEGENDARY_WEAPON_BY_ACT } from './config'
 import { EMPTY_MATERIAL_BAG } from './materials'
 import type { EnchantmentId, EventDef, RunState } from './types'
 import { random } from './random'
+import { getWeaponDef } from './weapons'
 
 const META_KEY = 'fg_meta_profile_v1'
 
@@ -481,10 +482,12 @@ export function applyRunResultToMeta(
 }
 
 export function createLegacyWeaponEvent(legacyWeaponDefId: string): EventDef {
+  const weakenedDefId = weakenLegacyWeaponDefId(legacyWeaponDefId)
+  const weaponName = getWeaponDef(weakenedDefId).name
   return {
     id: 'legacy_echo',
     title: '传承回响',
-    description: `你感应到上一位锻铸者遗留的武器：${legacyWeaponDefId}`,
+    description: `你感应到上一位锻铸者遗留的武器：${weaponName}`,
     options: [
       { id: 'legacy_equip', label: '继承武器', description: '装备并继续本局冒险' },
       { id: 'legacy_salvage', label: '拆解回响', description: '获得精钢锭x2与随机精华x1' },

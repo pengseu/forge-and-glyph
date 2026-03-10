@@ -1765,6 +1765,30 @@
   text-align: center;
 }
 
+.event-reward-notice {
+  margin-top: 2px;
+  padding: 8px 12px;
+  color: var(--ink-primary);
+  background: color-mix(in srgb, var(--paper-cream) 88%, white 12%);
+  border: 2px solid #fff;
+  border-radius: 3px;
+  box-shadow: var(--shadow-s);
+}
+
+.scene-reward-notice {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: min(540px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.scene-reward-notice .event-reward-notice {
+  text-align: center;
+}
+
 .event-desc {
   margin: 0;
   font-size: 14px;

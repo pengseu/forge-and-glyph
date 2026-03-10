@@ -32,6 +32,7 @@ import {
 } from './game/run'
 import { getRewardCardsByAct } from './game/reward'
 import { getRewardPoolByAct } from './game/cards'
+import { getWeaponDef } from './game/weapons'
 import { generateShopMaterialOffersByAct, generateShopOffersByAct } from './game/shop'
 import { rollMaterialRewardByAct } from './game/materials'
 import { restoreHp } from './game/campfire'
@@ -60,6 +61,7 @@ import { render } from './ui/renderer'
 const app = document.getElementById('app')!
 
 let prevBattle: BattleState | null = null
+let rewardNoticeTimer: number | null = null
 const seedParam = new URLSearchParams(window.location.search).get('seed')
 const initialSeedText = seedParam ?? String(Date.now())
 const runtimeRng = createSeededRng(hashSeed(initialSeedText))
@@ -136,6 +138,13 @@ function refreshSaveUiState(): void {
   }
   if (!metaProfile.unlockFlags.challengeMode && gameState.challengeModeEnabled) {
     gameState = { ...gameState, challengeModeEnabled: false }
+  }
+}
+
+function clearRewardNoticeTimer(): void {
+  if (rewardNoticeTimer !== null) {
+    window.clearTimeout(rewardNoticeTimer)
+    rewardNoticeTimer = null
   }
 }
 
@@ -638,6 +647,20 @@ function update() {
     intermissionCardOptions: [] as import('./game/types').CardDef[],
     intermissionRemoveRemaining: 0,
   }
+  const showTransientRewardNotice = (
+    nextState: Partial<GameState>,
+    rewardNotice: string,
+    duration = 900,
+  ): void => {
+    clearRewardNoticeTimer()
+    gameState = { ...gameState, ...nextState, eventRewardNotice: rewardNotice }
+    update()
+    rewardNoticeTimer = window.setTimeout(() => {
+      rewardNoticeTimer = null
+      gameState = { ...gameState, eventRewardNotice: null }
+      update()
+    }, duration)
+  }
   const advanceFromIntermission = (run: import('./game/types').RunState): void => {
     const nextRun = advanceToNextAct(run, runtimeRng.next)
     pushGlobalLog(`进入第 ${nextRun.act} 幕`)
@@ -650,6 +673,7 @@ function update() {
       const newSeedText = seedParam ?? String(Date.now())
       setRuntimeSeed(newSeedText)
       clearAuto()
+      clearRewardNoticeTimer()
       const run = createRunState({
         unlockedBlueprints: [...metaProfile.unlockedBlueprints],
         blueprintMastery: { ...metaProfile.blueprintMastery },
@@ -870,8 +894,10 @@ function update() {
         let rewardedRun = { ...newRun, gold: newRun.gold + 60 }
         rewardedRun = addMaterialReward(rewardedRun, { steel_ingot: 1, elemental_essence: 1 })
         rewardedRun = completeNode(rewardedRun, rewardedRun.currentNodeId)
-        gameState = { ...gameState, run: rewardedRun, scene: 'map' }
-        update()
+        showTransientRewardNotice(
+          { run: rewardedRun, scene: 'map', currentEvent: null },
+          '已获得 60 金币、精钢锭×1、元素精华×1',
+        )
         return
       }
 
@@ -1183,11 +1209,14 @@ function update() {
     onCampfireHeal: () => {
       if (!gameState.run) return
       pushGlobalLog('篝火：回血')
+      const prevHp = gameState.run.playerHp
       const { hp } = restoreHp(gameState.run, gameState.run.playerHp, gameState.run.playerMaxHp)
       let newRun = { ...gameState.run, playerHp: hp }
       newRun = completeNode(newRun, newRun.currentNodeId)
-      gameState = { ...gameState, run: newRun, scene: 'map' }
-      update()
+      showTransientRewardNotice(
+        { run: newRun, scene: 'map' },
+        `已恢复 ${Math.max(0, hp - prevHp)} HP`,
+      )
     },
     onCampfireUpgradeCard: (cardUid: string) => {
       if (!gameState.run) return
@@ -1195,18 +1224,25 @@ function update() {
       const newDeck = gameState.run.deck.map(c =>
         c.uid === cardUid ? { ...c, upgraded: true } : c
       )
+      const upgradedCard = newDeck.find((card) => card.uid === cardUid)
+      const upgradedCardName = upgradedCard ? getEffectiveCardDef(upgradedCard).name : '卡牌'
       let newRun = { ...gameState.run, deck: newDeck }
       newRun = completeNode(newRun, newRun.currentNodeId)
-      gameState = { ...gameState, run: newRun, scene: 'map' }
-      update()
+      showTransientRewardNotice(
+        { run: newRun, scene: 'map' },
+        `已升级卡牌【${upgradedCardName}】`,
+      )
     },
     onCampfireUpgradeWeapon: () => {
       if (!gameState.run) return
       pushGlobalLog('篝火：升级武器')
       let newRun = upgradeEquippedWeapon(gameState.run)
+      const upgradedWeaponName = newRun.equippedWeapon ? getWeaponDef(newRun.equippedWeapon.defId).name : '当前武器'
       newRun = completeNode(newRun, newRun.currentNodeId)
-      gameState = { ...gameState, run: newRun, scene: 'map' }
-      update()
+      showTransientRewardNotice(
+        { run: newRun, scene: 'map' },
+        `已升级武器【${upgradedWeaponName}】`,
+      )
     },
     onCampfireContinue: () => {
       if (!gameState.run) return

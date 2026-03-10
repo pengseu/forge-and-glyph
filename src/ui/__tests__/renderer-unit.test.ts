@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveBossAutoDropHint, shouldAnimateSceneTransition } from '../renderer'
+import { buildSceneRewardNoticeHtml, resolveBossAutoDropHint, shouldAnimateSceneTransition } from '../renderer'
 
 describe('resolveBossAutoDropHint', () => {
   it('should show crown fragment hint for act 1 boss reward', () => {
@@ -30,5 +30,14 @@ describe('shouldAnimateSceneTransition', () => {
 
   it('should not animate when previous scene is unavailable', () => {
     expect(shouldAnimateSceneTransition(null, 'title')).toBe(false)
+  })
+})
+
+describe('buildSceneRewardNoticeHtml', () => {
+  it('should build a generic reward overlay for non-event scenes', () => {
+    const html = buildSceneRewardNoticeHtml('已获得 60 金币、精钢锭×1、元素精华×1')
+    expect(html).toContain('scene-reward-notice')
+    expect(html).toContain('event-reward-notice')
+    expect(html).toContain('元素精华×1')
   })
 })

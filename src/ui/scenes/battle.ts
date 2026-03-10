@@ -8,6 +8,7 @@ import { getEffectiveCardDef } from '../../game/campfire'
 import { showDamageFloat, showTextFloat, shakeEnemy, screenShake, playerHitShake } from '../animations'
 import { getBattleMaterialEffectText, getMaterialIconSrc, getMaterialName } from '../../game/materials'
 import type { MaterialId } from '../../game/types'
+import type { BattleState as BattleStateType, EnemyIntent } from '../../game/types'
 import { toWebpAsset } from '../../assets'
 import { buildCardCostBadgeHtml } from '../card-cost'
 
@@ -162,6 +163,7 @@ export function resolveEnemyIntentDetailTitle(intentText: string, intentHint: st
   if (intentHint.includes('随机指定3种卡')) return '凝视'
   if (intentHint.includes('召唤')) return '召唤'
   if (intentHint.includes('诅咒')) return '诅咒'
+  if (intentHint.includes('回复') && !intentHint.includes('伤害')) return '治疗'
   if (intentHint.includes('护甲') && intentHint.includes('力量')) return '强化防御'
   if (intentHint.includes('护甲') && intentHint.includes('伤害')) return '护甲 / 攻击'
   if (intentHint.includes('回复') && intentHint.includes('伤害')) return '吸血攻击'
@@ -174,6 +176,127 @@ export function resolveEnemyIntentDetailTitle(intentText: string, intentHint: st
   if (intentHint.includes('伤害')) return '攻击'
   const cleaned = intentText.replace(/[🗡️🛡️💪☠️😵🕯️👥📢👁️🔥❤️🧊✂️]+/g, '').trim()
   return cleaned || '行动'
+}
+
+export function buildBattleEnemyAreaClass(livingEnemyCount: number, targetMode: boolean): string {
+  const count = Math.max(1, Math.min(4, livingEnemyCount || 1))
+  return `enemy-area enemy-area--count-${count}${targetMode ? ' target-mode' : ''}`
+}
+
+export function buildBattleSceneClass(act: 1 | 2 | 3, eldritch: boolean): string {
+  const classes = ['scene-battle', `scene-battle--act${act}`]
+  if (act === 2) classes.push('scene-battle--layout-act1')
+  if (eldritch) classes.push('scene-battle--eldritch')
+  return classes.join(' ')
+}
+
+export function buildBattleEnemyIntentDisplay(
+  intent: EnemyIntent,
+  enemy: Pick<BattleStateType['enemies'][number], 'strength' | 'weakened'>,
+  enemies: BattleStateType['enemies'],
+): {
+  intentText: string
+  intentHint: string
+  intentClass: string
+  intentToneClass: string
+} {
+  if (intent.type === 'attack') {
+    let dmg = intent.value + enemy.strength
+    if (enemy.weakened > 0) dmg = Math.floor(dmg * 0.75)
+    return {
+      intentText: `${dmg}`,
+      intentHint: `将造成 ${dmg} 点伤害`,
+      intentClass: 'intent-attack',
+      intentToneClass: 'enemy-intent--attack',
+    }
+  }
+  if (intent.type === 'defend') {
+    return {
+      intentText: `${intent.value}护`,
+      intentHint: `将获得 ${intent.value} 点护甲`,
+      intentClass: 'intent-defend',
+      intentToneClass: 'enemy-intent--defend',
+    }
+  }
+  if (intent.type === 'buff' || intent.type === 'buff_ally_highest_hp') {
+    const hint = intent.type === 'buff'
+      ? `将提升 ${intent.value} 点力量`
+      : `将提升生命最高的敌人 ${intent.value} 点力量`
+    return {
+      intentText: `力量+${intent.value}`,
+      intentHint: hint,
+      intentClass: 'intent-buff',
+      intentToneClass: 'enemy-intent--buff',
+    }
+  }
+  if (intent.type === 'poison') {
+    return {
+      intentText: `${intent.value}毒`,
+      intentHint: `将施加 ${intent.value} 层中毒`,
+      intentClass: 'intent-poison',
+      intentToneClass: 'enemy-intent--debuff',
+    }
+  }
+  if (intent.type === 'weaken') {
+    return {
+      intentText: `${intent.value}虚`,
+      intentHint: `将施加 ${intent.value} 层虚弱`,
+      intentClass: 'intent-poison',
+      intentToneClass: 'enemy-intent--debuff',
+    }
+  }
+  if (intent.type === 'curse') {
+    return {
+      intentText: `诅咒×${intent.count}`,
+      intentHint: `将塞入 ${intent.count} 张诅咒牌`,
+      intentClass: 'intent-poison',
+      intentToneClass: 'enemy-intent--debuff',
+    }
+  }
+  if (intent.type === 'heal_ally_lowest') {
+    return {
+      intentText: `回${intent.value}`,
+      intentHint: `为生命最低的敌人回复 ${intent.value} 点生命`,
+      intentClass: 'intent-buff',
+      intentToneClass: 'enemy-intent--heal',
+    }
+  }
+  if (intent.type === 'summon') {
+    const minionCount = enemies.filter((e) => e.defId === intent.enemyId && e.hp > 0).length
+    const preview = resolveSummonIntentPreview(minionCount, 1, enemy.strength)
+    return {
+      intentText: preview.intentText,
+      intentHint: preview.intentHint,
+      intentClass: preview.intentClass,
+      intentToneClass: preview.intentClass === 'intent-attack' ? 'enemy-intent--attack' : 'enemy-intent--summon',
+    }
+  }
+  if (intent.type === 'summon_multi') {
+    const minionCount = enemies.filter((e) => e.defId === intent.enemyId && e.hp > 0).length
+    const preview = resolveSummonIntentPreview(minionCount, intent.count, enemy.strength)
+    return {
+      intentText: preview.intentText,
+      intentHint: preview.intentHint,
+      intentClass: preview.intentClass,
+      intentToneClass: preview.intentClass === 'intent-attack' ? 'enemy-intent--attack' : 'enemy-intent--summon',
+    }
+  }
+  if (intent.type === 'defend_attack') {
+    let dmg = intent.attackValue + enemy.strength
+    if (enemy.weakened > 0) dmg = Math.floor(dmg * 0.75)
+    return {
+      intentText: `${intent.defendValue}护 / ${dmg}伤`,
+      intentHint: `将先获得 ${intent.defendValue} 护甲，再造成 ${dmg} 伤害`,
+      intentClass: 'intent-attack',
+      intentToneClass: 'enemy-intent--combo',
+    }
+  }
+  return {
+    intentText: '',
+    intentHint: '',
+    intentClass: '',
+    intentToneClass: 'enemy-intent--debuff',
+  }
 }
 
 export function buildBattleEnemyStatusDetailHtml(key: string, value = 0): string {
@@ -750,8 +873,8 @@ export function renderBattle(
     ? toWebpAsset('/assets/scenes/stage-forest-platform.png')
     : toWebpAsset('/assets/scenes/stage-dungeon-platform.png')
   const stageContactSrc = toWebpAsset('/assets/scenes/stage-contact-shadow.png')
-  const actClass = `scene-battle--act${act}`
   const eldritchClass = state.enemies.some((enemy) => enemy.defId === 'abyss_lord') ? 'scene-battle--eldritch' : ''
+  const sceneClass = buildBattleSceneClass(act, Boolean(eldritchClass))
 
   // Weapon display
   let weaponText = ''
@@ -893,59 +1016,12 @@ export function renderBattle(
         intentClass = 'intent-attack'
         intentToneClass = 'enemy-intent--combo'
       }
-    } else if (intent.type === 'attack') {
-      let dmg = intent.value + enemy.strength
-      if (enemy.weakened > 0) dmg = Math.floor(dmg * 0.75)
-      intentText = `${dmg}`
-      intentHint = `将造成 ${dmg} 点伤害`
-      intentClass = 'intent-attack'
-      intentToneClass = 'enemy-intent--attack'
-    } else if (intent.type === 'defend') {
-      intentText = `${intent.value}护`
-      intentHint = `将获得 ${intent.value} 点护甲`
-      intentClass = 'intent-defend'
-      intentToneClass = 'enemy-intent--defend'
-    } else if (intent.type === 'buff') {
-      intentText = `力量+${intent.value}`
-      intentHint = `将提升 ${intent.value} 点力量`
-      intentClass = 'intent-buff'
-      intentToneClass = 'enemy-intent--buff'
-    } else if (intent.type === 'poison') {
-      intentText = `${intent.value}毒`
-      intentHint = `将施加 ${intent.value} 层中毒`
-      intentClass = 'intent-poison'
-      intentToneClass = 'enemy-intent--debuff'
-    } else if (intent.type === 'weaken') {
-      intentText = `${intent.value}虚`
-      intentHint = `将施加 ${intent.value} 层虚弱`
-      intentClass = 'intent-poison'
-      intentToneClass = 'enemy-intent--debuff'
-    } else if (intent.type === 'curse') {
-      intentText = `诅咒×${intent.count}`
-      intentHint = `将塞入 ${intent.count} 张诅咒牌`
-      intentClass = 'intent-poison'
-      intentToneClass = 'enemy-intent--debuff'
-    } else if (intent.type === 'summon') {
-      const minionCount = state.enemies.filter(e => e.defId === intent.enemyId && e.hp > 0).length
-      const preview = resolveSummonIntentPreview(minionCount, 1, enemy.strength)
-      intentText = preview.intentText
-      intentHint = preview.intentHint
-      intentClass = preview.intentClass
-      intentToneClass = preview.intentClass === 'intent-attack' ? 'enemy-intent--attack' : 'enemy-intent--summon'
-    } else if (intent.type === 'summon_multi') {
-      const minionCount = state.enemies.filter(e => e.defId === intent.enemyId && e.hp > 0).length
-      const preview = resolveSummonIntentPreview(minionCount, intent.count, enemy.strength)
-      intentText = preview.intentText
-      intentHint = preview.intentHint
-      intentClass = preview.intentClass
-      intentToneClass = preview.intentClass === 'intent-attack' ? 'enemy-intent--attack' : 'enemy-intent--summon'
-    } else if (intent.type === 'defend_attack') {
-      let dmg = intent.attackValue + enemy.strength
-      if (enemy.weakened > 0) dmg = Math.floor(dmg * 0.75)
-      intentText = `${intent.defendValue}护 / ${dmg}伤`
-      intentHint = `将先获得 ${intent.defendValue} 护甲，再造成 ${dmg} 伤害`
-      intentClass = 'intent-attack'
-      intentToneClass = 'enemy-intent--combo'
+    } else {
+      const display = buildBattleEnemyIntentDisplay(intent, enemy, state.enemies)
+      intentText = display.intentText
+      intentHint = display.intentHint
+      intentClass = display.intentClass
+      intentToneClass = display.intentToneClass
     }
 
     const intentDetailTitle = resolveEnemyIntentDetailTitle(intentText, intentHint)
@@ -1039,6 +1115,8 @@ export function renderBattle(
   }).join('')
 
   const targetModeClass = pendingCardUid ? 'target-mode' : ''
+  const livingEnemyCount = state.enemies.filter((enemy) => enemy.hp > 0).length
+  const enemyAreaClass = buildBattleEnemyAreaClass(livingEnemyCount, Boolean(targetModeClass))
   const battleMaterials = (Object.keys(state.availableMaterials) as MaterialId[])
     .filter((id) => state.availableMaterials[id] > 0 && !state.usedMaterials[id])
     .map((id) => buildBattleMaterialButtonHtml(id, state.availableMaterials[id], false)).join('')
@@ -1051,7 +1129,6 @@ export function renderBattle(
     : ''
   const playerHpPercent = Math.max(0, Math.min(100, (state.player.hp / state.player.maxHp) * 100))
   const hpDangerClass = playerHpPercent <= 35 ? 'is-low' : ''
-  const livingEnemyCount = state.enemies.filter((enemy) => enemy.hp > 0).length
   const hudHtml = buildBattleHudSections({
     hpBarHtml: `
       <div class="hp-bar player-hp-bar hud-hp-bar ${hpDangerClass}">
@@ -1076,7 +1153,7 @@ export function renderBattle(
   })
 
   container.innerHTML = `
-    <div class="scene-battle ${actClass} ${eldritchClass}">
+    <div class="${sceneClass}">
       <div class="player-bar">
         ${hudHtml}
       </div>
@@ -1125,7 +1202,7 @@ export function renderBattle(
             ${playerStatus}
           </div>
         </div>
-        <div class="enemy-area ${targetModeClass}">
+        <div class="${enemyAreaClass}">
           ${enemiesHtml}
         </div>
         <div class="battle-scene-layer battle-scene-fg">

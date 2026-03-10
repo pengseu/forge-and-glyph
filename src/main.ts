@@ -40,7 +40,7 @@ import { createTempleEvent, createTrialChoiceEvent, rollEventByAct, resolveEvent
 import { getEnemyDef } from './game/enemies'
 import { getEffectiveCardDef } from './game/campfire'
 import { getNodeHpScale, scaleEnemyHp } from './game/difficulty'
-import { advanceToNextAct, applyIntermissionChoice } from './game/act'
+import { advanceToNextAct, applyIntermissionChoice, buildIntermissionRewardNotice } from './game/act'
 import {
   applyRunResultToMeta,
   createLegacyWeaponEvent,
@@ -661,10 +661,18 @@ function update() {
       update()
     }, duration)
   }
-  const advanceFromIntermission = (run: import('./game/types').RunState): void => {
+  const advanceFromIntermission = (
+    run: import('./game/types').RunState,
+    rewardNotice?: string,
+  ): void => {
     const nextRun = advanceToNextAct(run, runtimeRng.next)
     pushGlobalLog(`进入第 ${nextRun.act} 幕`)
-    gameState = { ...gameState, run: nextRun, scene: 'map', ...clearIntermissionState }
+    const nextState = { run: nextRun, scene: 'map' as const, ...clearIntermissionState }
+    if (rewardNotice) {
+      showTransientRewardNotice(nextState, rewardNotice)
+      return
+    }
+    gameState = { ...gameState, ...nextState }
     update()
   }
 
@@ -1581,7 +1589,8 @@ function update() {
         return
       }
       const nextRun = applyIntermissionChoice(gameState.run, choiceId, runtimeRng.next)
-      advanceFromIntermission(nextRun)
+      const rewardNotice = buildIntermissionRewardNotice(gameState.run, nextRun, choiceId)
+      advanceFromIntermission(nextRun, rewardNotice)
     },
     onChooseIntermissionCard: (cardId) => {
       if (!gameState.run) return
@@ -1605,7 +1614,9 @@ function update() {
       if (gameState.intermissionMode === 'foresight_pick') {
         pushGlobalLog(`幕间：选择史诗卡 ${cardId}`)
         const withCard = addCardToDeck(gameState.run, cardId, runtimeRng.next)
-        advanceFromIntermission({ ...withCard, gold: withCard.gold + 50 })
+        const nextRun = { ...withCard, gold: withCard.gold + 50 }
+        const rewardNotice = buildIntermissionRewardNotice(gameState.run, nextRun, 'foresight_eye')
+        advanceFromIntermission(nextRun, rewardNotice)
       }
     },
     onRemoveIntermissionCard: (cardUid) => {

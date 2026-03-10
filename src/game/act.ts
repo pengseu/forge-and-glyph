@@ -1,8 +1,9 @@
-import { ALL_CARDS } from './cards'
+import { ALL_CARDS, getCardDef } from './cards'
 import { generateMapByAct } from './map'
 import { upgradeEquippedWeapon } from './run'
 import type { RunState } from './types'
 import { random } from './random'
+import { getWeaponDef } from './weapons'
 
 export type IntermissionChoiceId =
   | 'elite_armament'
@@ -94,6 +95,33 @@ function addCardToRunDeck(state: RunState, cardId: string, rng: () => number): R
   }
 }
 
+function buildRewardNotice(parts: string[]): string | undefined {
+  if (parts.length === 0) return undefined
+  const prefix = parts[0]?.includes('卡【') ? '已获得' : '已获得 '
+  if (parts.length === 1) {
+    const [single] = parts
+    if (!single) return undefined
+    if (single.startsWith('恢复')) return `已${single}`
+    return `${prefix}${single}`
+  }
+  return `${prefix}${parts.join('、')}`
+}
+
+function getCardRarityLabel(cardId: string): string {
+  const rarity = getCardDef(cardId).rarity
+  if (rarity === 'legendary') return '传奇'
+  if (rarity === 'epic') return '史诗'
+  if (rarity === 'rare') return '稀有'
+  return '普通'
+}
+
+function getAddedCardIds(previousRun: RunState, nextRun: RunState): string[] {
+  const previousCardUids = new Set(previousRun.deck.map((card) => card.uid))
+  return nextRun.deck
+    .filter((card) => !previousCardUids.has(card.uid))
+    .map((card) => card.defId)
+}
+
 export function getIntermissionChoices(act: 1 | 2 | 3): IntermissionChoiceDef[] {
   if (act === 1) return ACT1_TO_2_CHOICES
   if (act === 2) return ACT2_TO_3_CHOICES
@@ -162,6 +190,45 @@ export function applyIntermissionChoice(
   }
 
   return state
+}
+
+export function buildIntermissionRewardNotice(
+  previousRun: RunState,
+  nextRun: RunState,
+  choiceId: IntermissionChoiceId,
+): string | undefined {
+  const parts: string[] = []
+  const addedCards = getAddedCardIds(previousRun, nextRun)
+  const goldGain = nextRun.gold - previousRun.gold
+  const strengthGain = nextRun.bonusStrength - previousRun.bonusStrength
+  const healedToFull = nextRun.playerHp === nextRun.playerMaxHp && nextRun.playerHp > previousRun.playerHp
+  const weaponChanged = previousRun.equippedWeapon?.defId !== nextRun.equippedWeapon?.defId
+
+  if (addedCards.length === 1) {
+    const cardId = addedCards[0]
+    parts.push(`${getCardRarityLabel(cardId)}卡【${getCardDef(cardId).name}】`)
+  } else if (addedCards.length > 1) {
+    parts.push(`${addedCards.length} 张卡牌`)
+  }
+
+  if (weaponChanged && nextRun.equippedWeapon) {
+    const weaponName = getWeaponDef(nextRun.equippedWeapon.defId).name
+    parts.push(`${choiceId === 'legend_forge' ? '传奇武器' : '武器'}【${weaponName}】`)
+  }
+
+  if (goldGain > 0) {
+    parts.push(`${goldGain} 金币`)
+  }
+
+  if (strengthGain > 0) {
+    parts.push(`+${strengthGain} 力量`)
+  }
+
+  if (healedToFull) {
+    parts.push('恢复至满血')
+  }
+
+  return buildRewardNotice(parts)
 }
 
 export function advanceToNextAct(state: RunState, rng: () => number = random): RunState {

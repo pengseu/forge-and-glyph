@@ -1,7 +1,8 @@
-import { ALL_CARDS } from './cards'
+import { ALL_CARDS, getCardDef } from './cards'
 import { addMaterialReward } from './run'
 import { resolveLegacyWeaponChoice } from './meta'
 import type { EventDef, EventOptionId, MaterialId, RunState } from './types'
+import { getMaterialName } from './materials'
 import { random } from './random'
 
 const ACT1_EVENTS: Array<{ def: EventDef; weight: number }> = [
@@ -305,6 +306,71 @@ function upgradeOneRarityFromRandomCard(run: RunState, rng: () => number): RunSt
 export interface EventResolution {
   run: RunState
   triggerBattleEnemyIds?: string[]
+  uiNotice?: string
+}
+
+function buildCardRewardNotice(cardIds: string[]): string | undefined {
+  if (cardIds.length === 0) return undefined
+
+  const curseCount = cardIds.filter((cardId) => cardId.startsWith('curse_')).length
+  const rewardCardIds = cardIds.filter((cardId) => !cardId.startsWith('curse_'))
+
+  if (rewardCardIds.length === 1 && curseCount === 0) {
+    const cardDef = getCardDef(rewardCardIds[0])
+    const rarityLabel = cardDef.rarity === 'legendary'
+      ? '传奇'
+      : cardDef.rarity === 'epic'
+        ? '史诗'
+        : cardDef.rarity === 'rare'
+          ? '稀有'
+          : '普通'
+    return `已获得${rarityLabel}卡【${cardDef.name}】`
+  }
+
+  if (rewardCardIds.length === 1 && curseCount > 0) {
+    const cardDef = getCardDef(rewardCardIds[0])
+    const rarityLabel = cardDef.rarity === 'legendary'
+      ? '传奇'
+      : cardDef.rarity === 'epic'
+        ? '史诗'
+        : cardDef.rarity === 'rare'
+          ? '稀有'
+          : '普通'
+    return `已获得${rarityLabel}卡【${cardDef.name}】并加入${curseCount}张诅咒`
+  }
+
+  return `已获得 ${cardIds.length} 张卡牌`
+}
+
+function buildGoldRewardNotice(gold: number): string | undefined {
+  if (gold <= 0) return undefined
+  return `已获得 ${gold} 金币`
+}
+
+function buildHealNotice(hp: number): string | undefined {
+  if (hp <= 0) return undefined
+  return `已恢复 ${hp} HP`
+}
+
+function buildMaterialRewardNotice(materials: Partial<Record<MaterialId, number>>): string | undefined {
+  const parts = (Object.entries(materials) as Array<[MaterialId, number | undefined]>)
+    .filter(([, count]) => (count ?? 0) > 0)
+    .map(([materialId, count]) => `${getMaterialName(materialId)}×${count}`)
+  if (parts.length === 0) return undefined
+  return `已获得 ${parts.join('、')}`
+}
+
+function buildCombinedRewardNotice(parts: Array<string | undefined>): string | undefined {
+  const compact = parts
+    .filter((part): part is string => Boolean(part))
+    .map((part) => part.replace(/^已获得\s*/, '').replace(/^已恢复\s*/, '恢复 '))
+  if (compact.length === 0) return undefined
+  if (compact.length === 1) {
+    const [single] = compact
+    if (single.startsWith('恢复 ')) return `已${single}`
+    return `已获得 ${single}`
+  }
+  return `已获得 ${compact.join('、')}`
 }
 
 export function createTempleEvent(): EventDef {
@@ -359,12 +425,16 @@ export function resolveEventOption(
     if (!rare) return { run }
     return {
       run: addCard({ ...run, playerHp: Math.max(1, run.playerHp - 8) }, rare, rng),
+      uiNotice: buildCardRewardNotice([rare]),
     }
   }
 
   if (event.id === 'abandoned_camp' && optionId === 'search_camp') {
     if (rng() < 0.5) {
-      return { run: addMaterialReward(run, { iron_ingot: 2 }) }
+      return {
+        run: addMaterialReward(run, { iron_ingot: 2 }),
+        uiNotice: buildMaterialRewardNotice({ iron_ingot: 2 }),
+      }
     }
     return { run, triggerBattleEnemyIds: ['goblin_scout', 'mushroom_creature'] }
   }
@@ -375,15 +445,16 @@ export function resolveEventOption(
         ...run,
         playerHp: Math.min(run.playerMaxHp, run.playerHp + 8),
       },
+      uiNotice: buildHealNotice(8),
     }
   }
 
   if (event.id === 'traveler') {
-    if (optionId === 'traveler_gold') return { run: { ...run, gold: run.gold + 25 } }
-    if (optionId === 'traveler_iron') return { run: addMaterialReward(run, { iron_ingot: 2 }) }
-    if (optionId === 'traveler_essence') return { run: addMaterialReward(run, { elemental_essence: 1 }) }
+    if (optionId === 'traveler_gold') return { run: { ...run, gold: run.gold + 25 }, uiNotice: buildGoldRewardNotice(25) }
+    if (optionId === 'traveler_iron') return { run: addMaterialReward(run, { iron_ingot: 2 }), uiNotice: buildMaterialRewardNotice({ iron_ingot: 2 }) }
+    if (optionId === 'traveler_essence') return { run: addMaterialReward(run, { elemental_essence: 1 }), uiNotice: buildMaterialRewardNotice({ elemental_essence: 1 }) }
     if (optionId === 'traveler_heal') {
-      return { run: { ...run, playerHp: Math.min(run.playerMaxHp, run.playerHp + 12) } }
+      return { run: { ...run, playerHp: Math.min(run.playerMaxHp, run.playerHp + 12) }, uiNotice: buildHealNotice(12) }
     }
   }
 
@@ -397,18 +468,21 @@ export function resolveEventOption(
   if (event.id === 'cursed_chest' && optionId === 'cursed_open') {
     const epic = pickRandomCardIdByRarity('epic', rng)
     let next = run
+    const gainedCardIds: string[] = []
     if (epic) {
       next = addCard(next, epic, rng)
+      gainedCardIds.push(epic)
     }
     next = addCard(next, 'curse_doubt', rng)
     next = addCard(next, 'curse_doubt', rng)
     next = addCard(next, 'curse_doubt', rng)
-    return { run: next }
+    gainedCardIds.push('curse_doubt', 'curse_doubt', 'curse_doubt')
+    return { run: next, uiNotice: buildCardRewardNotice(gainedCardIds) }
   }
 
   if (event.id === 'wandering_smith') {
     if (optionId === 'smith_upgrade') return { run: upgradeRandomCard(run, rng) }
-    if (optionId === 'smith_steel') return { run: addMaterialReward(run, { steel_ingot: 1 }) }
+    if (optionId === 'smith_steel') return { run: addMaterialReward(run, { steel_ingot: 1 }), uiNotice: buildMaterialRewardNotice({ steel_ingot: 1 }) }
   }
 
   if (event.id === 'shadow_altar') {
@@ -440,6 +514,10 @@ export function resolveEventOption(
           },
           { [essence]: 1 },
         ),
+        uiNotice: buildCombinedRewardNotice([
+          buildGoldRewardNotice(25),
+          buildMaterialRewardNotice({ [essence]: 1 }),
+        ]),
       }
     }
     if (optionId === 'traveler_rob') {
@@ -458,22 +536,30 @@ export function resolveEventOption(
     const secondPool = ALL_CARDS.filter(card => card.rarity === 'rare' || card.rarity === 'epic' || card.rarity === 'common')
     const second = secondPool.length > 0 ? pickOne(secondPool, rng).id : null
     let next = run
+    const gainedCardIds: string[] = []
     if (rare) next = addCard(next, rare, rng)
+    if (rare) gainedCardIds.push(rare)
     if (second) next = addCard(next, second, rng)
-    return { run: next }
+    if (second) gainedCardIds.push(second)
+    return { run: next, uiNotice: buildCardRewardNotice(gainedCardIds) }
   }
 
   if (event.id === 'abyss_rift') {
     if (optionId === 'rift_gaze') {
       const legendary = pickRandomCardIdByRarity('legendary', rng)
       let next = run
-      if (legendary) next = addCard(next, legendary, rng)
+      const gainedCardIds: string[] = []
+      if (legendary) {
+        next = addCard(next, legendary, rng)
+        gainedCardIds.push(legendary)
+      }
       next = addCard(next, 'curse_pain', rng)
       next = addCard(next, 'curse_pain', rng)
-      return { run: next }
+      gainedCardIds.push('curse_pain', 'curse_pain')
+      return { run: next, uiNotice: buildCardRewardNotice(gainedCardIds) }
     }
     if (optionId === 'rift_avoid') {
-      return { run: { ...run, playerHp: Math.min(run.playerMaxHp, run.playerHp + 20) } }
+      return { run: { ...run, playerHp: Math.min(run.playerMaxHp, run.playerHp + 20) }, uiNotice: buildHealNotice(20) }
     }
   }
 
@@ -481,7 +567,14 @@ export function resolveEventOption(
     const epic = pickRandomCardIdByRarity('epic', rng)
     let next = addMaterialReward(run, { guard_essence: 2 })
     if (epic) next = addCard(next, epic, rng)
-    return { run: next, triggerBattleEnemyIds: ['iron_golem'] }
+    return {
+      run: next,
+      triggerBattleEnemyIds: ['iron_golem'],
+      uiNotice: buildCombinedRewardNotice([
+        buildMaterialRewardNotice({ guard_essence: 2 }),
+        epic ? buildCardRewardNotice([epic]) : undefined,
+      ]),
+    }
   }
 
   if (event.id === 'destiny_pool') {
@@ -510,16 +603,17 @@ export function resolveEventOption(
           gold: run.gold + soldCount * 40,
           materials: nextMaterials,
         },
+        uiNotice: buildGoldRewardNotice(soldCount * 40),
       }
     }
     if (optionId === 'caravan_buy_steel_bundle') {
       if (run.gold < 60) return { run }
-      return { run: addMaterialReward({ ...run, gold: run.gold - 60 }, { steel_ingot: 2 }) }
+      return { run: addMaterialReward({ ...run, gold: run.gold - 60 }, { steel_ingot: 2 }), uiNotice: buildMaterialRewardNotice({ steel_ingot: 2 }) }
     }
     if (optionId === 'caravan_buy_essence_bundle') {
       if (run.gold < 50) return { run }
       const essence = randomEssenceId(rng)
-      return { run: addMaterialReward({ ...run, gold: run.gold - 50 }, { [essence]: 2 }) }
+      return { run: addMaterialReward({ ...run, gold: run.gold - 50 }, { [essence]: 2 }), uiNotice: buildMaterialRewardNotice({ [essence]: 2 }) }
     }
   }
 

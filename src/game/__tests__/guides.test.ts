@@ -6,6 +6,7 @@ import { ACT1_TUTORIAL_GUIDES, applyGuideQueue } from '../guides'
 function makeRun(overrides?: Partial<RunState>): RunState {
   return {
     act: 1,
+    cycleTier: 0,
     currentNodeId: 'l1_start',
     visitedNodes: new Set(['l1_start']),
     deck: [],
@@ -21,6 +22,7 @@ function makeRun(overrides?: Partial<RunState>): RunState {
     bonusMaxMana: 0,
     nextBattleEnemyStrengthBonus: 0,
     materials: { ...EMPTY_MATERIAL_BAG },
+    secretState: { hiddenRouteEntered: false, pendingStage: 'none' },
     ...overrides,
   }
 }
@@ -96,6 +98,8 @@ function makeState(overrides?: Partial<GameState>): GameState {
       { slot: 2, savedAt: null, scene: null, act: null, hp: null, gold: null },
       { slot: 3, savedAt: null, scene: null, act: null, hp: null, gold: null },
     ],
+    selectedCycleTier: 0,
+    highestUnlockedCycleTier: 0,
     challengeUnlocked: false,
     challengeModeEnabled: false,
     skipTutorial: false,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildForgeActionTitle, buildForgeEnchantButtonLabel, buildForgeMaterialTagHtml, buildForgeTitleText } from '../forge'
+import { buildForgeActionTitle, buildForgeEnchantButtonLabel, buildForgeEnchantDetailHtml, buildForgeMaterialTagHtml, buildForgeTitleText } from '../forge'
 
 describe('forge ui helpers', () => {
   it('should render forge material tag with artwork instead of emoji text', () => {
@@ -18,5 +18,13 @@ describe('forge ui helpers', () => {
     expect(buildForgeActionTitle('remove')).toBe('精简卡组')
     expect(buildForgeEnchantButtonLabel('烈焰')).toBe('烈焰')
     expect(buildForgeEnchantButtonLabel('烈焰', 0)).toBe('烈焰→槽1')
+  })
+
+  it('renders forge enchant detail panel content', () => {
+    const html = buildForgeEnchantDetailHtml('烈焰', '攻击命中施加1灼烧', '可形成共鸣：圣火')
+    expect(html).toContain('forge-enchant-detail')
+    expect(html).toContain('烈焰')
+    expect(html).toContain('攻击命中施加1灼烧')
+    expect(html).toContain('可形成共鸣：圣火')
   })
 })

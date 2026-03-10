@@ -1187,7 +1187,7 @@
 }
 
 /* Act1 Figma mapping tokens (4096 design space -> 1280 runtime, scale 0.3125). */
-.scene-battle--act1 {
+:is(.scene-battle--act1, .scene-battle--layout-act1) {
   --act1-bg-left: 0px;
   --act1-bg-top: -25px;
   --act1-bg-width: 1280px;
@@ -1223,17 +1223,17 @@
 }
 
 /* Act1 Figma mapping layout. */
-.scene-battle--act1 .battle-stage {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .battle-stage {
   display: block;
   padding: 0;
   gap: 0;
 }
 
-.scene-battle--act1 .battle-stage::after {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .battle-stage::after {
   display: none;
 }
 
-.scene-battle--act1 .battle-scene-bg {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .battle-scene-bg {
   left: var(--act1-bg-left);
   right: auto;
   top: var(--act1-bg-top);
@@ -1243,12 +1243,12 @@
   z-index: 1;
 }
 
-.scene-battle--act1 .battle-scene-bg img {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .battle-scene-bg img {
   object-fit: fill;
   object-position: left top;
 }
 
-.scene-battle--act1 .battle-stage .battle-scene-platform {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .battle-stage .battle-scene-platform {
   left: 0;
   right: auto;
   top: 0;
@@ -1259,7 +1259,7 @@
   z-index: 4;
 }
 
-.scene-battle--act1 .battle-stage .battle-scene-platform img {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .battle-stage .battle-scene-platform img {
   display: block;
   width: 100%;
   height: auto;
@@ -1267,11 +1267,11 @@
   object-position: left top;
 }
 
-.scene-battle--act1 .battle-stage .battle-scene-contact {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .battle-stage .battle-scene-contact {
   display: none;
 }
 
-.scene-battle--act1 .battle-stage .battle-scene-fg {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .battle-stage .battle-scene-fg {
   left: 0;
   right: auto;
   top: 47px;
@@ -1283,7 +1283,7 @@
   z-index: 8;
 }
 
-.scene-battle--act1 .battle-stage .battle-scene-fg img {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .battle-stage .battle-scene-fg img {
   display: block;
   width: 100%;
   height: auto;
@@ -1291,11 +1291,11 @@
   object-position: left top;
 }
 
-.scene-battle--act1 .battle-stage .battle-scene-corners {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .battle-stage .battle-scene-corners {
   display: none;
 }
 
-.scene-battle--act1 .player-area {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .player-area {
   position: absolute;
   left: var(--act1-player-left);
   top: var(--act1-player-top);
@@ -1308,12 +1308,12 @@
   z-index: 7;
 }
 
-.scene-battle--act1 .player-sprite {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .player-sprite {
   width: var(--act1-player-width);
   height: var(--act1-player-height);
 }
 
-.scene-battle--act1 .enemy-area {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area {
   position: absolute;
   inset: 0;
   width: auto;
@@ -1323,65 +1323,118 @@
   z-index: auto;
 }
 
-.scene-battle--act1 .enemy-slot {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-slot {
   position: absolute;
   padding-top: var(--act1-enemy-padding-top);
 }
 
-.scene-battle--act1 .enemy-sprite {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-sprite {
   width: var(--act1-enemy-width);
   height: var(--act1-enemy-height);
   transform: translateY(var(--act1-enemy-sprite-shift-y));
 }
 
-.scene-battle--act1 .enemy-slot:nth-child(1) {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-slot:nth-child(1) {
   left: var(--act1-enemy-1-left);
   top: var(--act1-enemy-1-top);
 }
 
-.scene-battle--act1 .enemy-slot:nth-child(2) {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-slot:nth-child(2) {
   left: var(--act1-enemy-2-left);
   top: var(--act1-enemy-2-top);
 }
 
-.scene-battle--act1 .enemy-slot:nth-child(3) {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-slot:nth-child(3) {
   left: var(--act1-enemy-3-left);
   top: var(--act1-enemy-3-top);
 }
 
-.scene-battle--act1 .enemy-slot:nth-child(4) {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-slot:nth-child(4) {
   left: var(--act1-enemy-4-left);
   top: var(--act1-enemy-4-top);
 }
 
-.scene-battle--act1 .enemy-slot:only-child {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-slot:only-child {
   left: 763px;
   top: 164px;
 }
 
-.scene-battle--act1 .enemy-slot:first-child:nth-last-child(2) {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-slot:first-child:nth-last-child(2) {
   left: 677px;
   top: 168px;
 }
 
-.scene-battle--act1 .enemy-slot:first-child:nth-last-child(2) + .enemy-slot {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-slot:first-child:nth-last-child(2) + .enemy-slot {
   left: 869px;
   top: 172px;
 }
 
-.scene-battle--act1 .enemy-slot:first-child:nth-last-child(3) {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-slot:first-child:nth-last-child(3) {
   left: 689px;
   top: 170px;
 }
 
-.scene-battle--act1 .enemy-slot:first-child:nth-last-child(3) + .enemy-slot {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-slot:first-child:nth-last-child(3) + .enemy-slot {
   left: 821px;
   top: 174px;
 }
 
-.scene-battle--act1 .enemy-slot:first-child:nth-last-child(3) + .enemy-slot + .enemy-slot {
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-slot:first-child:nth-last-child(3) + .enemy-slot + .enemy-slot {
   left: 755px;
   top: 86px;
+}
+
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area--count-3 .enemy-sprite {
+  width: 136px;
+  height: 198px;
+}
+
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area--count-4 .enemy-sprite {
+  width: 126px;
+  height: 186px;
+}
+
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area--count-3 .enemy-slot {
+  padding-top: 58px;
+}
+
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area--count-4 .enemy-slot {
+  padding-top: 56px;
+}
+
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area--count-3 .enemy-slot:nth-child(1) {
+  left: 672px;
+  top: 176px;
+}
+
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area--count-3 .enemy-slot:nth-child(2) {
+  left: 806px;
+  top: 180px;
+}
+
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area--count-3 .enemy-slot:nth-child(3) {
+  left: 739px;
+  top: 96px;
+}
+
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area--count-4 .enemy-slot:nth-child(1) {
+  left: 672px;
+  top: 182px;
+}
+
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area--count-4 .enemy-slot:nth-child(2) {
+  left: 792px;
+  top: 186px;
+}
+
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area--count-4 .enemy-slot:nth-child(3) {
+  left: 735px;
+  top: 104px;
+}
+
+:is(.scene-battle--act1, .scene-battle--layout-act1) .enemy-area--count-4 .enemy-slot:nth-child(4) {
+  left: 875px;
+  top: 110px;
 }
 
 .battle-material-bar {

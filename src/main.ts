@@ -32,6 +32,7 @@ import {
 } from './game/run'
 import { getRewardCardsByAct } from './game/reward'
 import { getRewardPoolByAct } from './game/cards'
+import { getWeaponDef } from './game/weapons'
 import { generateShopMaterialOffersByAct, generateShopOffersByAct } from './game/shop'
 import { rollMaterialRewardByAct } from './game/materials'
 import { restoreHp } from './game/campfire'
@@ -39,7 +40,7 @@ import { createTempleEvent, createTrialChoiceEvent, rollEventByAct, resolveEvent
 import { getEnemyDef } from './game/enemies'
 import { getEffectiveCardDef } from './game/campfire'
 import { getNodeHpScale, scaleEnemyHp } from './game/difficulty'
-import { advanceToNextAct, applyIntermissionChoice } from './game/act'
+import { advanceToNextAct, applyIntermissionChoice, buildIntermissionRewardNotice } from './game/act'
 import {
   applyRunResultToMeta,
   createLegacyWeaponEvent,
@@ -51,6 +52,7 @@ import { createSeededRng, hashSeed } from './game/rng'
 import { setRandomSource } from './game/random'
 import { deserializeGameState, serializeGameState } from './game/state-codec'
 import { clearAuto, listSlotSummaries, loadAuto, loadSlot, saveAuto, saveSlot, type SavePayload } from './game/save'
+import { applyFirstSecretClearRewards, createSecretEpilogueEvent, createSecretThanksEvent, FIRST_SECRET_BOSS_ID } from './game/secret-cycle'
 import { createDefaultSettings, loadSettings, saveSettings } from './game/settings'
 import { applyAudioSettings, playSfx, startBgmForScene, stopBgm } from './game/audio'
 import { ACT1_TUTORIAL_GUIDES, applyGuideQueue } from './game/guides'
@@ -59,6 +61,7 @@ import { render } from './ui/renderer'
 const app = document.getElementById('app')!
 
 let prevBattle: BattleState | null = null
+let rewardNoticeTimer: number | null = null
 const seedParam = new URLSearchParams(window.location.search).get('seed')
 const initialSeedText = seedParam ?? String(Date.now())
 const runtimeRng = createSeededRng(hashSeed(initialSeedText))
@@ -79,6 +82,8 @@ let gameState: GameState = {
     hp: slot.hp,
     gold: slot.gold,
   })),
+  selectedCycleTier: 0,
+  highestUnlockedCycleTier: metaProfile.secretCycle.highestUnlockedTier,
   challengeUnlocked: metaProfile.unlockFlags.challengeMode,
   challengeModeEnabled: settings.challengeModeEnabled && metaProfile.unlockFlags.challengeMode,
   skipTutorial: settings.skipTutorial,
@@ -96,6 +101,7 @@ let gameState: GameState = {
   run: null,
   battle: null,
   currentEvent: null,
+  eventRewardNotice: null,
   activeTrialModifier: null,
   intermissionMode: 'none',
   intermissionCardOptions: [],
@@ -126,10 +132,19 @@ function refreshSaveUiState(): void {
     rngState: runtimeRng.getState(),
     hasAutoSave: loadAuto() !== null,
     saveSlots: listSlotSummaries().map(toStateSlotSummary),
+    selectedCycleTier: Math.min(gameState.selectedCycleTier, metaProfile.secretCycle.highestUnlockedTier),
+    highestUnlockedCycleTier: metaProfile.secretCycle.highestUnlockedTier,
     challengeUnlocked: metaProfile.unlockFlags.challengeMode,
   }
   if (!metaProfile.unlockFlags.challengeMode && gameState.challengeModeEnabled) {
     gameState = { ...gameState, challengeModeEnabled: false }
+  }
+}
+
+function clearRewardNoticeTimer(): void {
+  if (rewardNoticeTimer !== null) {
+    window.clearTimeout(rewardNoticeTimer)
+    rewardNoticeTimer = null
   }
 }
 
@@ -209,6 +224,8 @@ function applySavePayload(payload: SavePayload): void {
     rngState: payload.rngState,
     hasAutoSave: loadAuto() !== null,
     saveSlots: listSlotSummaries().map(toStateSlotSummary),
+    selectedCycleTier: Math.min(restored.selectedCycleTier, metaProfile.secretCycle.highestUnlockedTier),
+    highestUnlockedCycleTier: metaProfile.secretCycle.highestUnlockedTier,
     challengeUnlocked: metaProfile.unlockFlags.challengeMode,
     challengeModeEnabled: restored.challengeModeEnabled && metaProfile.unlockFlags.challengeMode,
     skipTutorial: restored.skipTutorial,
@@ -418,17 +435,129 @@ function handleBattleVictory(newBattle: BattleState): void {
   pushGlobalLog(`战斗胜利：${currentNode.id}，${newBattle.turn} 回合`)
   playSfx('victory')
 
+  if (newRun.secretState?.pendingStage === 'first_hidden_boss') {
+    const epilogueRun: import('./game/types').RunState = {
+      ...newRun,
+      secretState: { hiddenRouteEntered: true, pendingStage: 'epilogue' },
+    }
+    gameState = {
+      ...gameState,
+      run: epilogueRun,
+      battle: null,
+      currentEvent: createSecretEpilogueEvent(),
+      eventRewardNotice: null,
+      activeTrialModifier: null,
+      scene: 'event',
+      rewardCards: [],
+      rewardMaterials: {},
+      droppedWeaponId: null,
+      stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
+    }
+    return
+  }
+
+  if (currentNode.type === 'boss_battle' && newRun.act === 3 && newRun.cycleTier === 0 && metaProfile.secretCycle.hiddenBossClearCount === 0 && !newRun.secretState?.hiddenRouteEntered) {
+    const runWithSecret: import('./game/types').RunState = {
+      ...completeNode(newRun, newRun.currentNodeId),
+      secretState: { hiddenRouteEntered: true, pendingStage: 'first_hidden_boss' },
+    }
+    gameState = {
+      ...gameState,
+      run: runWithSecret,
+      battle: null,
+      currentEvent: createSecretThanksEvent(),
+      eventRewardNotice: null,
+      activeTrialModifier: null,
+      scene: 'event',
+      rewardCards: [],
+      rewardMaterials: {},
+      droppedWeaponId: null,
+      stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
+    }
+    return
+  }
+
   gameState = {
     ...gameState,
     run: newRun,
     battle: null,
     currentEvent: null,
+    eventRewardNotice: null,
     activeTrialModifier: null,
     scene: 'reward',
     rewardCards,
     rewardMaterials,
     droppedWeaponId,
     stats: { ...gameState.stats, turns: newBattle.turn, remainingHp: newBattle.player.hp },
+  }
+}
+
+function startSecretBossBattle(run: import('./game/types').RunState): void {
+  const weaponDefId = run.equippedWeapon?.defId ?? undefined
+  const weaponEnchantments = run.equippedWeapon?.enchantments ?? []
+  let battle = createBattleState([FIRST_SECRET_BOSS_ID], run.deck, weaponDefId, run.materials, weaponEnchantments)
+  if (gameState.challengeModeEnabled) {
+    battle = { ...battle, enemies: scaleEnemyHp(battle.enemies, 1.2) }
+  }
+  battle = {
+    ...battle,
+    player: {
+      ...battle.player,
+      hp: run.playerHp,
+      maxHp: run.playerMaxHp,
+      strength: battle.player.strength + run.bonusStrength,
+      wisdom: battle.player.wisdom + run.bonusWisdom,
+      maxMana: battle.player.maxMana + run.bonusMaxMana,
+      mana: battle.player.mana + run.bonusMaxMana,
+    },
+    enemies: battle.enemies.map((enemy) => ({
+      ...enemy,
+      strength: enemy.strength + run.nextBattleEnemyStrengthBonus,
+    })),
+  }
+  battle = startTurn(battle)
+  beginBattleReport('secret_gate', 'boss_battle', [FIRST_SECRET_BOSS_ID])
+  pushBattleLog('system', battle.turn, `门后的存在正在逼近，玩家 HP ${battle.player.hp}/${battle.player.maxHp}`)
+  gameState = {
+    ...gameState,
+    run: {
+      ...run,
+      nextBattleEnemyStrengthBonus: 0,
+      secretState: { hiddenRouteEntered: true, pendingStage: 'first_hidden_boss' },
+    },
+    battle,
+    currentEvent: null,
+    eventRewardNotice: null,
+    scene: 'battle',
+  }
+}
+
+function finalizeSecretVictory(run: import('./game/types').RunState): void {
+  const readyRun: import('./game/types').RunState = {
+    ...run,
+    secretState: { hiddenRouteEntered: true, pendingStage: 'none' },
+  }
+  metaProfile = applyFirstSecretClearRewards(metaProfile)
+  finalizeRun('victory', readyRun, readyRun.playerHp)
+  clearAuto()
+  gameState = {
+    ...gameState,
+    scene: 'result',
+    run: null,
+    battle: null,
+    currentEvent: null,
+    eventRewardNotice: null,
+    activeTrialModifier: null,
+    intermissionMode: 'none',
+    intermissionCardOptions: [],
+    intermissionRemoveRemaining: 0,
+    rewardCards: [],
+    rewardMaterials: {},
+    shopOffers: [],
+    shopMaterialOffers: [],
+    droppedWeaponId: null,
+    lastResult: 'victory',
+    stats: { ...gameState.stats },
   }
 }
 
@@ -444,6 +573,7 @@ function handleBattleDefeat(newBattle: BattleState): void {
     run: null,
     battle: null,
     currentEvent: null,
+    eventRewardNotice: null,
     activeTrialModifier: null,
     intermissionMode: 'none',
     intermissionCardOptions: [],
@@ -517,10 +647,32 @@ function update() {
     intermissionCardOptions: [] as import('./game/types').CardDef[],
     intermissionRemoveRemaining: 0,
   }
-  const advanceFromIntermission = (run: import('./game/types').RunState): void => {
+  const showTransientRewardNotice = (
+    nextState: Partial<GameState>,
+    rewardNotice: string,
+    duration = 900,
+  ): void => {
+    clearRewardNoticeTimer()
+    gameState = { ...gameState, ...nextState, eventRewardNotice: rewardNotice }
+    update()
+    rewardNoticeTimer = window.setTimeout(() => {
+      rewardNoticeTimer = null
+      gameState = { ...gameState, eventRewardNotice: null }
+      update()
+    }, duration)
+  }
+  const advanceFromIntermission = (
+    run: import('./game/types').RunState,
+    rewardNotice?: string,
+  ): void => {
     const nextRun = advanceToNextAct(run, runtimeRng.next)
     pushGlobalLog(`进入第 ${nextRun.act} 幕`)
-    gameState = { ...gameState, run: nextRun, scene: 'map', ...clearIntermissionState }
+    const nextState = { run: nextRun, scene: 'map' as const, ...clearIntermissionState }
+    if (rewardNotice) {
+      showTransientRewardNotice(nextState, rewardNotice)
+      return
+    }
+    gameState = { ...gameState, ...nextState }
     update()
   }
 
@@ -529,6 +681,7 @@ function update() {
       const newSeedText = seedParam ?? String(Date.now())
       setRuntimeSeed(newSeedText)
       clearAuto()
+      clearRewardNoticeTimer()
       const run = createRunState({
         unlockedBlueprints: [...metaProfile.unlockedBlueprints],
         blueprintMastery: { ...metaProfile.blueprintMastery },
@@ -566,6 +719,11 @@ function update() {
         stats: { turns: 0, remainingHp: 0, runReport: initRunReport(), finalSnapshot: null },
       }
       pushGlobalLog('开始新的一局冒险')
+      update()
+    },
+    onSelectCycleTier: (tier: number) => {
+      if (tier < 0 || tier > gameState.highestUnlockedCycleTier) return
+      gameState = { ...gameState, selectedCycleTier: tier }
       update()
     },
     onContinueGame: () => {
@@ -721,21 +879,21 @@ function update() {
           ? createLegacyWeaponEvent(newRun.legacyWeaponDefId)
           : rollEventByAct(newRun.act, runtimeRng.next)
         pushGlobalLog(`触发事件：${eventDef.title}`)
-        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef }
+        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef, eventRewardNotice: null }
         update()
         return
       }
       if (node.type === 'temple') {
         const eventDef = createTempleEvent()
         pushGlobalLog(`进入圣殿：${eventDef.title}`)
-        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef }
+        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef, eventRewardNotice: null }
         update()
         return
       }
       if (node.type === 'trial') {
         const eventDef = createTrialChoiceEvent()
         pushGlobalLog(`进入试炼：${eventDef.title}`)
-        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef }
+        gameState = { ...gameState, run: newRun, scene: 'event', currentEvent: eventDef, eventRewardNotice: null }
         update()
         return
       }
@@ -744,8 +902,10 @@ function update() {
         let rewardedRun = { ...newRun, gold: newRun.gold + 60 }
         rewardedRun = addMaterialReward(rewardedRun, { steel_ingot: 1, elemental_essence: 1 })
         rewardedRun = completeNode(rewardedRun, rewardedRun.currentNodeId)
-        gameState = { ...gameState, run: rewardedRun, scene: 'map' }
-        update()
+        showTransientRewardNotice(
+          { run: rewardedRun, scene: 'map', currentEvent: null },
+          '已获得 60 金币、精钢锭×1、元素精华×1',
+        )
         return
       }
 
@@ -1057,11 +1217,14 @@ function update() {
     onCampfireHeal: () => {
       if (!gameState.run) return
       pushGlobalLog('篝火：回血')
+      const prevHp = gameState.run.playerHp
       const { hp } = restoreHp(gameState.run, gameState.run.playerHp, gameState.run.playerMaxHp)
       let newRun = { ...gameState.run, playerHp: hp }
       newRun = completeNode(newRun, newRun.currentNodeId)
-      gameState = { ...gameState, run: newRun, scene: 'map' }
-      update()
+      showTransientRewardNotice(
+        { run: newRun, scene: 'map' },
+        `已恢复 ${Math.max(0, hp - prevHp)} HP`,
+      )
     },
     onCampfireUpgradeCard: (cardUid: string) => {
       if (!gameState.run) return
@@ -1069,18 +1232,25 @@ function update() {
       const newDeck = gameState.run.deck.map(c =>
         c.uid === cardUid ? { ...c, upgraded: true } : c
       )
+      const upgradedCard = newDeck.find((card) => card.uid === cardUid)
+      const upgradedCardName = upgradedCard ? getEffectiveCardDef(upgradedCard).name : '卡牌'
       let newRun = { ...gameState.run, deck: newDeck }
       newRun = completeNode(newRun, newRun.currentNodeId)
-      gameState = { ...gameState, run: newRun, scene: 'map' }
-      update()
+      showTransientRewardNotice(
+        { run: newRun, scene: 'map' },
+        `已升级卡牌【${upgradedCardName}】`,
+      )
     },
     onCampfireUpgradeWeapon: () => {
       if (!gameState.run) return
       pushGlobalLog('篝火：升级武器')
       let newRun = upgradeEquippedWeapon(gameState.run)
+      const upgradedWeaponName = newRun.equippedWeapon ? getWeaponDef(newRun.equippedWeapon.defId).name : '当前武器'
       newRun = completeNode(newRun, newRun.currentNodeId)
-      gameState = { ...gameState, run: newRun, scene: 'map' }
-      update()
+      showTransientRewardNotice(
+        { run: newRun, scene: 'map' },
+        `已升级武器【${upgradedWeaponName}】`,
+      )
     },
     onCampfireContinue: () => {
       if (!gameState.run) return
@@ -1222,7 +1392,23 @@ function update() {
     },
     onEventChoose: (optionId) => {
       if (!gameState.run || !gameState.currentEvent) return
+      if (gameState.eventRewardNotice) return
       pushGlobalLog(`事件【${gameState.currentEvent.title}】选择：${optionId}`)
+
+      if (gameState.currentEvent.id === 'secret_thanks_first') {
+        if (optionId !== 'touch_gate') return
+        startSecretBossBattle(gameState.run)
+        update()
+        return
+      }
+
+      if (gameState.currentEvent.id === 'secret_epilogue') {
+        if (optionId !== 'accept_echo') return
+        finalizeSecretVictory(gameState.run)
+        update()
+        return
+      }
+
       if (gameState.currentEvent.id === 'trial_choice') {
         const node = gameState.run.mapNodes.find(n => n.id === gameState.run!.currentNodeId)
         if (!node || node.type !== 'trial' || !node.enemyIds || node.enemyIds.length === 0) return
@@ -1286,6 +1472,7 @@ function update() {
           run: nextRun,
           battle,
           currentEvent: null,
+          eventRewardNotice: null,
           activeTrialModifier: trialModifier,
           scene: 'battle',
         }
@@ -1329,14 +1516,32 @@ function update() {
         battle = startTurn(battle)
         beginBattleReport(nextRun.currentNodeId, 'event', resolved.triggerBattleEnemyIds)
         pushBattleLog('system', battle.turn, `事件战斗开始，玩家 HP ${battle.player.hp}/${battle.player.maxHp}`)
-        gameState = { ...gameState, run: nextRun, battle, currentEvent: null, scene: 'battle' }
+        gameState = { ...gameState, run: nextRun, battle, currentEvent: null, eventRewardNotice: null, scene: 'battle' }
         update()
         return
       }
 
       nextRun = completeNode(nextRun, nextRun.currentNodeId)
-      gameState = { ...gameState, run: nextRun, currentEvent: null, scene: 'map' }
+      if (!resolved.uiNotice) {
+        gameState = { ...gameState, run: nextRun, currentEvent: null, eventRewardNotice: null, scene: 'map' }
+        update()
+        return
+      }
+
+      const resolvedEventId = gameState.currentEvent.id
+      gameState = {
+        ...gameState,
+        run: nextRun,
+        currentEvent: gameState.currentEvent,
+        eventRewardNotice: resolved.uiNotice ?? null,
+        scene: 'event',
+      }
       update()
+      window.setTimeout(() => {
+        if (gameState.scene !== 'event' || gameState.currentEvent?.id !== resolvedEventId) return
+        gameState = { ...gameState, currentEvent: null, eventRewardNotice: null, scene: 'map' }
+        update()
+      }, 900)
     },
     onChooseIntermission: (choiceId) => {
       if (!gameState.run) return
@@ -1384,7 +1589,8 @@ function update() {
         return
       }
       const nextRun = applyIntermissionChoice(gameState.run, choiceId, runtimeRng.next)
-      advanceFromIntermission(nextRun)
+      const rewardNotice = buildIntermissionRewardNotice(gameState.run, nextRun, choiceId)
+      advanceFromIntermission(nextRun, rewardNotice)
     },
     onChooseIntermissionCard: (cardId) => {
       if (!gameState.run) return
@@ -1408,7 +1614,9 @@ function update() {
       if (gameState.intermissionMode === 'foresight_pick') {
         pushGlobalLog(`幕间：选择史诗卡 ${cardId}`)
         const withCard = addCardToDeck(gameState.run, cardId, runtimeRng.next)
-        advanceFromIntermission({ ...withCard, gold: withCard.gold + 50 })
+        const nextRun = { ...withCard, gold: withCard.gold + 50 }
+        const rewardNotice = buildIntermissionRewardNotice(gameState.run, nextRun, 'foresight_eye')
+        advanceFromIntermission(nextRun, rewardNotice)
       }
     },
     onRemoveIntermissionCard: (cardUid) => {

@@ -11,12 +11,16 @@ import { renderShop } from './scenes/shop'
 import { renderInventory } from './scenes/inventory'
 import { renderForge } from './scenes/forge'
 import { renderEnchant } from './scenes/enchant'
-import { renderEvent } from './scenes/event'
+import { buildEventRewardNoticeHtml, renderEvent } from './scenes/event'
 import { getNodeById } from '../game/map'
 import { renderActTransition } from './scenes/act-transition'
 import type { IntermissionChoiceId } from '../game/act'
 
 let lastRenderedScene: GameState['scene'] | null = null
+
+export function buildSceneRewardNoticeHtml(rewardNotice: string): string {
+  return `<div class="scene-reward-notice">${buildEventRewardNoticeHtml(rewardNotice)}</div>`
+}
 
 export function shouldAnimateSceneTransition(previousScene: GameState['scene'] | null, nextScene: GameState['scene']): boolean {
   if (previousScene === null) return false
@@ -33,6 +37,7 @@ export function resolveBossAutoDropHint(nodeType: NodeType | null | undefined, a
 
 export interface GameCallbacks {
   onStartGame: () => void
+  onSelectCycleTier: (tier: number) => void
   onContinueGame: () => void
   onOpenStyleLab: () => void
   onCloseStyleLab: () => void
@@ -106,6 +111,7 @@ export function render(
         callbacks.onToggleMute,
         callbacks.onSetAudioVolume,
         callbacks.onResetGuides,
+        callbacks.onSelectCycleTier,
         state.hasAutoSave,
         state.saveSlots.map((slot) => ({
           slot: slot.slot,
@@ -114,6 +120,8 @@ export function render(
           hp: slot.hp,
           gold: slot.gold,
         })),
+        state.highestUnlockedCycleTier,
+        state.highestUnlockedCycleTier > 0,
         state.challengeUnlocked,
         state.challengeModeEnabled,
         state.skipTutorial,
@@ -121,6 +129,7 @@ export function render(
         state.audio.master,
         state.audio.sfx,
         state.audio.bgm,
+        state.selectedCycleTier,
       )
       break
     case 'style_lab':
@@ -200,7 +209,7 @@ export function render(
       break
     case 'event':
       if (state.currentEvent) {
-        renderEvent(container, state.currentEvent, callbacks.onEventChoose)
+        renderEvent(container, state.currentEvent, callbacks.onEventChoose, state.eventRewardNotice)
       }
       break
     case 'act_transition':
@@ -218,6 +227,10 @@ export function render(
         )
       }
       break
+  }
+
+  if (state.eventRewardNotice && state.scene !== 'event') {
+    container.insertAdjacentHTML('beforeend', buildSceneRewardNoticeHtml(state.eventRewardNotice))
   }
 
   const currentSceneEl = container.firstElementChild as HTMLElement | null

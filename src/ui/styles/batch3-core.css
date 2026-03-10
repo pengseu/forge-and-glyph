@@ -1392,6 +1392,45 @@
   font-size: 11px;
 }
 
+.forge-enchant-detail {
+  border: 2px solid rgba(94, 71, 47, 0.22);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 241, 0.96), rgba(240, 227, 200, 0.9)),
+    url('/assets/textures/tex-kraft-base.webp');
+  background-size: cover, 512px 512px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 92px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.forge-enchant-detail-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+
+.forge-enchant-detail-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--ink-primary);
+}
+
+.forge-enchant-detail-desc,
+.forge-enchant-detail-resonance {
+  font-size: 12px;
+  color: var(--ink-secondary);
+  line-height: 1.5;
+}
+
+.forge-enchant-detail-resonance {
+  color: #7a3e20;
+}
+
 .forge-enchant-row {
   display: flex;
   gap: var(--space-1);
@@ -1726,6 +1765,30 @@
   text-align: center;
 }
 
+.event-reward-notice {
+  margin-top: 2px;
+  padding: 8px 12px;
+  color: var(--ink-primary);
+  background: color-mix(in srgb, var(--paper-cream) 88%, white 12%);
+  border: 2px solid #fff;
+  border-radius: 3px;
+  box-shadow: var(--shadow-s);
+}
+
+.scene-reward-notice {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: min(540px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.scene-reward-notice .event-reward-notice {
+  text-align: center;
+}
+
 .event-desc {
   margin: 0;
   font-size: 14px;
@@ -1888,4 +1951,91 @@
   .inventory-weapons-layout {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* Secret cycle title panel */
+.title-cycle-panel {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(93, 64, 48, 0.24);
+  border-radius: 16px;
+  background: rgba(248, 240, 227, 0.9);
+  box-shadow: 0 10px 22px rgba(72, 46, 32, 0.12);
+}
+.title-cycle-panel--sealed {
+  background: rgba(40, 30, 35, 0.82);
+  color: #eadfd8;
+  border-color: rgba(132, 90, 104, 0.34);
+}
+.title-cycle-kicker {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+.title-cycle-warning {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 700;
+}
+.title-cycle-copy {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.title-cycle-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.title-cycle-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(92, 60, 42, 0.18);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 250, 242, 0.95);
+}
+.title-cycle-item.is-selected {
+  border-color: rgba(126, 76, 54, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(126, 76, 54, 0.18);
+}
+.title-cycle-item.is-locked {
+  opacity: 0.5;
+}
+.title-cycle-label {
+  display: block;
+  font-weight: 700;
+}
+.title-cycle-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+
+.scene-event--abyss .event-panel-v3 {
+  background: linear-gradient(180deg, rgba(27, 20, 27, 0.96), rgba(42, 30, 36, 0.92));
+  color: #f1e6de;
+  border-color: rgba(132, 90, 104, 0.34);
+}
+.scene-event--abyss .event-name-hint {
+  color: rgba(241, 230, 222, 0.76);
+}
+.event-body {
+  display: grid;
+  gap: 8px;
+}
+.event-desc-block {
+  margin: 0;
+}
+.event-desc--corrupt {
+  letter-spacing: 0.03em;
+  color: #f3d6df;
+}
+.event-desc--whisper {
+  color: rgba(241, 230, 222, 0.82);
+  font-style: italic;
 }

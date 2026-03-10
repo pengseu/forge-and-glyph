@@ -267,6 +267,18 @@ export const ENEMIES: Record<string, EnemyDef> = {
       { type: 'attack', value: 22 },
     ],
   },
+  gate_warden: {
+    id: 'gate_warden',
+    name: '门后守望者',
+    sprite: enemySprite('gate_warden'),
+    maxHp: 240,
+    intents: [
+      { type: 'attack', value: 20 },
+      { type: 'defend_attack', defendValue: 14, attackValue: 12 },
+      { type: 'curse', cardId: 'curse_doubt', count: 2 },
+      { type: 'attack', value: 28 },
+    ],
+  },
 }
 
 export function getEnemyDef(id: string): EnemyDef {

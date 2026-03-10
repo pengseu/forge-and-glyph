@@ -8,7 +8,17 @@ export function buildEventNameHint(title: string): string {
 export type EventTextureKind = 'warm' | 'cool' | 'dark'
 
 export function resolveEventTextureKind(eventId: string): EventTextureKind {
-  const darkIds = new Set(['shadow_altar', 'cursed_chest', 'abyss_rift', 'ancient_guardian'])
+  const darkIds = new Set([
+    'shadow_altar',
+    'cursed_chest',
+    'abyss_rift',
+    'ancient_guardian',
+    'secret_thanks_first',
+    'secret_epilogue',
+    'ordinary_recognition',
+    'secret_reentry',
+    'secret_transition',
+  ])
   const coolIds = new Set(['forge_spirit', 'wandering_smith', 'ancient_library', 'trial_choice', 'sanctum_choice'])
   if (darkIds.has(eventId)) return 'dark'
   if (coolIds.has(eventId)) return 'cool'
@@ -19,43 +29,61 @@ function resolveEventArtPath(eventId: string): string {
   return toWebpAsset(`/assets/scenes/events/${eventId}.png`)
 }
 
+export function buildEventBodyHtml(eventDef: EventDef): string {
+  if (eventDef.body && eventDef.body.length > 0) {
+    return eventDef.body.map((block) => `
+      <p class="event-desc event-desc-block ${block.tone ? `event-desc--${block.tone}` : ''}">${block.text}</p>
+    `).join('')
+  }
+  return `<p class="event-desc">${eventDef.description}</p>`
+}
+
+export function buildEventRewardNoticeHtml(rewardNotice: string): string {
+  return `<div class="event-name-hint event-reward-notice" role="status" aria-live="polite">${rewardNotice}</div>`
+}
+
 export function renderEvent(
   container: HTMLElement,
   eventDef: EventDef,
   onChoose: (optionId: EventDef['options'][number]['id']) => void,
+  rewardNotice?: string | null,
 ): void {
   const optionsHtml = eventDef.options.map(opt => `
-    <button class="btn btn-event" data-option-id="${opt.id}">
+    <button class="btn btn-event" data-option-id="${opt.id}" ${rewardNotice ? 'disabled' : ''}>
       <div class="event-option-title">${opt.label}</div>
       <div class="event-option-desc">${opt.description}</div>
     </button>
   `).join('')
 
-  const textureKind = resolveEventTextureKind(eventDef.id)
+  const textureKind = eventDef.presentation === 'abyss' ? 'dark' : resolveEventTextureKind(eventDef.id)
+  const eventNameHint = eventDef.presentation === 'abyss' ? '门在注视你' : buildEventNameHint(eventDef.title)
 
   container.innerHTML = `
-    <div class="scene-event scene-event-v3 scene-event--${textureKind}">
+    <div class="scene-event scene-event-v3 scene-event--${textureKind} ${eventDef.presentation === 'abyss' ? 'scene-event--abyss' : ''}">
       <section class="panel event-panel-v3">
         <div class="event-art" data-event-title="${eventDef.title}">
           <img src="${resolveEventArtPath(eventDef.id)}" alt="${eventDef.title}" loading="lazy" />
         </div>
         <h2 class="event-title">${eventDef.title}</h2>
         <div class="event-divider"></div>
-        <div class="event-name-hint">${buildEventNameHint(eventDef.title)}</div>
-        <p class="event-desc">${eventDef.description}</p>
+        <div class="event-name-hint">${eventNameHint}</div>
+        ${rewardNotice ? buildEventRewardNoticeHtml(rewardNotice) : ''}
+        <div class="event-body">${buildEventBodyHtml(eventDef)}</div>
         <div class="event-options">${optionsHtml}</div>
       </section>
     </div>
   `
 
-  container.querySelectorAll<HTMLElement>('.btn-event').forEach(el => {
-    el.addEventListener('click', () => {
-      container.querySelectorAll('.btn-event').forEach((btn) => btn.classList.remove('is-selected'))
-      el.classList.add('is-selected')
-      const optionId = el.dataset.optionId as EventDef['options'][number]['id']
-      onChoose(optionId)
+  if (!rewardNotice) {
+    container.querySelectorAll<HTMLElement>('.btn-event').forEach(el => {
+      el.addEventListener('click', () => {
+        container.querySelectorAll('.btn-event').forEach((btn) => btn.classList.remove('is-selected'))
+        el.classList.add('is-selected')
+        const optionId = el.dataset.optionId as EventDef['options'][number]['id']
+        onChoose(optionId)
+      })
     })
-  })
+  }
 
   container.querySelectorAll<HTMLImageElement>('.event-art img').forEach((imgEl) => {
     const wrapper = imgEl.closest<HTMLElement>('.event-art')

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildBattleBottomZoneHtml,
+  buildBattleEnemyAreaClass,
+  buildBattleEnemyIntentDisplay,
+  buildBattleSceneClass,
   buildBattleEnemySlotHtml,
   buildBattleEnemyStatusItemHtml,
   buildBattleEnemyStatusDetailHtml,
@@ -74,6 +77,31 @@ describe('battle hud helpers', () => {
     expect(resolveEnemyIntentDetailTitle('18', '将造成 18 点伤害')).toBe('攻击')
     expect(resolveEnemyIntentDetailTitle('10护 / 18伤', '将先获得 10 护甲，再造成 18 伤害')).toBe('护甲 / 攻击')
     expect(resolveEnemyIntentDetailTitle('召唤×2', '将尝试召唤 2 个单位')).toBe('召唤')
+    expect(resolveEnemyIntentDetailTitle('回10', '为生命最低的敌人回复 10 点生命')).toBe('治疗')
+    expect(resolveEnemyIntentDetailTitle('力量+2', '将提升生命最高的敌人 2 点力量')).toBe('强化')
+  })
+
+  it('should build enemy area class with count modifier', () => {
+    expect(buildBattleEnemyAreaClass(4, false)).toBe('enemy-area enemy-area--count-4')
+    expect(buildBattleEnemyAreaClass(2, true)).toBe('enemy-area enemy-area--count-2 target-mode')
+  })
+
+  it('should build act 2 battle root class with shared act1 layout marker', () => {
+    expect(buildBattleSceneClass(2, false)).toBe('scene-battle scene-battle--act2 scene-battle--layout-act1')
+    expect(buildBattleSceneClass(3, true)).toBe('scene-battle scene-battle--act3 scene-battle--layout-act1 scene-battle--eldritch')
+  })
+
+  it('should build readable support intent displays for goblin shaman patterns', () => {
+    expect(buildBattleEnemyIntentDisplay({ type: 'heal_ally_lowest', value: 10 } as any, { strength: 0, weakened: 0 } as any, [] as any)).toMatchObject({
+      intentText: '回10',
+      intentHint: '为生命最低的敌人回复 10 点生命',
+      intentToneClass: 'enemy-intent--heal',
+    })
+    expect(buildBattleEnemyIntentDisplay({ type: 'buff_ally_highest_hp', value: 2 } as any, { strength: 0, weakened: 0 } as any, [] as any)).toMatchObject({
+      intentText: '力量+2',
+      intentHint: '将提升生命最高的敌人 2 点力量',
+      intentToneClass: 'enemy-intent--buff',
+    })
   })
   it('should build enemy slot html with lighter top area and tooltip details', () => {
     const html = buildBattleEnemySlotHtml({

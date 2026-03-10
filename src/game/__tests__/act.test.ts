@@ -4,12 +4,14 @@ import { EMPTY_MATERIAL_BAG } from '../materials'
 import {
   advanceToNextAct,
   applyIntermissionChoice,
+  buildIntermissionRewardNotice,
   getIntermissionChoices,
 } from '../act'
 
 function makeRunState(overrides: Partial<RunState> = {}): RunState {
   return {
     act: 1,
+    cycleTier: 0,
     currentNodeId: 'l1_start',
     visitedNodes: new Set(),
     deck: [],
@@ -25,6 +27,7 @@ function makeRunState(overrides: Partial<RunState> = {}): RunState {
     bonusMaxMana: 0,
     nextBattleEnemyStrengthBonus: 0,
     materials: { ...EMPTY_MATERIAL_BAG },
+    secretState: { hiddenRouteEntered: false, pendingStage: 'none' },
     ...overrides,
   }
 }
@@ -84,5 +87,32 @@ describe('intermission choices', () => {
     const next = applyIntermissionChoice(run, 'knowledge_accumulation', () => 0)
     expect(next.deck.length).toBe(run.deck.length)
     expect(next.deck.some(card => card.defId !== 'slash' && card.defId !== 'block')).toBe(true)
+  })
+
+  it('buildIntermissionRewardNotice should describe war loot reserve rewards', () => {
+    const run = makeRunState({ playerHp: 20, playerMaxHp: 60, gold: 9 })
+    const next = applyIntermissionChoice(run, 'war_loot_reserve')
+    expect(buildIntermissionRewardNotice(run, next, 'war_loot_reserve')).toBe('已获得 40 金币、恢复至满血')
+  })
+
+  it('buildIntermissionRewardNotice should describe legend forge fallback strength gain', () => {
+    const run = makeRunState({
+      act: 2,
+      bonusStrength: 1,
+      equippedWeapon: { uid: 'w1', defId: 'iron_longsword', enchantments: [] },
+      weaponInventory: [{ uid: 'w1', defId: 'iron_longsword', enchantments: [] }],
+    })
+    const next = applyIntermissionChoice(run, 'legend_forge')
+    expect(buildIntermissionRewardNotice(run, next, 'legend_forge')).toBe('已获得 +3 力量')
+  })
+
+  it('buildIntermissionRewardNotice should describe foresight eye card and gold rewards', () => {
+    const run = makeRunState({ act: 2, gold: 20, deck: [{ uid: 'c1', defId: 'slash' }] })
+    const next = {
+      ...run,
+      gold: 70,
+      deck: [...run.deck, { uid: 'new', defId: 'meteor_spell' }],
+    }
+    expect(buildIntermissionRewardNotice(run, next, 'foresight_eye')).toBe('已获得史诗卡【陨石术】、50 金币')
   })
 })
